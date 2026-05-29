@@ -1,7 +1,9 @@
 muppet-labs/
-├── CLAUDE.md
 ├── _core/
 │   ├── CONVENTIONS.md
 │   ├── placeholder-syntax.md
 │   └── templates/
 └── workspaces/
+    ├── project_1
+        ├── CLAUDE.md
+        └── CONTEXT.md
