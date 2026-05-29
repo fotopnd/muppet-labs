@@ -1,1 +1,34 @@
+# ==========================================
+# AI Frameworks & Tooling
+# ==========================================
 .aider*
+
+# ==========================================
+# Obsidian Vault Settings
+# ==========================================
+.obsidian/workspace.json
+.obsidian/workspace-mobile.json
+.obsidian/cache/
+.obsidian/backups/
+#.obsidian/plugins/
+
+# ==========================================
+# TypeScript & JavaScript Dependencies
+# ==========================================
+node_modules/
+dist/
+.npm
+/out
+
+# ==========================================
+# Rust Compilation Artifacts
+# ==========================================
+# This prevents your Mac's fans from spinning up over gigabytes of compiled binaries
+**/target/
+**/*.rs.bk
+
+# ==========================================
+# OS Clean Up
+# ==========================================
+.DS_Store
+Thumbs.db
