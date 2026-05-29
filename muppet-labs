@@ -3,7 +3,8 @@ muppet-labs/
 │   ├── CONVENTIONS.md
 │   ├── placeholder-syntax.md
 │   └── templates/
-└── workspaces/
-    ├── project_1
-        ├── CLAUDE.md
-        └── CONTEXT.md
+├── _test/
+├── workspaces/
+│   ├── project_1
+│       ├── CLAUDE.md
+│       └── CONTEXT.md
