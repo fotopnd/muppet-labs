@@ -11,10 +11,14 @@
             "id": "e7dc78b0ab6f3abc",
             "type": "leaf",
             "state": {
-              "type": "graph",
-              "state": {},
-              "icon": "lucide-git-fork",
-              "title": "Graph view"
+              "type": "markdown",
+              "state": {
+                "file": "resources/project_ideas.md",
+                "mode": "source",
+                "source": false
+              },
+              "icon": "lucide-file",
+              "title": "project_ideas"
             }
           }
         ]
@@ -178,9 +182,11 @@
   },
   "active": "e7dc78b0ab6f3abc",
   "lastOpenFiles": [
+    "CLAUDE.md",
+    "roles/architect/CONTEXT.md",
+    "roles/architect/output/output.md",
     "|-- CONTEXT.md",
     "muppet-labs",
-    "CLAUDE.md",
     "The capital of France is Paris.",
     "What is the capital of France?",
     "claude.md",
