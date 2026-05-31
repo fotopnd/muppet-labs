@@ -15,7 +15,7 @@ The `doc-reviewer` role reads this file before editing. Populated voice rules ar
 
 Both roles apply the rules that are filled in and ignore the sections that remain empty. Neither role invents voice rules from this file's structure.
 
-> **Open item — grammatical person:** The preferred person (first-person singular "I", first-person plural "we", or third-person "the system") is not yet specified. The existing tier examples use first-person singular for Technical and third-person for Executive. Until this is resolved, the author should match the existing examples for those tiers and use first-person singular as the default elsewhere. Update this note when the preference is confirmed.
+> **Grammatical person:** Default is third-person (the system, the harness, the approach). Use "we" when the work was collaborative and the team context is relevant to the point being made. First-person singular "I" is not used. Note: the Technical tier example below uses "I've built" and predates this rule — update it when a replacement example is available.
 
 > **Examples:** Concrete writing samples are forthcoming and will be added to the By Audience Tier section when available. The Technical and Executive tiers each have one example sentence. Technical Leadership has none yet.
 
