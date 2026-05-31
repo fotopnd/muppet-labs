@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import time
+import urllib.error
+import urllib.request
 from dataclasses import dataclass
 
 from eval.config import resolve_anthropic_key, resolve_local_url
@@ -15,10 +17,43 @@ class RunnerResponse:
     finish_reason: str  # "stop" | "length" | "error"
 
 
+def check_backend_reachable(config: RunConfig) -> None:
+    """Fail fast with startup instructions if a local or MLX endpoint is not responding."""
+    if config.model_backend == ModelBackend.CLAUDE:
+        return
+    url = resolve_local_url(config)
+    probe = url.rstrip("/") + "/models"
+    try:
+        urllib.request.urlopen(probe, timeout=3)
+    except urllib.error.HTTPError:
+        return  # server is up; any HTTP response means it's reachable
+    except (urllib.error.URLError, OSError):
+        _raise_endpoint_error(config, url)
+
+
+def _raise_endpoint_error(config: RunConfig, url: str) -> None:
+    if config.model_backend == ModelBackend.MLX:
+        hint = (
+            f"Start the MLX-LM server:\n\n"
+            f"  mlx_lm.server --model {config.model_name} --port 8080\n\n"
+            f"Then re-run the eval."
+        )
+    else:
+        hint = (
+            "Start your local model server before running evals.\n\n"
+            "  Ollama:    ollama serve\n"
+            "  LM Studio: launch the app → Local Server tab → Start Server\n\n"
+            "Then re-run the eval."
+        )
+    raise RuntimeError(
+        f"Cannot reach {config.model_backend.value} endpoint at {url}\n\n{hint}"
+    )
+
+
 def run_case(case: TestCase, config: RunConfig) -> RunnerResponse:
-    if config.model_backend == ModelBackend.LOCAL:
-        return _run_local(case.prompt, config)
-    return _run_claude(case.prompt, config)
+    if config.model_backend == ModelBackend.CLAUDE:
+        return _run_claude(case.prompt, config)
+    return _run_local(case.prompt, config)  # LOCAL and MLX both use the OpenAI-compatible client
 
 
 def _run_local(prompt: str, config: RunConfig) -> RunnerResponse:

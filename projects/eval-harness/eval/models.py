@@ -11,6 +11,7 @@ from pydantic import BaseModel, Field, PrivateAttr, model_validator
 
 class ModelBackend(StrEnum):
     LOCAL = "local"
+    MLX = "mlx"
     CLAUDE = "claude"
 
 

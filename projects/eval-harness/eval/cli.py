@@ -61,7 +61,7 @@ def cmd_run(
 ) -> None:
     from eval.datasets import load_dataset
     from eval.rubrics import get_applicable_rubrics, load_rubric
-    from eval.runner import run_case
+    from eval.runner import check_backend_reachable, run_case
     from eval.scorer import score_result
 
     con = _console()
@@ -74,11 +74,20 @@ def cmd_run(
 
         run_config = load_run_config(config)
     else:
-        resolved_backend = backend or ("claude" if model.startswith("claude-") else "local")
+        from eval.config import load_model_aliases, resolve_alias
+
+        aliases = load_model_aliases()
+        resolved_model, alias_backend = resolve_alias(model, aliases)
+        if resolved_model != model:
+            con.print(f"[dim]Resolved alias '{model}' → {resolved_model}[/dim]")
+        resolved_backend = backend or alias_backend or (
+            "claude" if resolved_model.startswith("claude-") else "local"
+        )
+        model = resolved_model
         try:
             mb = ModelBackend(resolved_backend)
         except ValueError:
-            con.print(f"[red]Unknown backend '{resolved_backend}'. Use 'local' or 'claude'.[/red]")
+            con.print(f"[red]Unknown backend '{resolved_backend}'. Use 'local', 'mlx', or 'claude'.[/red]")
             raise typer.Exit(1) from None
         dataset_list = dataset or ["custom"]
         try:
@@ -97,6 +106,13 @@ def cmd_run(
             dataset_limit=limit,
             run_label=label,
         )
+
+    # --- Pre-flight: verify local/MLX endpoint is reachable ---
+    try:
+        check_backend_reachable(run_config)
+    except RuntimeError as exc:
+        con.print(f"[red]{exc}[/red]")
+        raise typer.Exit(1) from None
 
     # --- Load rubrics ---
     rubric_paths = list(rubric or [])

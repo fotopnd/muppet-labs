@@ -28,11 +28,77 @@ uv run eval --help
 
 ---
 
+## Model Aliases
+
+Aliases let you use short names instead of full model IDs. They are defined in `models.yaml` at the project root.
+
+```bash
+# Instead of:
+uv run eval run --model qwen2.5-coder:7b --backend local
+
+# Use:
+uv run eval run --model small
+```
+
+The alias file ships with entries for Ollama, MLX, and Claude. Edit it to match your local setup:
+
+```yaml
+aliases:
+  small:
+    model: qwen2.5-coder:7b
+    backend: local         # local | mlx | claude
+  mlx-small:
+    model: mlx-community/Qwen2.5-Coder-7B-Instruct-4bit
+    backend: mlx
+  sonnet:
+    model: claude-sonnet-4-6
+    backend: claude
+```
+
+String form is also supported when you do not need to specify a backend:
+
+```yaml
+aliases:
+  my-model: some-model-id   # backend inferred: claude- prefix → claude, else local
+```
+
+The resolved alias is printed at the start of each run.
+
+### Starting local backends
+
+The harness does not manage model processes. The server must be running before `eval run` is called. If the endpoint is unreachable, the harness will fail immediately with the startup command rather than timing out mid-run.
+
+**Ollama**
+```bash
+ollama serve
+# confirm a model is pulled: ollama pull qwen2.5-coder:7b
+```
+
+**LM Studio**
+
+Launch the app → Local Server tab → Start Server. Set `EVAL_LOCAL_URL=http://localhost:1234/v1` or pass `--backend local` with the override in `models.yaml`.
+
+**MLX-LM (Apple Silicon)**
+```bash
+mlx_lm.server --model mlx-community/Qwen2.5-Coder-7B-Instruct-4bit --port 8080
+```
+
+The model name in the command must match the `model` field in your alias entry. First-run model download from HuggingFace happens automatically.
+
+| Backend | Default endpoint | Override env var |
+|---|---|---|
+| `local` (Ollama) | `http://localhost:11434/v1` | `EVAL_LOCAL_URL` |
+| `local` (LM Studio) | `http://localhost:1234/v1` | `EVAL_LOCAL_URL` |
+| `mlx` | `http://localhost:8080/v1` | `EVAL_MLX_URL` |
+
+---
+
 ## Environment Variables
 
 | Variable | Default | Description |
 |---|---|---|
-| `EVAL_LOCAL_URL` | `http://localhost:11434/v1` | Local model endpoint (Ollama default). Set to `http://localhost:1234/v1` for LM Studio. |
+| `EVAL_LOCAL_URL` | `http://localhost:11434/v1` | Ollama/LM Studio endpoint. Set to `http://localhost:1234/v1` for LM Studio. |
+| `EVAL_MLX_URL` | `http://localhost:8080/v1` | MLX-LM server endpoint. |
 | `EVAL_DB_PATH` | `eval_results.db` | SQLite database path. Overridable per-command with `--db`. |
 | `ANTHROPIC_API_KEY` | — | Required for LLM-as-judge scoring and the `claude` backend. |
 

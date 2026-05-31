@@ -1,0 +1,49 @@
+# Model aliases for eval-harness
+#
+# Usage: eval run --model <alias>
+#
+# Backends:
+#   local  — Ollama or LM Studio (OpenAI-compatible endpoint, default: http://localhost:11434/v1)
+#   mlx    — MLX-LM server on Apple Silicon (default: http://localhost:8080/v1)
+#   claude — Anthropic API (requires ANTHROPIC_API_KEY)
+#
+# Override endpoints via env vars:
+#   EVAL_LOCAL_URL   default local endpoint
+#   EVAL_MLX_URL     default MLX endpoint
+#
+# To use a one-off endpoint without editing this file:
+#   eval run --model small --backend local  (uses EVAL_LOCAL_URL)
+
+aliases:
+
+  # --- Local models (Ollama) ---
+  small:
+    model: qwen2.5-coder:7b
+    backend: local
+
+  large:
+    model: gemma2:9b
+    backend: local
+
+  # --- MLX models (mlx_lm.server on Apple Silicon) ---
+  # Start server: mlx_lm.server --model <hf-path> --port 8080
+  mlx-small:
+    model: mlx-community/Qwen2.5-Coder-7B-Instruct-4bit
+    backend: mlx
+
+  mlx-large:
+    model: mlx-community/gemma-2-9b-it-4bit
+    backend: mlx
+
+  # --- Claude models ---
+  haiku:
+    model: claude-haiku-4-5-20251001
+    backend: claude
+
+  sonnet:
+    model: claude-sonnet-4-6
+    backend: claude
+
+  opus:
+    model: claude-opus-4-8
+    backend: claude
