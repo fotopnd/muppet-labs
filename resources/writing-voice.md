@@ -62,7 +62,7 @@ Both roles apply the rules that are filled in and ignore the sections that remai
 ### Technical Leadership
 
 - **Focus:** The bridge between code implementation and operational metrics. Maintain engineering credibility while explicitly detailing how technical choices impact team velocity, system scalability, and risk mitigation.
-- **Example Style:** *(to be added)*
+- **Example Style:** *"The original choice does not scale for concurrent eval runs, as multiple team members will collide on writes. SQLite was a deliberate choice to reduce overhead for sequential, individual workflow. Scaling this up would require migrating to PostgreSQL or introducing a queue feature in front of the write path. Either would be meaningful scope additions."*
 
 ### Executive / Stakeholder
 
