@@ -142,6 +142,24 @@ its output feeds back into the workspace itself (`resources/`, `skills/`, `routi
 
 ---
 
+## Sequence: `write-doc`
+
+**Objective:** Produce a reviewed, edited document about a project for a specific audience and goal.
+**Use when:** A project exists and a written deliverable is needed — portfolio piece, technical summary, stakeholder update, blog post, or any other document type in `resources/doc-types.md`.
+**Review gate:** After `doc-brief` (confirm audience/goal/type before any writing); after `doc-reviewer` (editorial pass complete).
+
+| Step | Role | Reads | Resources | Skills | Output |
+|------|------|-------|-----------|--------|--------|
+| 1 | `doc-brief` | `project-state.md` + project role outputs (human specifies) | `audience-tiers.md`, `doc-types.md` | — | `roles/doc-brief/output/output.md` |
+| 2 | `author` | `doc-brief/output.md`, template, project materials listed in brief | `audience-tiers.md`, `writing-voice.md` | — | `projects/[name]/docs/[doc-name].md` + `roles/author/output/output.md` |
+| 3 | `doc-reviewer` | `doc-brief/output.md`, document | `audience-tiers.md`, `writing-voice.md` | — | document edited in-place + `roles/doc-reviewer/output/output.md` |
+
+> **Verdict: READY** — document is done. No new files created.
+> **Verdict: AUTHOR REWORK NEEDED** — author addresses `[AUTHOR: ...]` flags in the document, then doc-reviewer does a second pass on the same file. No new file created.
+> **Retro does not apply** to `write-doc`. Writing sessions are short-cycle and do not generate workspace tooling friction.
+
+---
+
 ## Adding New Sequences
 
 Append a new section using this format:

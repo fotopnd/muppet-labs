@@ -12,6 +12,8 @@ are defined in `resources/routing.md`.
 
 Each role has a single job. Roles are reusable — the same role can appear in multiple sequences.
 
+**Development roles** — for building software:
+
 | Role | Folder | Job |
 |------|--------|-----|
 | **brief** | `roles/brief/` | Capture a new project idea. Define success, language, scope, constraints. |
@@ -20,6 +22,15 @@ Each role has a single job. Roles are reusable — the same role can appear in m
 | **implementer** | `roles/implementer/` | Generate working code from the architecture output. |
 | **reviewer** | `roles/reviewer/` | Assess output for correctness, style, test coverage, and refactor opportunities. |
 | **debugger** | `roles/debugger/` | Diagnose and fix a specific failure. Reads implementer or reviewer output. |
+| **retro** | `roles/retro/` | Engineering retrospective after a project or milestone. Feeds improvements back into the workspace. |
+
+**Writing roles** — for producing documents about projects:
+
+| Role | Folder | Job |
+|------|--------|-----|
+| **doc-brief** | `roles/doc-brief/` | Writing intake: lock in audience tier, writing goal, document type, and key messages before any draft begins. |
+| **author** | `roles/author/` | Write the document from the doc-brief, the appropriate template, and specified project materials. |
+| **doc-reviewer** | `roles/doc-reviewer/` | Formal editor: edit the document in-place for audience fit, goal achievement, and key message coverage. |
 
 ---
 
@@ -34,6 +45,24 @@ Shared knowledge files in `resources/`. Any role can load any of these. Load onl
 | `rust-conventions.md` | Rust edition, error handling, clippy preferences |
 | `typescript-conventions.md` | TS strict mode, module style, tooling |
 | `vibecoding-style.md` | Owner's iteration preferences and collaboration style |
+| `audience-tiers.md` | Three writing audience tiers: who they are, what they care about, how to calibrate content |
+| `doc-types.md` | Catalog of document types: when to use each, which template, which audience tier |
+| `writing-voice.md` | Individual writing voice guidance — stub until populated in a voice session |
+
+---
+
+## Templates Directory
+
+Document structure files in `templates/`. Loaded by the `author` role. Each template defines required sections, the purpose of each section, and approximate length. Templates do not specify voice or tone — that is in `writing-voice.md`.
+
+| File | Document Type | Audience | Goal |
+|------|--------------|----------|------|
+| `technical-deep-dive.md` | Technical Deep-Dive | Technical | Inform / Educate |
+| `design-proposal.md` | Design Proposal (RFC) | Technical | Persuade |
+| `technical-summary.md` | Technical Summary | Technical Leadership | Inform |
+| `executive-summary.md` | Executive Summary | Executive | Inform / Persuade |
+| `blog-post.md` | Blog Post / Case Study | General / Public | Educate / Persuade |
+| `stakeholder-update.md` | Stakeholder Update | All tiers | Inform |
 
 ---
 
