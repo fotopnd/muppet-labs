@@ -34,25 +34,11 @@ The goal is working software over perfect software, momentum over completeness.
 - **No placeholder logic.** Do not write `# TODO: implement this` or stub functions without noting them explicitly in the output file.
 - **Comments explain why, not what.** The code explains what. Comments explain non-obvious reasoning.
 
-### Python
-- Use `uv` for package management
-- Format and lint with `ruff`
-- Type hints on all function signatures
-- Prefer `pathlib` over `os.path`
-- Dataclasses or Pydantic for structured data, not bare dicts
+Language-specific conventions live in dedicated files — load only the one that applies:
 
-### Rust
-- Edition: 2021
-- Error handling: `anyhow` for applications, `thiserror` for libraries
-- Run `clippy` before considering implementation done
-- Prefer `cargo` workspaces for multi-crate projects
-
-### TypeScript
-- Strict mode always on
-- `pnpm` for package management
-- `prettier` + `eslint` for formatting and linting
-- Prefer named exports over default exports
-- Avoid `any` — use `unknown` and narrow it
+- Python → `resources/python-conventions.md`
+- Rust → `resources/rust-conventions.md`
+- TypeScript → `resources/typescript-conventions.md`
 
 ---
 
