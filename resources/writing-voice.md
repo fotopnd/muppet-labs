@@ -33,7 +33,7 @@ Both roles apply the rules that are filled in and ignore the sections that remai
 ## Sentence and Rhythm
 
 - **Explanatory Clause Structure:** Sentences lean toward comprehensive structures that map cause, effect, and technical context within a single thought. The goal is precision and efficiency, not exhaustion — use multiple clauses when they are more economical than splitting into separate sentences, not to be thorough at the expense of pace.
-- **Smooth Transitions:** Rely on explicit transitional words to guide the reader logically through complex ideas (e.g., *however, therefore, consequently, furthermore, though*). These connectors fit the white paper register and keep logical flow visible.
+- **Smooth Transitions:** Rely heavily on explicit transitional phrases to guide the reader through complex arguments. Use anchors such as *However, Furthermore, Consequently, With this in mind,* and *All things being equal.*
 - **"Though" Over "But":** When making a concessive point, prefer *though* over *but*. "Though" maintains the collegial, reasoned tone. "But" reads as blunt and adversarial in this register.
 - **Punctuation Constraints:**
     - **Strictly Banned:** Never use em-dashes (`—`) or semicolons (`;`).
@@ -45,6 +45,7 @@ Both roles apply the rules that are filled in and ignore the sections that remai
 
 - **Acronym Discipline:** Every technical acronym must be explicitly defined upon its first introduction in the text to ensure baseline accessibility.
 - **Strategic Acronyms for Architecture:** When proposing or documenting a custom framework, lean into using an acronym intentionally to foster name recognition and establish the framework as a discrete, repeatable system object.
+- **Contextual Parentheticals:** Use parenthetical phrases explicitly to define boundaries, baseline parameters, or specific examples inline without breaking sentence cadence.
 - **Banned Constructions:** Do not use em-dashes or semicolons to glue thoughts together. Break complex thoughts into well-structured clauses separated by commas, or into distinct sentences.
 
 ---
@@ -72,7 +73,7 @@ Both roles apply the rules that are filled in and ignore the sections that remai
 
 ## What to Avoid
 
-- **The "Punchy" Copywriter Trap:** Avoid overly brief, fragmented, or single-phrase sentences that disrupt the explanatory flow.
+- **The "Punchy" Copywriter Trap:** Avoid overly brief, fragmented, choppy, or single-phrase sentences that disrupt the explanatory flow.
 - **Lecturing:** Do not present conclusions without reasoning. Show the thinking, invite evaluation, acknowledge tradeoffs. A reader who disagrees should be able to follow the logic, not just feel overruled.
 - **Premature Acronyms:** Never use a technical shorthand or industry-standard abbreviation without anchoring its definition on the first pass.
 - **Punctuation Slippage:** Ensure no em-dashes or semicolons slip into drafts. Watch for them especially in complex sentences where the temptation to reach for a semicolon is highest.
