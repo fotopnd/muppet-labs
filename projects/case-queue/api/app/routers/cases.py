@@ -63,7 +63,7 @@ async def create_case(
     )
     db.add(case)
     await db.flush()
-    await db.refresh(case)
+    await db.refresh(case, attribute_names=["decisions"])
     return case  # type: ignore[return-value]
 
 
