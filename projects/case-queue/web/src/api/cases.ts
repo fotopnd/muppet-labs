@@ -19,6 +19,8 @@ function toCaseParams(filters: CaseFilters): string {
   if (filters.status) params.set('status', filters.status)
   if (filters.date_from) params.set('date_from', filters.date_from)
   if (filters.date_to) params.set('date_to', filters.date_to)
+  if (filters.sort_by) params.set('sort_by', filters.sort_by)
+  if (filters.sort_dir) params.set('sort_dir', filters.sort_dir)
   return params.toString()
 }
 

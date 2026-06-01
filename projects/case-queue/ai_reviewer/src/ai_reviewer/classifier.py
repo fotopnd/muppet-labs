@@ -19,8 +19,8 @@ For each case you receive, respond with a JSON object (and nothing else) in this
 }
 
 Definitions:
-- approve: The content clearly violates policy and should be removed/actioned.
-- reject: The content does not violate policy (false positive). No action needed.
+- approve: The content does NOT violate policy (false positive). No action needed — clear the case.
+- reject: The content clearly violates policy and should be removed/actioned.
 - escalate: The case is ambiguous or high-stakes and requires human senior review.
 
 Use "escalate" when you are uncertain, when content is borderline, or when the potential

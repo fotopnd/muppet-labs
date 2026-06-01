@@ -3,7 +3,7 @@ from __future__ import annotations
 from datetime import datetime
 
 from fastapi import APIRouter, Depends, Query
-from sqlalchemy import func, select
+from sqlalchemy import asc, desc, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_db
@@ -11,6 +11,20 @@ from app.models import Action, Decision
 from app.schemas import AuditEntry, Page
 
 router = APIRouter(tags=["audit"])
+
+_AUDIT_SORT_COLUMNS = {
+    "created_at": Decision.created_at,
+    "action": Decision.action,
+    "actor_id": Decision.actor_id,
+}
+
+
+@router.get("/audit-log/actors", response_model=list[str])
+async def get_audit_actors(db: AsyncSession = Depends(get_db)) -> list[str]:
+    result = await db.execute(
+        select(Decision.actor_id).distinct().order_by(Decision.actor_id)
+    )
+    return list(result.scalars().all())
 
 
 @router.get("/audit-log", response_model=Page[AuditEntry])
@@ -22,6 +36,8 @@ async def get_audit_log(
     action: Action | None = None,
     date_from: datetime | None = None,
     date_to: datetime | None = None,
+    sort_by: str | None = Query(None, pattern="^(created_at|action|actor_id)$"),
+    sort_dir: str = Query("desc", pattern="^(asc|desc)$"),
     db: AsyncSession = Depends(get_db),
 ) -> Page[AuditEntry]:
     filters = _build_filters(case_id, actor_id, action, date_from, date_to)
@@ -31,11 +47,14 @@ async def get_audit_log(
     )
     total = total_result.scalar_one()
 
+    col = _AUDIT_SORT_COLUMNS.get(sort_by or "created_at", Decision.created_at)
+    order_expr = asc(col) if sort_dir == "asc" else desc(col)
+
     offset = (page - 1) * page_size
     items_result = await db.execute(
         select(Decision)
         .where(*filters)
-        .order_by(Decision.created_at.desc())
+        .order_by(order_expr)
         .offset(offset)
         .limit(page_size)
     )

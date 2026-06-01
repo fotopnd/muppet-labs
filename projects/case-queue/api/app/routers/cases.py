@@ -4,7 +4,7 @@ import uuid
 from datetime import UTC, datetime
 
 from fastapi import APIRouter, Depends, HTTPException, Query
-from sqlalchemy import func, select
+from sqlalchemy import asc, desc, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
@@ -13,6 +13,13 @@ from app.models import Case, CaseCategory, CaseStatus, Severity
 from app.schemas import CaseCreate, CaseDetail, CaseListItem, Page
 
 router = APIRouter(tags=["cases"])
+
+_CASE_SORT_COLUMNS = {
+    "created_at": Case.created_at,
+    "severity": Case.severity,
+    "category": Case.category,
+    "status": Case.status,
+}
 
 
 @router.get("/cases", response_model=Page[CaseListItem])
@@ -24,6 +31,8 @@ async def list_cases(
     status: CaseStatus | None = None,
     date_from: datetime | None = None,
     date_to: datetime | None = None,
+    sort_by: str | None = Query(None, pattern="^(created_at|severity|category|status)$"),
+    sort_dir: str = Query("desc", pattern="^(asc|desc)$"),
     db: AsyncSession = Depends(get_db),
 ) -> Page[CaseListItem]:
     filters = _build_filters(category, severity, status, date_from, date_to)
@@ -31,11 +40,14 @@ async def list_cases(
     total_result = await db.execute(select(func.count()).select_from(Case).where(*filters))
     total = total_result.scalar_one()
 
+    col = _CASE_SORT_COLUMNS.get(sort_by or "created_at", Case.created_at)
+    order_expr = asc(col) if sort_dir == "asc" else desc(col)
+
     offset = (page - 1) * page_size
     items_result = await db.execute(
         select(Case)
         .where(*filters)
-        .order_by(Case.created_at.desc())
+        .order_by(order_expr)
         .offset(offset)
         .limit(page_size)
     )

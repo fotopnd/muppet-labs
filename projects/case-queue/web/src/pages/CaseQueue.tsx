@@ -6,15 +6,35 @@ import { ErrorMessage } from '@/components/ErrorMessage'
 import { Pagination } from '@/components/Pagination'
 import { SeverityBadge } from '@/components/SeverityBadge'
 import { StatusBadge } from '@/components/StatusBadge'
-import type { CaseCategory, CaseFilters, CaseStatus, Severity } from '@/types'
+import type { CaseCategory, CaseFilters, CaseSortBy, CaseStatus, Severity, SortDir } from '@/types'
 
 const PAGE_SIZE = 50
+
+type SortState = { by: CaseSortBy; dir: SortDir } | null
+
+type Column = { label: string; sortKey?: CaseSortBy }
+
+const COLUMNS: Column[] = [
+  { label: 'Case ID' },
+  { label: 'Category', sortKey: 'category' },
+  { label: 'Severity', sortKey: 'severity' },
+  { label: 'Status', sortKey: 'status' },
+  { label: 'Created', sortKey: 'created_at' },
+]
+
+function SortIcon({ state, col }: { state: SortState; col: CaseSortBy }) {
+  if (state?.by !== col) return <span className="ml-1 text-xs text-gray-300">↕</span>
+  return (
+    <span className="ml-1 text-xs text-blue-600">{state.dir === 'asc' ? '▲' : '▼'}</span>
+  )
+}
 
 export function CaseQueue() {
   const [page, setPage] = useState(1)
   const [category, setCategory] = useState<CaseCategory | ''>('')
   const [severity, setSeverity] = useState<Severity | ''>('')
   const [status, setStatus] = useState<CaseStatus | ''>('')
+  const [sort, setSort] = useState<SortState>(null)
 
   const filters: CaseFilters = {
     page,
@@ -22,6 +42,7 @@ export function CaseQueue() {
     ...(category && { category }),
     ...(severity && { severity }),
     ...(status && { status }),
+    ...(sort && { sort_by: sort.by, sort_dir: sort.dir }),
   }
 
   const { data, isLoading, isError, error } = useCases(filters)
@@ -31,6 +52,15 @@ export function CaseQueue() {
       setter(e.target.value)
       setPage(1)
     }
+  }
+
+  function handleSort(key: CaseSortBy) {
+    setSort((prev) => {
+      if (prev?.by !== key) return { by: key, dir: 'asc' }
+      if (prev.dir === 'asc') return { by: key, dir: 'desc' }
+      return null
+    })
+    setPage(1)
   }
 
   return (
@@ -96,12 +126,16 @@ export function CaseQueue() {
             <table className="min-w-full divide-y divide-gray-200">
               <thead className="bg-gray-50">
                 <tr>
-                  {['Case ID', 'Category', 'Severity', 'Status', 'Created'].map((h) => (
+                  {COLUMNS.map((col) => (
                     <th
-                      key={h}
-                      className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500"
+                      key={col.label}
+                      onClick={col.sortKey ? () => handleSort(col.sortKey!) : undefined}
+                      className={`px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500 ${
+                        col.sortKey ? 'cursor-pointer select-none hover:text-gray-700' : ''
+                      }`}
                     >
-                      {h}
+                      {col.label}
+                      {col.sortKey && <SortIcon state={sort} col={col.sortKey} />}
                     </th>
                   ))}
                 </tr>

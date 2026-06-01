@@ -63,6 +63,10 @@ export interface DecisionCreate {
   notes: string
 }
 
+export type CaseSortBy = 'created_at' | 'severity' | 'category' | 'status'
+export type AuditSortBy = 'created_at' | 'action' | 'actor_id'
+export type SortDir = 'asc' | 'desc'
+
 export interface CaseFilters {
   page?: number
   page_size?: number
@@ -71,6 +75,8 @@ export interface CaseFilters {
   status?: CaseStatus
   date_from?: string
   date_to?: string
+  sort_by?: CaseSortBy
+  sort_dir?: SortDir
 }
 
 export interface AuditFilters {
@@ -81,4 +87,6 @@ export interface AuditFilters {
   action?: Action
   date_from?: string
   date_to?: string
+  sort_by?: AuditSortBy
+  sort_dir?: SortDir
 }

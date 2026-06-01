@@ -1,17 +1,61 @@
 import { useState } from 'react'
 import { Link } from 'react-router-dom'
 
-import { useAuditLog } from '@/api/audit'
+import { useAuditActors, useAuditLog } from '@/api/audit'
 import { ErrorMessage } from '@/components/ErrorMessage'
 import { Pagination } from '@/components/Pagination'
-import type { AuditFilters } from '@/types'
+import type { Action, AuditFilters, AuditSortBy, SortDir } from '@/types'
 
 const PAGE_SIZE = 50
 
+type SortState = { by: AuditSortBy; dir: SortDir } | null
+
+type Column = { label: string; sortKey?: AuditSortBy }
+
+const COLUMNS: Column[] = [
+  { label: 'Timestamp', sortKey: 'created_at' },
+  { label: 'Case ID' },
+  { label: 'Actor', sortKey: 'actor_id' },
+  { label: 'Action', sortKey: 'action' },
+  { label: 'Notes' },
+]
+
+function SortIcon({ state, col }: { state: SortState; col: AuditSortBy }) {
+  if (state?.by !== col) return <span className="ml-1 text-xs text-gray-300">↕</span>
+  return (
+    <span className="ml-1 text-xs text-blue-600">{state.dir === 'asc' ? '▲' : '▼'}</span>
+  )
+}
+
 export function AuditLog() {
   const [page, setPage] = useState(1)
-  const filters: AuditFilters = { page, page_size: PAGE_SIZE }
+  const [action, setAction] = useState<Action | ''>('')
+  const [actorId, setActorId] = useState('')
+  const [sort, setSort] = useState<SortState>(null)
+
+  const { data: actors } = useAuditActors()
+
+  const filters: AuditFilters = {
+    page,
+    page_size: PAGE_SIZE,
+    ...(action && { action }),
+    ...(actorId && { actor_id: actorId }),
+    ...(sort && { sort_by: sort.by, sort_dir: sort.dir }),
+  }
+
   const { data, isLoading, isError, error } = useAuditLog(filters)
+
+  function handleSort(key: AuditSortBy) {
+    setSort((prev) => {
+      if (prev?.by !== key) return { by: key, dir: 'asc' }
+      if (prev.dir === 'asc') return { by: key, dir: 'desc' }
+      return null
+    })
+    setPage(1)
+  }
+
+  const aiActors = actors?.filter((a) => a.startsWith('ai-')) ?? []
+  const isAiOnly = aiActors.length > 0 && aiActors.includes(actorId)
 
   return (
     <div className="mx-auto max-w-7xl px-4 py-8">
@@ -20,6 +64,55 @@ export function AuditLog() {
         <Link to="/" className="text-sm text-blue-600 hover:underline">
           ← Case Queue
         </Link>
+      </div>
+
+      {/* Filters */}
+      <div className="mb-4 flex flex-wrap items-center gap-3">
+        <select
+          value={action}
+          onChange={(e) => {
+            setAction(e.target.value as Action | '')
+            setPage(1)
+          }}
+          className="rounded border border-gray-300 px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+        >
+          <option value="">All decisions</option>
+          <option value="approve">Approve</option>
+          <option value="reject">Reject</option>
+          <option value="escalate">Escalate</option>
+        </select>
+
+        <select
+          value={actorId}
+          onChange={(e) => {
+            setActorId(e.target.value)
+            setPage(1)
+          }}
+          className="rounded border border-gray-300 px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+        >
+          <option value="">All actors</option>
+          {actors?.map((a) => (
+            <option key={a} value={a}>
+              {a}
+            </option>
+          ))}
+        </select>
+
+        {aiActors.length > 0 && (
+          <button
+            onClick={() => {
+              setActorId((prev) => (isAiOnly ? '' : 'ai-reviewer'))
+              setPage(1)
+            }}
+            className={`rounded border px-3 py-1.5 text-sm ${
+              isAiOnly
+                ? 'border-blue-500 bg-blue-50 text-blue-700'
+                : 'border-gray-300 bg-white text-gray-700 hover:bg-gray-50'
+            }`}
+          >
+            AI Reviewer only
+          </button>
+        )}
       </div>
 
       {isError && (
@@ -36,12 +129,16 @@ export function AuditLog() {
             <table className="min-w-full divide-y divide-gray-200">
               <thead className="bg-gray-50">
                 <tr>
-                  {['Timestamp', 'Case ID', 'Actor', 'Action', 'Notes'].map((h) => (
+                  {COLUMNS.map((col) => (
                     <th
-                      key={h}
-                      className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500"
+                      key={col.label}
+                      onClick={col.sortKey ? () => handleSort(col.sortKey!) : undefined}
+                      className={`px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500 ${
+                        col.sortKey ? 'cursor-pointer select-none hover:text-gray-700' : ''
+                      }`}
                     >
-                      {h}
+                      {col.label}
+                      {col.sortKey && <SortIcon state={sort} col={col.sortKey} />}
                     </th>
                   ))}
                 </tr>
