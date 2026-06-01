@@ -93,3 +93,40 @@ async def test_get_case_not_found(client: AsyncClient) -> None:
     response = await client.get("/cases/nonexistent-id")
     assert response.status_code == 404
     assert "not found" in response.json()["detail"].lower()
+
+
+async def test_create_case_returns_201(client: AsyncClient) -> None:
+    response = await client.post(
+        "/cases",
+        json={
+            "content": "This is offensive content.",
+            "category": "toxic",
+            "severity": "high",
+            "source": "api-test",
+        },
+    )
+    assert response.status_code == 201
+    data = response.json()
+    assert data["status"] == "pending"
+    assert data["content"] == "This is offensive content."
+    assert data["category"] == "toxic"
+    assert data["decisions"] == []
+
+
+async def test_create_case_appears_in_queue(client: AsyncClient) -> None:
+    await client.post(
+        "/cases",
+        json={
+            "content": "Hate speech example.",
+            "category": "identity_hate",
+            "severity": "high",
+            "source": "test",
+        },
+    )
+    response = await client.get("/cases?status=pending")
+    assert response.json()["total"] >= 1
+
+
+async def test_create_case_missing_fields_rejected(client: AsyncClient) -> None:
+    response = await client.post("/cases", json={"content": "Missing category and severity."})
+    assert response.status_code == 422

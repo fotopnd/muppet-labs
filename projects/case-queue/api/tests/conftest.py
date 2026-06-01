@@ -5,11 +5,13 @@ import uuid
 from collections.abc import AsyncGenerator
 from datetime import UTC, datetime
 
-import pytest
+import pytest_asyncio
 from httpx import ASGITransport, AsyncClient
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
+from sqlalchemy.pool import NullPool
 
+from app.database import get_db
 from app.main import app
 from app.models import Base, Case, CaseCategory, CaseStatus, Severity
 
@@ -18,49 +20,62 @@ TEST_DATABASE_URL = os.getenv(
     "postgresql+asyncpg://postgres:postgres@localhost:5432/case_queue_test",
 )
 
-_test_engine = create_async_engine(TEST_DATABASE_URL, echo=False)
-_test_session_factory = async_sessionmaker(_test_engine, expire_on_commit=False)
+
+def _engine():
+    """NullPool engine — fresh connection per call, no cross-loop state."""
+    return create_async_engine(TEST_DATABASE_URL, poolclass=NullPool)
 
 
-@pytest.fixture(scope="session", autouse=True)
-async def setup_test_db() -> AsyncGenerator[None, None]:
-    async with _test_engine.begin() as conn:
+# All fixtures are function-scoped so they share the same event loop as the
+# test they serve. No session-scoped async fixtures → no loop mismatch.
+
+@pytest_asyncio.fixture(autouse=True)
+async def setup_and_teardown() -> AsyncGenerator[None, None]:
+    """Create schema (no-op after first run), yield, then truncate."""
+    engine = _engine()
+    async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
-    yield
-    await _test_engine.dispose()
+    await engine.dispose()
 
-
-@pytest.fixture(autouse=True)
-async def truncate(setup_test_db: None) -> AsyncGenerator[None, None]:
     yield
-    async with _test_engine.begin() as conn:
+
+    engine = _engine()
+    async with engine.begin() as conn:
         await conn.execute(text("TRUNCATE cases, decisions RESTART IDENTITY CASCADE"))
+    await engine.dispose()
 
 
-@pytest.fixture
+@pytest_asyncio.fixture
 async def db_session() -> AsyncGenerator[AsyncSession, None]:
-    async with _test_session_factory() as session:
+    engine = _engine()
+    factory = async_sessionmaker(engine, expire_on_commit=False)
+    async with factory() as session:
         yield session
+    await engine.dispose()
 
 
-@pytest.fixture
-async def client(db_session: AsyncSession) -> AsyncGenerator[AsyncClient, None]:
-    """AsyncClient wired to the FastAPI app with the test session injected."""
-    import app.database as db_module
+@pytest_asyncio.fixture
+async def client() -> AsyncGenerator[AsyncClient, None]:
+    engine = _engine()
+    factory = async_sessionmaker(engine, expire_on_commit=False)
 
-    original = db_module._session_factory
-    db_module._session_factory = _test_session_factory
-    db_module._engine = _test_engine
+    async def _get_test_db() -> AsyncGenerator[AsyncSession, None]:
+        async with factory() as session:
+            try:
+                yield session
+                await session.commit()
+            except Exception:
+                await session.rollback()
+                raise
 
-    async with AsyncClient(
-        transport=ASGITransport(app=app), base_url="http://test"
-    ) as ac:
+    app.dependency_overrides[get_db] = _get_test_db
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as ac:
         yield ac
+    app.dependency_overrides.clear()
+    await engine.dispose()
 
-    db_module._session_factory = original
 
-
-@pytest.fixture
+@pytest_asyncio.fixture
 async def seeded_case(db_session: AsyncSession) -> Case:
     now = datetime.now(UTC)
     case = Case(

@@ -50,6 +50,14 @@ class CaseDetail(BaseModel):
     decisions: list[DecisionRead]
 
 
+class CaseCreate(BaseModel):
+    content: str = Field(min_length=1)
+    category: CaseCategory
+    severity: Severity
+    source: str = Field(min_length=1)
+    meta: dict = Field(default_factory=dict)
+
+
 class DecisionCreate(BaseModel):
     action: Action
     notes: str = Field(min_length=1)

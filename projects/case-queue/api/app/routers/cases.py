@@ -1,6 +1,7 @@
 from __future__ import annotations
 
-from datetime import datetime
+import uuid
+from datetime import UTC, datetime
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy import func, select
@@ -9,7 +10,7 @@ from sqlalchemy.orm import selectinload
 
 from app.database import get_db
 from app.models import Case, CaseCategory, CaseStatus, Severity
-from app.schemas import CaseDetail, CaseListItem, Page
+from app.schemas import CaseCreate, CaseDetail, CaseListItem, Page
 
 router = APIRouter(tags=["cases"])
 
@@ -41,6 +42,29 @@ async def list_cases(
     items = list(items_result.scalars().all())
 
     return Page(items=items, total=total, page=page, page_size=page_size)
+
+
+@router.post("/cases", response_model=CaseDetail, status_code=201)
+async def create_case(
+    body: CaseCreate,
+    db: AsyncSession = Depends(get_db),
+) -> CaseDetail:
+    now = datetime.now(UTC)
+    case = Case(
+        id=str(uuid.uuid4()),
+        content=body.content,
+        category=body.category,
+        severity=body.severity,
+        status=CaseStatus.pending,
+        source=body.source,
+        meta=body.meta,
+        created_at=now,
+        updated_at=now,
+    )
+    db.add(case)
+    await db.flush()
+    await db.refresh(case)
+    return case  # type: ignore[return-value]
 
 
 @router.get("/cases/{case_id}", response_model=CaseDetail)
