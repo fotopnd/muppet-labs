@@ -1,70 +1,77 @@
-# Retro — Model Behaviour Evaluation Harness
+# Retro — case-queue
 
-**Role:** retro | **Date:** 2026-05-31  
+**Role:** retro | **Date:** 2026-06-01  
 **Inputs:** `roles/reviewer/output/output.md`, `roles/implementer/output/output.md`, `_config/project-state.md`, `resources/routing.md`, `resources/vibecoding-style.md`
 
 ---
 
 ## Project
 
-**Name:** eval-harness  
+**Name:** case-queue  
 **Sequence:** `new-project-full`  
-**Sessions:** 1 (single sitting, 2026-05-31)  
+**Sessions:** 1 (single sitting, 2026-06-01)  
 **Roles that ran:** brief → planner → architect → implementer → reviewer → retro  
 **Debug-fix runs:** 0  
-**Blockers encountered:** 0 (formal), 1 environmental (uv not installed; resolved inline)
+**Blockers encountered:**
+- `pnpm` not installed — resolved inline (`npm install -g pnpm`)
+- `shadcn/ui` installation is interactive — resolved by switching to raw Tailwind CSS
+- TypeScript 6 rejects `baseUrl` in tsconfig — resolved by removing it (paths alone sufficient)
+- `import { defineConfig } from 'vite'` lacks `test:` type — resolved by using `vitest/config`
+- `pydantic-settings` ValidationError on shared `.env` — resolved with `extra="ignore"`
 
 ---
 
 ## What Went Well
 
-**1. Pre-designed architecture via plan mode**
+**1. Prior retro recommendations were applied**
 
-The plan mode session substantially designed the architect output before the roles ran. This meant the architect role was a synthesis and validation pass rather than a blank-sheet design exercise. The four open questions (OQ1–OQ4) were each proposed with an answer by the planner and simply confirmed by the architect — no back-and-forth. The result was a clean, confident implementer handoff. Worth preserving: when a project is well-specified at intake, this is efficient. The architect should not feel obligated to re-derive what the plan already settled.
+The eval-harness retro identified four gaps: missing `skills/setup-uv-project.md`, missing `resources/python-conventions.md`, retro absent from routing sequence, and no archive convention. All four were addressed before this project started. Both setup skills (`setup-uv-project.md` and the new `setup-ts-pnpm.md`) were present at intake. The archive convention was followed correctly — both reviewer and retro outputs were archived before overwriting. The workspace is visibly improving across projects.
 
-**2. Open questions proposed with answers**
+**2. Implementer self-documented deviations clearly**
 
-The planner's four open questions all came with a `Proposed answer:` inline. This made the architect's resolution mechanical rather than creative, and kept the role sequence moving without human intervention between planner and architect. This pattern — raise the question + propose the default — should be codified as expected planner behaviour.
+The implementer output listed five deviations from the architecture with the reason for each. This made the reviewer's job mechanical: each deviation was already explained, so the reviewer confirmed or challenged rather than discovering. The double-commit concern was self-flagged by the implementer and cleared by the reviewer (correctly: `flush()` is within-transaction, commit is single). This is the intended loop.
 
-**3. Reviewer findings were complete and immediately actionable**
+**3. Role sequence ran without human intervention between roles**
 
-All five reviewer findings (C1, C2, S1, S2, T1) were fixed in a single follow-up pass: 5 code changes + 4 new tests, committed in one shot. The reviewer output was well-structured: severities were clear, files and line numbers were specified, and refactor candidates were distinguished from blockers. Zero ambiguity about what to do.
+No role needed to surface a blocking question. The architect's open questions all carried proposed answers. Handoff sections directed each subsequent role clearly. The only pauses were intentional sign-off gates.
 
-**4. Role output chain was linear with no re-reads**
+**4. Reviewer findings were precise and ordered**
 
-Each role read exactly one upstream output. No role needed to go back further than its immediate predecessor. Handoff sections were populated and used. This is the sequence working as designed.
+Two of the reviewer findings are labelled "blocking for ruff clean" (enums and unused import) with the exact fix stated. Non-blocking items are clearly separated. The severity gradient makes it unambiguous what must be done versus what is optional.
 
-**5. Smoke test on first try**
+**5. Test architecture was clean**
 
-The end-to-end smoke test (`eval run` against `qwen2.5-coder:7b`) ran cleanly without any debugging. Mean score 1.000, refusal accuracy 1.000, `eval diff` showed correct zero drift between identical runs. This is attributable to: (a) the architect specifying exact interfaces before implementation, (b) the test suite covering the runner against a mock HTTP server so the code path was already validated before touching a live LLM.
+Backend integration tests hit a real Postgres instance (per the architect decision to avoid mocks). Frontend tests mock at the hook layer (a convention deviation, but consistent and fast). The conftest.py pattern — session-scoped `create_all`, per-test truncate — is a solid repeatable pattern for SQLAlchemy async test setups.
 
 ---
 
 ## What Could Have Gone Better
 
-**1. `skills/setup-uv-project.md` was missing**
+**1. TypeScript conventions file was missing — same pattern as Python conventions in eval-harness**
 
-The planner referenced this skill but it didn't exist. The setup steps (uv init, uv add, pyproject.toml entry point, build system config) were duplicated inline in the planner output. This meant the planner output was longer than it needed to be, and those steps are not reusable for the next Python project. **This is the clearest gap in the workspace.**
+`resources/typescript-conventions.md` did not exist at the start of this project. The decision log records it was created mid-session, before the architect ran. This is the second consecutive project where a language conventions file had to be created mid-sequence. The pattern suggests the workspace should confirm all required language resources exist before running `brief`, not discover the gap at the planner or architect stage.
 
-**2. `resources/python-conventions.md` was missing**
+**2. `skills/setup-ts-pnpm.md` was also missing — same pattern**
 
-The planner and architect both note "apply conventions from vibecoding-style.md directly" as a workaround. `vibecoding-style.md` contains Python preferences (uv, ruff, pathlib, Pydantic, type hints) embedded inside a broader collaboration style document. Extracting these into a dedicated `python-conventions.md` would: (a) make it loadable independently by roles that only need language guidance, (b) allow `vibecoding-style.md` to stay lean.
+`skills/setup-ts-pnpm.md` did not exist. Created mid-session. Two setup skills were missing (Python in eval-harness, TypeScript here). Rust will be next. A pre-project checklist that confirms all needed skills exist would prevent this recurring gap.
 
-**3. pyproject.toml structure required a debugging detour**
+**3. TypeScript 6 breaking changes not documented — caused a detour**
 
-When `uv add` was run before a build system was configured, it wrote `requires-python` and `dependencies` under `[tool.uv]` instead of `[project]`. This is a uv quirk when the project has no proper `[project]` table. The correct workflow is: write the full `[project]` table first, then run `uv add`. The `setup-uv-project.md` skill would have documented this.
+The architect spec included `baseUrl` in tsconfig. TypeScript 6 rejects `baseUrl` with a hard error when `moduleResolution: bundler` is active. This was discovered at implementation time, not at planning time. `typescript-conventions.md` was created during this session but did not include this gotcha (it was created before the detour occurred). The file needs updating.
 
-**4. uv was not installed — discovered mid-session**
+Additionally, `vitest/config` vs `vite` for the defineConfig import is a non-obvious requirement. Both gotchas should live in `typescript-conventions.md` so the architect or implementer can avoid them next time.
 
-The first `uv` call failed. Installation happened inline (curl installer). This could have been caught earlier if the workspace had a "known environment state" section in `project-state.md`. It wasn't a significant blocker but added friction.
+**4. shadcn/ui specified by architect — implementation reality not documented**
 
-**5. Architect output was overlong relative to what the implementer consumed**
+The architect spec called for shadcn/ui. `npx shadcn@latest init` is interactive — it cannot run in a non-interactive session. The fallback to raw Tailwind was correct and fast, but the architect shouldn't recommend a tool whose installation flow is incompatible with the workspace's execution model without noting the workaround. `skills/setup-ts-pnpm.md` should document the shadcn/ui interactivity constraint and the Tailwind fallback.
 
-The architect output contained detailed YAML examples for rubric files. These were re-created from scratch during implementation — the implementer did not copy from the architect's examples. The architect's job is interfaces and decisions, not worked examples of the artefacts the implementer will produce. The YAML examples added length without adding handoff value.
+**5. pydantic-settings `extra="ignore"` discovered at runtime**
 
-**6. Retro is not in the routing sequence**
+The `.env` file is shared between the FastAPI backend and the Vite frontend. `pydantic-settings` raises `ValidationError` on unknown variables unless `extra="ignore"` is set. This is a predictable interaction when a shared `.env` pattern is used. It was not in the planner or architect output and had to be resolved during implementation. `python-conventions.md` should document this as a standard pydantic-settings pattern when shared env files are used.
 
-`new-project-full` defines 5 steps. The retro role exists but is not listed as step 6. Without it in routing, it relies on the human to remember to call it. For a "complete" project cycle, the retro should appear as an optional final step.
+**6. Retro archive convention not applied to retro itself**
+
+The archive convention in `routing.md` describes archiving `roles/[role]/output/output.md` before overwriting. It applies to all roles. The previous retro output was archived correctly this session — but this required the executing role to check for a prior output and archive it manually. The retro's own `CONTEXT.md` process steps do not mention this. The convention should appear in every role's CONTEXT.md or be pulled from routing.md explicitly at step 0.
 
 ---
 
@@ -74,24 +81,22 @@ The architect output contained detailed YAML examples for rubric files. These we
 
 | Stage | Issue | Estimated Waste | Recommendation |
 |-------|-------|-----------------|----------------|
-| Plan mode | Architecture designed in full before planner/architect roles ran; same design replicated across three documents (plan, planner output, architect output) | Medium | Accept this for complex projects. For simpler scopes, use `new-project-vibe` which collapses brief+planner. Add a note to routing.md: "if plan mode was used, architect may read the plan output directly and skip redundant derivation." |
-| Architect output | Detailed YAML examples for rubric files — not consumed by implementer as reference, re-created independently | Low | Remove example artefacts from architect output template. Architect specifies schema and constraints; implementer writes the file. |
-| Planner output | uv setup steps inline (14 lines) because `skills/setup-uv-project.md` is missing | Low | Create the skill file; planner references it with one line |
-| vibecoding-style.md | Loaded by brief, planner, and implementer; contains Python-specific content that is only relevant to language-specific roles | Low | Extract Python content to `python-conventions.md`; roles that don't need language guidance load only `vibecoding-style.md` |
-| Reviewer output | Listed all 26 code files in the scope section; only 5 files were actually discussed in findings | Low | Reviewer should read the manifest from implementer output but only list files that generated findings. Remove "files reviewed" section from reviewer output if findings are file-specific. |
+| Reviewer | Reads full implementer output including 80-line "How to Run" section and setup steps — irrelevant to code review | Low | Add a `## Review Summary` section at the top of implementer output with: deviations, known gaps, flagged concerns. Reviewer reads this first; only loads full manifest if needed for context. |
+| Reviewer | Role contract asks reviewer to "read each code file listed in the implementer's file manifest" — 30+ files for a fullstack project | Medium | Add a qualifier: "focus reads on files flagged by the implementer, plus all router/handler files. Read shared utilities only if a finding requires it." |
+| Implementer | Loads `vibecoding-style.md` + `python-conventions.md` + `typescript-conventions.md` — for a polyglot project this is three resources plus the architect output | Low-Medium | For polyglot projects, define a combined conventions load in routing.md rather than loading each file separately. Or create a `fullstack-web.md` stub that delegates to the individual files. |
+| All roles | Archive check (does a prior output exist, should it be archived) is implicit and requires a read at the start of every role | Low | Add step 0 to every role's CONTEXT.md Process section: "Archive any existing `output/output.md` to `output/archive/[date]-[project]-output.md` before writing." Eliminates the implicit check. |
 
 ### Redundancy Patterns
 
-- The **project description** appeared verbatim in: the user's /plan args, the brief output, the planner output summary, the architect system overview, and the project-state.md. Five copies. Only the brief output and project-state.md entries are load-bearing for future sessions.
-- The **open questions + proposed answers** in the planner output were reproduced as "resolved" in the architect output. The architect output need only state the resolution, not re-quote the question.
-- The **`vibecoding-style.md` working-before-clean principle** was quoted or paraphrased in the brief, planner, and architect outputs. It is already in a shared resource; roles should rely on it being loaded rather than restating it.
+- The **project description** appears in brief output, planner output, architect output, implementer output header, and project-state.md. For a single-session project this is acceptable overhead. For multi-session projects it adds load on each context resumption.
+- The **"How to Run" section** in implementer output is the right place for it — but it is read by the reviewer even though the reviewer never runs the code. The reviewer contract should scope its implementer read to specific sections.
+- The **deviations table** in implementer output is exactly what the reviewer needs. It worked well as the primary input for the correctness assessment. This pattern should be made explicit in the implementer role contract: "the deviations table is the reviewer's primary input; populate it carefully."
 
 ### Scoping Recommendations
 
-1. **Planner** input table: remove `vibecoding-style.md` if `python-conventions.md` exists and is comprehensive. The planner's job is requirements and structure, not style.
-2. **Architect** input table: architect does not need `vibecoding-style.md` — it has no bearing on data models or interfaces. Remove it from the architect's load list.
-3. **Brief** input table: `vibecoding-style.md` is correct here — it sets vibe vs structured mode. Keep.
-4. **Implementer** input table: should load `python-conventions.md` (language-specific) + `vibecoding-style.md` (working style). Correct as-is once the conventions file exists.
+1. Add a `## Review Summary` section (5–10 lines) to the implementer output template. Contents: deviations, known gaps, specific concerns for reviewer. Reviewer reads this section before deciding which files to load.
+2. In the reviewer's process steps, change "Read each code file listed in the implementer's file manifest" to "Read files flagged in the implementer's Review Summary, plus all router/handler files. Read others as needed for specific findings."
+3. Add step 0 (archive check) explicitly to every role's CONTEXT.md process section — stops the implicit check from being missed.
 
 ---
 
@@ -101,50 +106,52 @@ The architect output contained detailed YAML examples for rubric files. These we
 
 | File | Change | Reason | Human decision required? |
 |------|--------|--------|--------------------------|
-| `resources/vibecoding-style.md` | Extract the Python, Rust, and TypeScript subsections into `resources/python-conventions.md`, `resources/rust-conventions.md`, `resources/typescript-conventions.md`. Replace with a single line: "Language conventions are in `[lang]-conventions.md`." | Reduces load for roles that only need style, not language specifics | No |
-| `resources/routing.md` | Add step 6 to `new-project-full`: `retro` role, reads reviewer output + project-state, produces `roles/retro/output/output.md`. Mark as optional. | Retro exists but is absent from the sequence | No |
-| `resources/routing.md` | Add a note under `new-project-full`: "If plan mode ran before the sequence, the architect may treat the plan file as a pre-resolved planner output and skip re-deriving decisions already settled there." | Reduces redundancy when plan mode is used | No |
+| `resources/typescript-conventions.md` | Add subsection "## Known TypeScript 6 Breaking Changes": (1) `baseUrl` with `moduleResolution: bundler` raises an error — use `paths` only; (2) `import { defineConfig } from 'vite'` lacks `test:` typing — use `vitest/config` which re-exports all vite types | Two detours this project; prevent next time | No |
+| `resources/python-conventions.md` | Add to the pydantic-settings section: "When a shared `.env` file is used (e.g. env shared with a frontend), add `extra="ignore"` to BaseSettings to prevent ValidationError on unknown variables." | Discovered at implementation time; predictable interaction | No |
 
 ### Skills to Update
 
 | File | Change | Reason | Human decision required? |
 |------|--------|--------|--------------------------|
-| `skills/setup-uv-project.md` | **Create this file.** Content: `uv init <name> --python 3.12`, write full `[project]` table first, then `uv add` dependencies, `uv add --dev` for dev deps, add `[project.scripts]` entry point, add `hatchling` build system + `[tool.uv] package = true` for CLI projects, `uv sync`, verify with `uv run <entry>`. Include the pyproject.toml key-ordering gotcha (uv writes deps under `[tool.uv]` if `[project]` is incomplete). | Referenced by planner but missing; caused inline duplication and a pyproject.toml debugging detour | No |
+| `skills/setup-ts-pnpm.md` | Add a note under the component library step: "shadcn/ui (`npx shadcn@latest init`) is interactive — it cannot be run in a non-interactive session. Fallback: raw Tailwind CSS utility classes. The Tailwind implementation is portfolio-equivalent. If shadcn is required, document manual setup steps for the human to run." | shadcn fallback occurred this project; architect should be informed of the constraint before specifying it | No |
 
 ### Routing Changes
 
 | Sequence | Change | Reason | Human decision required? |
 |----------|--------|--------|--------------------------|
-| `new-project-full` | Add step 6: `retro` (optional) | Retro role exists but is absent from the canonical sequence | No |
-| `new-project-vibe` | No change | Retro is overkill for vibe-mode projects | — |
+| All sequences | Add to the preamble (below the archive convention): "**Pre-role check:** Before the first role runs, confirm all language resources (`[lang]-conventions.md`) and setup skills exist for the target languages. If missing, create them before proceeding." | Same missing-resource gap occurred twice in two projects | No |
 
 ### New Resources or Skills Needed
 
-**`resources/python-conventions.md`** (extract from `vibecoding-style.md`)  
-Proposed content: uv for package management, ruff for lint/format, type hints on all signatures, pathlib over os.path, Pydantic v2 or dataclasses for structured data, no bare dicts, working-before-clean for first pass.  
-Roles that would load it: planner (tech stack confirmation), implementer (code production), reviewer (style assessment).
+**`resources/typescript-conventions.md` — update in place (see Resources to Update above)**
 
-**`_config/project-state.md` template addition — `## Known Environment` section**  
-Proposed content: a table listing tool versions and installation status (uv, ruff, Ollama, ANTHROPIC_API_KEY, etc.) to be filled in at the start of a project. Prevents mid-session environment discovery.  
-Roles that would use it: implementer (setup steps), anyone running CLI tools.
+**Pre-project checklist (optional)** — a short `resources/pre-project-checklist.md` that lists what to verify before `brief` runs:
+- Required language resource files exist
+- Required setup skill files exist  
+- `_config/project-state.md` is updated with active project name
+- Known environment section is current
+
+This is low priority for now (the workspace is small and the pattern is clear). Worth creating if a third "missing resource" gap appears in a future project.
+
+### Role Contract Updates
+
+| File | Change | Reason | Human decision required? |
+|------|--------|--------|--------------------------|
+| All role `CONTEXT.md` files | Add step 0 to Process section: "Archive any existing `output/output.md` to `archive/[date]-[project]-output.md` before writing." | Archive convention is in routing.md but not in role contracts; roles should not depend on the executor knowing to check routing.md for this | No |
+| `roles/implementer/CONTEXT.md` | Add `## Review Summary` as a required section in the Output template: "5–10 lines: deviations from architecture, known gaps, specific concerns for the reviewer. This is the reviewer's primary input." | Reduces reviewer context load; makes the deviations table more prominent | No |
+| `roles/reviewer/CONTEXT.md` | Change "Read each code file listed in the implementer's file manifest" to "Read the implementer's Review Summary section first. Load files flagged there, plus all router/handler/endpoint files. Read shared utilities only if a finding requires it." | Reduces unnecessary file reads on large projects | No |
 
 ---
 
 ## One Change to Make Now
 
-**Create `skills/setup-uv-project.md`.**
+**Update `resources/typescript-conventions.md` with the TypeScript 6 breaking changes.**
 
-This was the most direct cause of planner output bloat (inline setup steps) and the pyproject.toml corruption detour. The skill file is self-contained, reusable across all future Python projects, and would have prevented both issues in this project. 
+Add a `## Known TypeScript 6 Breaking Changes` subsection with two entries:
+1. `baseUrl` with `moduleResolution: bundler` raises a hard TypeScript 6 error. Use `paths` alone — `baseUrl` is not needed when `moduleResolution` is `bundler`. Remove `baseUrl` from any tsconfig that uses bundler resolution.
+2. `import { defineConfig } from 'vite'` does not include types for the `test:` config block used by vitest. Use `import { defineConfig } from 'vitest/config'` instead — it re-exports all vite config types and adds the `test:` block.
 
-The file should include, at minimum:
-1. `uv init <name> --python 3.12` — note that it creates a `main.py` stub to delete
-2. Write the complete `[project]` table in `pyproject.toml` before running `uv add` (avoids the `[tool.uv]` contamination bug)
-3. `uv add <deps>` + `uv add --dev <dev-deps>`
-4. For CLI entry point projects: add `[project.scripts]`, `[build-system]` (hatchling), `[tool.hatch.build.targets.wheel]`, and `[tool.uv] package = true`
-5. `uv sync` to verify
-6. `uv run <entry> --help` to confirm the entry point resolves
-
-Apply this before the next Python project starts.
+These are concrete, documented, and will prevent two avoidable detours in the next TypeScript project.
 
 ---
 
@@ -153,9 +160,11 @@ Apply this before the next Python project starts.
 This output is for human review. No workspace files have been modified.
 
 **Recommended actions (in priority order):**
-1. Create `skills/setup-uv-project.md` (highest value, no decision required)
-2. Add retro as optional step 6 to `new-project-full` in `resources/routing.md`
-3. Create `resources/python-conventions.md` by extracting from `resources/vibecoding-style.md`
-4. Add `## Known Environment` section to `_config/project-state.md` template
+1. Update `resources/typescript-conventions.md` — add the TS6 breaking changes subsection (highest value, no decision required, ~10 lines)
+2. Update `resources/python-conventions.md` — add `extra="ignore"` pydantic-settings note (~3 lines)
+3. Update `skills/setup-ts-pnpm.md` — add shadcn/ui interactivity note (~5 lines)
+4. Add pre-role check convention to routing.md preamble (~3 lines)
+5. Add step 0 (archive check) to all role CONTEXT.md process sections — defer until next time a role is opened for editing
+6. Add `## Review Summary` to implementer CONTEXT.md output template — defer until next project
 
-Update `_config/project-state.md` to record that the retro ran on 2026-05-31 and which of the above were actioned.
+**Update `_config/project-state.md`** to record that the retro ran on 2026-06-01 and which recommendations were actioned.

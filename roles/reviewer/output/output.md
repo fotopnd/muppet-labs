@@ -1,114 +1,139 @@
-# Reviewer — Model Behaviour Evaluation Harness
+# Reviewer — case-queue
 
-**Sequence:** `new-project-full` | **Role:** reviewer | **Step:** 5 of 5  
-**Date:** 2026-05-31  
-**Reads:** `roles/implementer/output/output.md` + all code files in `projects/eval-harness/`
+**Sequence:** `new-project-full` | **Role:** reviewer | **Step:** 5 of 6  
+**Date:** 2026-06-01  
+**Reads:** `roles/implementer/output/output.md`, all code files in `projects/case-queue/`  
+**Resources:** `resources/python-conventions.md`, `resources/typescript-conventions.md`
 
 ---
 
 ## Summary
 
-The eval-harness is working software: 40 tests pass, ruff is clean, and the CLI entry point resolves. The architecture is faithfully implemented — data models, SQLite storage, heuristic and LLM-as-judge scoring, drift computation, and all four CLI commands are present and correctly wired. Two correctness notes (naive datetimes, mutable-EvalResult anti-pattern) and two test coverage gaps (BOTH-mode merge, judge retry) do not block the harness from functioning but should be addressed before the reviewer considers this production-grade.
+case-queue is working software: the FastAPI backend is correctly structured, the async session/commit flow is sound (the flagged double-commit concern is not real — see C1), and the React frontend builds cleanly with 11/11 frontend tests passing. Two ruff findings will block a clean `ruff check` pass before merge: UP042 flags all five `(str, enum.Enum)` enums, and F401 flags an unused import in conftest.py. Beyond those, the main gaps are: unparameterized `dict` / `list` return types, a missing `raise ... from exc` in deps.py, and a systemic `interface` vs `type` violation in the TypeScript types file. None of these block functionality, but the ruff issues must be fixed before the implementer can claim "ruff check clean."
 
 ---
 
 ## Correctness
 
-### C1 — `datetime.utcnow()` produces timezone-naive datetimes (Severity: Low)
+### C1 — `decisions.py` flush/commit flow is correct (implementer concern resolved) (Severity: None)
 
-**Files:** `eval/models.py:98`, `eval/models.py:104`, `eval/cli.py:170`, `tests/test_db.py:79,147,162`
+**File:** `api/app/routers/decisions.py:52`, `api/app/database.py:36`
 
-`datetime.utcnow()` is deprecated in Python 3.12 and returns a naive `datetime` with no timezone info. All stored timestamps are naive UTC, which is consistent within the codebase (ISO-8601 strings in SQLite, read back via `fromisoformat`), so there is no immediate bug. However, comparing or displaying these datetimes alongside timezone-aware values will raise a `TypeError`. Fix: replace with `datetime.now(UTC)` and add `from datetime import UTC` to imports.
+The implementer flagged a potential double-commit. This is not a bug. `get_db()` commits once, after the handler yields (line 36 of `database.py`). The `await db.flush()` in `decisions.py:52` sends the INSERT SQL to the DB within the open transaction so that the immediately following `await db.refresh(decision)` can re-read the new row. `flush()` does not commit — it is a within-transaction operation. The single commit fires when the handler returns normally and the async context manager in `get_db` exits. This is idiomatic SQLAlchemy async usage. No fix required.
 
-### C2 — `EvalResult.run_id` is set to `""` then mutated by caller (Severity: Low)
+### C2 — Five enums use `(str, enum.Enum)` — ruff UP042 will flag (Severity: Blocking for clean ruff pass)
 
-**File:** `eval/scorer.py:201`, `eval/cli.py:148`
+**File:** `api/app/models.py:16, 25, 31, 38, 44`
 
-`score_result()` returns `EvalResult(run_id="", ...)` and `cmd_run` immediately does `result.run_id = run.id`. If a future caller omits the mutation, an empty string is silently stored. Pydantic models are not designed to be mutated post-construction. Fix: add `run_id: str` as a parameter to `score_result()` and pass it through directly. A one-line change to the function signature and the call site.
+`CaseCategory`, `Severity`, `CaseStatus`, `Action`, `ActorRole` all use `class Foo(str, enum.Enum)`. `python-conventions.md` requires `StrEnum` (Python 3.11+). Ruff UP042 is active (UP rules selected, target py312). All five will be flagged. Fix: `from enum import StrEnum` and change each class to `class Foo(StrEnum)`, removing the `str` mixin.
 
-### C3 — `score_result()` BOTH-mode branch falls through when `skip_judge=True` (Severity: Very Low)
+### C3 — Unused import in conftest.py — ruff F401 will flag (Severity: Blocking for clean ruff pass)
 
-**File:** `eval/scorer.py:166`
+**File:** `api/tests/conftest.py:13`
 
-When `scoring_method=BOTH` and `skip_judge=True`, `j_score` is `None`. The branch `if rubric.scoring_method == ScoringMethod.BOTH and h_score and j_score:` fails, so execution falls to `elif h_score:` at line 186 and appends the heuristic score. This is the correct behaviour, but it is implicit — the fallthrough path is not obvious from reading the branch. Adding a comment or explicit condition would make intent clear, but this is not a bug.
+`from app.database import _session_factory` is imported at module level but never used directly. The `client` fixture imports `app.database as db_module` inside the function body and uses `db_module._session_factory`. Ruff F401 will flag the top-level import. Fix: remove line 13.
 
-### C4 — `get_run_by_label` uses `LIKE '%label%'` — potential ambiguity (Severity: Very Low)
+### C4 — `raise HTTPException` in `get_actor` missing `from None` (Severity: Low)
 
-**File:** `eval/db.py:154`
+**File:** `api/app/deps.py:22`
 
-If two runs share a label substring (e.g. "smoke" and "smoke-2"), `get_run_by_label("smoke")` returns the most recent match, which may not be the intended run. `eval diff` resolves runs first by exact ID, then by label — so `eval diff smoke smoke-2` would match "smoke-2" for the first argument as well (since "smoke" appears in "smoke-2"). For the current CLI UX this is acceptable, but users should be advised to use run IDs for precision.
+```python
+except ValueError:
+    raise HTTPException(status_code=400, detail=f"Invalid role: {x_actor_role!r}")
+```
+
+Convention: "Use `from exc` or `from None` on all re-raises inside `except` blocks." Since the `ValueError` carries no relevant context for the caller (it will be swallowed by FastAPI's exception handler), `raise HTTPException(...) from None` suppresses the implicit exception chain. Fix: `raise HTTPException(...) from None`.
+
+### C5 — `meta: Mapped[dict]` and `meta: dict` are unparameterised (Severity: Low)
+
+**Files:** `api/app/models.py:73`, `api/app/schemas.py:52`
+
+Both use bare `dict`. Convention: "Use `dict[K, V]` (lowercase)." `meta` is a JSONB field holding arbitrary external data — `dict[str, Any]` is correct here (and is acceptable per the convention: "Never use `Any` as a field type unless the field genuinely holds arbitrary external data"). Fix: add `from typing import Any` and change both to `dict[str, Any]`.
+
+### C6 — `_build_filters` returns bare `-> list` in both router files (Severity: Low)
+
+**Files:** `api/app/routers/cases.py:66`, `api/app/routers/audit.py:47`
+
+Both `_build_filters` functions have `-> list` with no type parameter. Convention requires parameterised forms. The return type is a list of SQLAlchemy `ColumnElement` expressions. A practical fix: `from typing import Any` and `-> list[Any]` (the precise type is `list[ColumnElement[bool]]` but importing SQLAlchemy internals for a private helper is excessive). Ruff will NOT flag this (ANN rules are not selected), but it's a convention violation.
+
+### C7 — `CaseDetail` and `get_case` return ORM objects typed as Pydantic schemas (Severity: Very Low)
+
+**Files:** `api/app/routers/cases.py:57`, `api/app/routers/decisions.py:54`
+
+Both use `# type: ignore[return-value]` because the function is annotated `-> CaseDetail` / `-> DecisionRead` but returns an ORM model (`Case` / `Decision`). FastAPI's `response_model` handles serialisation via `from_attributes=True`. The correct annotation would be `-> Case` / `-> Decision` at the function level, with FastAPI's response_model doing the schema conversion. The `type: ignore` silences a real type mismatch rather than fixing it. This is a known FastAPI pattern and the runtime behaviour is correct, but it violates the convention that `type: ignore` should come with an explanation comment.
 
 ---
 
 ## Style
 
-### S1 — `all_rubrics: dict = {}` is untyped (Severity: Low)
+### S1 — `interface` used throughout `types/index.ts` instead of `type` (Severity: Low — systemic)
 
-**File:** `eval/cli.py:110`
+**File:** `web/src/types/index.ts`
 
-Should be `dict[str, Rubric]`. `Rubric` is already importable from `eval.models` (added to the top-level import). The local `load_rubric` import inside `cmd_run` makes the type available.
+Convention: "Use `type` for shapes and unions. Use `interface` only when declaration merging is intentional." All 7 type definitions in `types/index.ts` use `interface`. None are candidates for declaration merging. Fix: change all 7 to `type`. This is a low-risk mechanical rename.
 
-### S2 — Blank line inside `get_run` function body (Severity: Trivial)
+### S2 — `tsconfig.app.json` missing `exactOptionalPropertyTypes` (Severity: Low)
 
-**File:** `eval/db.py:145`
+**File:** `web/tsconfig.app.json`
 
-```python
-def get_run(conn: sqlite3.Connection, run_id: str) -> EvalRun | None:
-    ← blank line here
-    row = conn.execute(...)
-```
+Convention: "Enable `noUncheckedIndexedAccess` and `exactOptionalPropertyTypes` in addition to strict." `noUncheckedIndexedAccess` is present; `exactOptionalPropertyTypes` is not. Adding it may surface new type errors in optional-field assignments (particularly in filter objects that spread optional properties).
 
-Remove the blank line. Ruff did not flag it (it's legal Python), but it's inconsistent with every other function in the file.
+### S3 — ESLint not configured (Severity: Low)
 
-### S3 — `score_result()` comment `# caller sets this` on `run_id=""` is a code smell marker (Severity: Low)
+Convention: "Lint with `eslint` (flat config, `eslint.config.ts`)." No ESLint config exists. `pnpm build` passes (tsc only). Not a functionality gap but a convention deviation — portfolio code should show the full toolchain.
 
-**File:** `eval/scorer.py:202`
+### S4 — `CaseQueue.tsx` type assertions on filter change handlers (Severity: Trivial)
 
-A comment explaining that a field is intentionally wrong is a sign the design needs the fix described in C2. Remove the comment when fixing C2.
+**File:** `web/src/pages/CaseQueue.tsx:49, 56, 64`
+
+`handleFilterChange(setCategory as (v: string) => void)` — a type assertion to widen the setter type. Cleaner alternative: the handler receives the string value and explicitly casts at the assignment site (`setCategory(e.target.value as CaseCategory | '')`). Minor.
 
 ---
 
 ## Tests
 
-### T1 — BOTH-mode merge path is not tested (Severity: Medium)
+### T1 — No test for `date_from` / `date_to` filter on either endpoint (Severity: Low)
 
-**File:** `tests/test_scorer.py`
+**Files:** `api/tests/test_cases.py`, `api/tests/test_audit.py`
 
-Every `score_result()` test uses `skip_judge=True`. The merge logic in `score_result()` (lines 166–189 of `scorer.py`) — where heuristic and judge scores are combined — has zero test coverage. A test should mock `score_llm_judge` and verify: (a) heuristic `passed` wins over judge when definitive; (b) judge `passed` is used when heuristic returns `None`; (c) `score` is averaged from both sides.
+`list_cases` and `get_audit_log` both accept `date_from` and `date_to` query parameters. Both are wired through `_build_filters`. Neither has a test. Given that datetime comparison has timezone-awareness implications (the `created_at` column is `DateTime(timezone=True)`), a test using two known timestamps would confirm the filter behaves correctly.
 
-### T2 — `score_llm_judge` retry path is not tested (Severity: Low)
+### T2 — No test for submitting a decision on an already-decided case (Severity: Low)
 
-**File:** `tests/test_scorer.py`
+**File:** `api/tests/test_decisions.py`
 
-The retry logic (second API call on malformed JSON) and the final fallback return (`passed=None, score=None`) are not covered. A test mocking `anthropic.Anthropic` with a sequence of responses — first malformed, then valid — would cover this branch. The fallback path (both attempts malformed) should also be tested.
+The API allows multiple decisions on the same case — there is no guard preventing a second approve/reject on an already-resolved case. Whether this is intentional is a product decision, but the behaviour is untested. A test asserting either (a) a second decision is allowed and the status updates again, or (b) a 409 is returned if the case is not `pending`, would document the intended behaviour. Currently the spec is silent.
 
-### T3 — `eval diff` and `eval list` CLI commands have no integration test (Severity: Low)
+### T3 — Frontend tests mock hook layer, not network boundary (Severity: Very Low)
 
-**Files:** `tests/`
+**Files:** `web/src/test/*.test.tsx`
 
-The underlying `compute_drift()` is well-tested. The CLI wiring (`cmd_diff`, `cmd_list`) is not. A minimal test using `typer.testing.CliRunner` would confirm the commands exit 0 with correct output shape. Not blocking for v1.
+Convention: "Mock only at boundaries: API calls (via `msw`) and browser APIs that don't exist in jsdom." Tests use `vi.mock('@/api/cases')` and `vi.mock('@/api/audit')`, which mock the TanStack Query hook layer — one level inside the network boundary. `msw` is not installed. This produces fast, reliable unit tests but does not test the serialisation path from network response → React Query cache → component. Acceptable for a v1 portfolio project but deviates from the stated convention.
 
-### T4 — `detect_refusal` edge cases not covered (Severity: Very Low)
+### T4 — No test for submit path in `CaseDetail` (Severity: Low)
 
-**File:** `tests/test_scorer.py`
+**File:** `web/src/test/CaseDetail.test.tsx`
 
-Missing pattern cases: "I'm unable to help" (pattern 2), "I'm not able to assist" (pattern 7), "not going to help" (pattern 4). The existing positive/negative tests are minimal. Adding these would increase confidence in the pattern set.
+Four tests cover loading, content rendering, form presence, and prior decisions. None fires the submit action. `@testing-library/user-event` is installed but unused. A test that types into the notes field, clicks Submit, and asserts `mutation.mutateAsync` was called (or asserts the success banner appears) would cover the primary user interaction.
 
 ---
 
 ## Refactor Candidates
 
-These are notes only — do not implement without a plan.
+Notes only — do not implement without a plan.
 
 | # | Location | Suggestion |
 |---|----------|------------|
-| R1 | `score_result()` | Add `run_id: str` parameter; remove post-construction mutation in `cmd_run` |
-| R2 | `cmd_run` | Type `all_rubrics` as `dict[str, Rubric]` |
-| R3 | `models.py` | Replace `datetime.utcnow` with `datetime.now(UTC)` in default factories |
-| R4 | `score_result()` | Add explicit comment on BOTH + skip_judge fallthrough (C3) |
-| R5 | `db.py` | Remove blank line inside `get_run` body |
+| R1 | `models.py:16–44` | Replace all five `(str, enum.Enum)` with `StrEnum` — required for ruff clean |
+| R2 | `conftest.py:13` | Remove unused `_session_factory` import — required for ruff clean |
+| R3 | `deps.py:22` | Add `from None` to the `raise HTTPException` re-raise |
+| R4 | `models.py:73`, `schemas.py:52` | Parameterise `dict` → `dict[str, Any]` |
+| R5 | `cases.py:66`, `audit.py:47` | Parameterise `-> list` → `-> list[Any]` |
+| R6 | `types/index.ts` | Rename all `interface` → `type` |
+| R7 | `tsconfig.app.json` | Add `exactOptionalPropertyTypes: true` |
+| R8 | `routers/cases.py:57`, `routers/decisions.py:54` | Change return type annotation to ORM type; document `type: ignore` or remove it |
 
-R1 and R3 are the highest value. R2, R4, R5 are cosmetic.
+R1 and R2 are the only items that affect whether `ruff check app/ tests/` passes. All others are convention correctness and do not affect runtime behaviour.
 
 ---
 
@@ -116,9 +141,7 @@ R1 and R3 are the highest value. R2, R4, R5 are cosmetic.
 
 **PASS WITH NOTES**
 
-The harness runs, all 40 tests pass, and the implementation is complete and correct for its stated scope. No finding blocks use or deployment. C2 (run_id mutation) and T1 (BOTH-mode test coverage) are the highest-value items to address in a follow-up. The rest are cosmetic or very-low-severity.
-
-**Recommended next step:** Address C2 and T1 via the `add-feature` sequence (short — both are single-file changes). Then commit the project branch and merge to main.
+The project is architecturally sound and functionally complete. The async commit flow is correct. All frontend tests pass and `pnpm build` is clean. The backend has two ruff findings (C2 and C3) that will cause `ruff check` to fail and must be resolved before the implementer can claim a clean linter pass. No finding is blocking for portfolio use or deployment. Recommended next steps are ordered below.
 
 ---
 
@@ -126,9 +149,16 @@ The harness runs, all 40 tests pass, and the implementation is complete and corr
 
 **What this output contains:** Full code review across correctness, style, tests, and refactor candidates. Verdict: PASS WITH NOTES.
 
-**Next action (human decision):** 
-1. Accept as-is and commit to `project/eval-harness` branch, then merge to main. The harness is usable now.
-2. Run a targeted `add-feature` pass to address C2 (run_id parameter) and add T1 test coverage, then commit.
-3. Do a full smoke test against a live local LLM (requires Ollama or LM Studio running) to validate the end-to-end path before committing.
+**Blocking before `ruff check` clean:**
+1. Fix C2 — change all five enums from `(str, enum.Enum)` to `StrEnum`.
+2. Fix C3 — remove the unused `_session_factory` import from `conftest.py`.
 
-**Project-state update:** Update `_config/project-state.md` to record this review verdict and the recommended follow-up items before closing the session.
+**Recommended follow-on (non-blocking):**
+3. Fix C4 — add `from None` in `deps.py`.
+4. Fix C5/C6 — parameterise `dict` and `list` return types.
+5. Fix S1 — rename `interface` → `type` in `types/index.ts`.
+6. Address T2 — add a test to document the multi-decision behaviour.
+
+**Next role:** retro (step 6 of 6). The retro should read this output alongside `roles/implementer/output/output.md` and `_config/project-state.md`.
+
+**Project-state update required:** Update `_config/project-state.md` to record this review verdict, the two blocking ruff items, and that the next role is retro.

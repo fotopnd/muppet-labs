@@ -89,6 +89,13 @@
 
 ---
 
+## Known TypeScript 6 Breaking Changes
+
+- **`baseUrl` with `moduleResolution: bundler` raises a hard error.** Remove `baseUrl` from any tsconfig that uses `moduleResolution: bundler`. Path aliases via `paths` alone are sufficient — `baseUrl` is not needed.
+- **`import { defineConfig } from 'vite'` lacks types for the `test:` block.** When configuring vitest in `vite.config.ts`, use `import { defineConfig } from 'vitest/config'` instead — it re-exports all vite config types and adds the `test:` block.
+
+---
+
 ## General Style
 
 - **Working before clean.** The first pass should run. Refactoring is the reviewer's job.
