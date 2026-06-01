@@ -1,9 +1,8 @@
 from __future__ import annotations
 
-import pytest
 from httpx import AsyncClient
 
-from app.models import Case, CaseStatus
+from app.models import Case
 
 REVIEWER_HEADERS = {"x-actor-id": "alice", "x-actor-role": "reviewer"}
 SENIOR_HEADERS = {"x-actor-id": "bob", "x-actor-role": "senior_reviewer"}

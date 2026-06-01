@@ -20,5 +20,5 @@ async def get_actor(
     try:
         role = ActorRole(x_actor_role)
     except ValueError:
-        raise HTTPException(status_code=400, detail=f"Invalid role: {x_actor_role!r}")
+        raise HTTPException(status_code=400, detail=f"Invalid role: {x_actor_role!r}") from None
     return Actor(id=x_actor_id, role=role)

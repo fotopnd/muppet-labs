@@ -1,7 +1,7 @@
 from __future__ import annotations
 
-import enum
 from datetime import datetime
+from enum import StrEnum
 
 from sqlalchemy import DateTime, ForeignKey, Index, String, Text
 from sqlalchemy import Enum as SAEnum
@@ -13,7 +13,7 @@ class Base(DeclarativeBase):
     pass
 
 
-class CaseCategory(str, enum.Enum):
+class CaseCategory(StrEnum):
     toxic = "toxic"
     severe_toxic = "severe_toxic"
     obscene = "obscene"
@@ -22,26 +22,26 @@ class CaseCategory(str, enum.Enum):
     identity_hate = "identity_hate"
 
 
-class Severity(str, enum.Enum):
+class Severity(StrEnum):
     low = "low"
     medium = "medium"
     high = "high"
 
 
-class CaseStatus(str, enum.Enum):
+class CaseStatus(StrEnum):
     pending = "pending"
     approved = "approved"
     rejected = "rejected"
     escalated = "escalated"
 
 
-class Action(str, enum.Enum):
+class Action(StrEnum):
     approve = "approve"
     reject = "reject"
     escalate = "escalate"
 
 
-class ActorRole(str, enum.Enum):
+class ActorRole(StrEnum):
     reviewer = "reviewer"
     senior_reviewer = "senior_reviewer"
 
