@@ -5,6 +5,7 @@ from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
 
 from app.config import settings
 from app.database import init_db
@@ -21,7 +22,7 @@ app = FastAPI(title="case-queue API", version="0.1.0", lifespan=lifespan)
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:5173"],
+    allow_origins=settings.allowed_origins,
     allow_methods=["*"],
     allow_headers=["*"],
 )
@@ -29,3 +30,8 @@ app.add_middleware(
 app.include_router(cases.router)
 app.include_router(decisions.router)
 app.include_router(audit.router)
+
+
+@app.get("/health", include_in_schema=False)
+async def health() -> JSONResponse:
+    return JSONResponse({"status": "ok"})
