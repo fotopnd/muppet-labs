@@ -72,6 +72,19 @@
 
 ---
 
+## UI Filter Controls
+
+- **Queryable set → dropdown.** If a filter targets values that can be fetched from the API
+  (actor IDs, DB-backed enums, category lists), use a `<select>` populated by a dedicated hook
+  (e.g. `useAuditActors`). Do not use a text input for values the system already knows.
+- **Open-ended → text input.** Use `<input type="text">` only when the value space is genuinely
+  unbounded (free-text search, external IDs not stored in your DB).
+- The hook pattern for a filter dropdown: `GET /resource/field-name` returns `string[]` of
+  distinct values; a `useResourceFieldName()` hook wraps it; the component renders those as
+  `<option>` elements.
+
+---
+
 ## Error Handling
 
 - API calls return a typed result; handle both success and error states at the call site.

@@ -40,6 +40,11 @@ Language-specific conventions live in dedicated files — load only the one that
 - Rust → `resources/rust-conventions.md`
 - TypeScript → `resources/typescript-conventions.md`
 
+**UI filter controls:** Use a data-driven dropdown for any filter that targets a queryable set
+(actor IDs, DB-backed enums, foreign key values). Use a text input only for genuinely open-ended
+user strings (free-text search, external IDs with no known enumeration). If the universe of values
+can be fetched from the API, it should be a dropdown.
+
 ---
 
 ## Output Style

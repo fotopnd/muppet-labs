@@ -15,6 +15,11 @@
 5. Execute the next role in the sequence.
 6. After each role completes and the human signs off, proceed to the next.
 
+> **In-flight sequence check:** At the start of every session, check `project-state.md` for any
+> sequence currently in-flight. If a sequence is in-flight, the next role in that sequence must
+> run before new work begins — unless the human explicitly overrides. Do not start a new feature
+> or project while a prior sequence is paused mid-run.
+
 > **Role output archiving:** Before overwriting any `roles/[role]/output/output.md`, copy the existing file to `roles/[role]/archive/[date]-[project-name]-output.md`. Example: `roles/brief/archive/2026-05-31-eval-harness-output.md`. The `output/output.md` is a shared scratch space; `archive/` is the permanent record.
 
 ---
@@ -48,7 +53,7 @@ its output feeds back into the workspace itself (`resources/`, `skills/`, `routi
 | 2 | `planner` | `brief/output.md` | `vibecoding-style.md`, `[lang]-conventions.md` | `setup-[lang]-project.md` if language decided | `roles/planner/output/output.md` |
 | 3 | `architect` | `planner/output.md` | `[lang]-conventions.md` | — | `roles/architect/output/output.md` |
 | 4 | `implementer` | `architect/output.md` | `[lang]-conventions.md`, `vibecoding-style.md` | `setup-[lang]-project.md` | `roles/implementer/output/output.md` |
-| 5 | `reviewer` | `implementer/output.md` | `[lang]-conventions.md` | — | `roles/reviewer/output/output.md` |
+| 5 | `reviewer` | `implementer/output.md` | `[lang]-conventions.md`, `prompt-design.md` (if project includes LLM prompts) | — | `roles/reviewer/output/output.md` |
 | 6 | `retro` | `reviewer/output.md`, `implementer/output.md`, `project-state.md` | `vibecoding-style.md`, `routing.md` | — | `roles/retro/output/output.md` |
 
 > **Plan mode note:** If plan mode ran before the sequence and produced a detailed architecture, the `architect` role may treat the plan file as pre-resolved planner output. It confirms decisions rather than re-deriving them. The architect should not duplicate what the plan already settled — validate and resolve open questions only.
@@ -86,7 +91,7 @@ its output feeds back into the workspace itself (`resources/`, `skills/`, `routi
 | 1 | `planner` | `_config/project-state.md` | `vibecoding-style.md`, `[lang]-conventions.md` | — | `roles/planner/output/output.md` |
 | 2 | `architect` *(conditional)* | `planner/output.md` | `[lang]-conventions.md` | — | `roles/architect/output/output.md` |
 | 3 | `implementer` | `architect/output.md` or `planner/output.md` if architect skipped | `[lang]-conventions.md`, `vibecoding-style.md` | — | `roles/implementer/output/output.md` |
-| 4 | `reviewer` | `implementer/output.md` | `[lang]-conventions.md` | — | `roles/reviewer/output/output.md` |
+| 4 | `reviewer` | `implementer/output.md` | `[lang]-conventions.md`, `prompt-design.md` (if project includes LLM prompts) | — | `roles/reviewer/output/output.md` |
 | 5 | `retro` *(recommended for substantial features)* | `reviewer/output.md`, `implementer/output.md`, `project-state.md` | `vibecoding-style.md`, `routing.md` | — | `roles/retro/output/output.md` |
 
 > Skip architect if the feature fits cleanly into existing structure. Human makes this call after reviewing planner output.
