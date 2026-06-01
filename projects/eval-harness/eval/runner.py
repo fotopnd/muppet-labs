@@ -50,10 +50,25 @@ def _raise_endpoint_error(config: RunConfig, url: str) -> None:
     )
 
 
+_BLOCKED_MODELS = ("qwen3-coder-30b",)
+
+
 def run_case(case: TestCase, config: RunConfig) -> RunnerResponse:
+    _check_not_blocked(config.model_name)
     if config.model_backend == ModelBackend.CLAUDE:
         return _run_claude(case.prompt, config)
     return _run_local(case.prompt, config)  # LOCAL and MLX both use the OpenAI-compatible client
+
+
+def _check_not_blocked(model_name: str) -> None:
+    lower = model_name.lower()
+    for blocked in _BLOCKED_MODELS:
+        if blocked in lower:
+            raise RuntimeError(
+                f"Model '{model_name}' is blocked. "
+                f"Use 'coder' (qwen2.5-coder:7b) or 'mlx-coder' for code tasks, "
+                f"or 'default' (gemma2:9b) for conversational tasks."
+            )
 
 
 def _run_local(prompt: str, config: RunConfig) -> RunnerResponse:

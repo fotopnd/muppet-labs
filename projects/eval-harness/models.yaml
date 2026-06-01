@@ -17,23 +17,29 @@
 aliases:
 
   # --- Local models (Ollama) ---
-  small:
-    model: qwen2.5-coder:7b
+  # Default for conversational / review tasks (classification, scoring, summarisation)
+  default:
+    model: gemma2:9b
     backend: local
 
-  large:
-    model: gemma2:9b
+  # Code-focused tasks (generation, completion, refactoring)
+  coder:
+    model: qwen2.5-coder:7b
     backend: local
 
   # --- MLX models (mlx_lm.server on Apple Silicon) ---
   # Start server: mlx_lm.server --model <hf-path> --port 8080
-  mlx-small:
+  mlx-default:
+    model: mlx-community/gemma-2-9b-it-4bit
+    backend: mlx
+
+  mlx-coder:
     model: mlx-community/Qwen2.5-Coder-7B-Instruct-4bit
     backend: mlx
 
-  mlx-large:
-    model: mlx-community/gemma-2-9b-it-4bit
-    backend: mlx
+  # BLOCKED: Qwen3-Coder-30B variants — 16GB+ memory requirement causes instability
+  # on 24GB machines under concurrent load. Use mlx-coder or coder instead.
+  # qwen3-coder-30b: BLOCKED
 
   # --- Claude models ---
   haiku:

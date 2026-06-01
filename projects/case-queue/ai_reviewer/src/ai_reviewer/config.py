@@ -12,7 +12,7 @@ class Settings(BaseSettings):
     backend: str = "ollama"  # "claude" or "ollama"
     claude_model: str = "claude-haiku-4-5-20251001"
     ollama_base_url: str = "http://localhost:11434/v1"
-    ollama_model: str = "qwen2.5-coder:7b"
+    ollama_model: str = "gemma2:9b"
 
     # Behaviour
     confidence_threshold: float = 0.80
