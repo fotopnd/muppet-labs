@@ -50,9 +50,22 @@ def _build_user_message(case: CaseDetail) -> str:
     )
 
 
+def _strip_fences(text: str) -> str:
+    """Remove markdown code fences that some models wrap JSON in."""
+    stripped = text.strip()
+    if stripped.startswith("```"):
+        lines = stripped.splitlines()
+        # drop opening fence line (```json or ```) and closing ```
+        inner = lines[1:] if len(lines) > 1 else lines
+        if inner and inner[-1].strip() == "```":
+            inner = inner[:-1]
+        stripped = "\n".join(inner).strip()
+    return stripped
+
+
 def _parse_llm_response(raw: str, confidence_threshold: float) -> ClassificationResult:
     try:
-        data = json.loads(raw.strip())
+        data = json.loads(_strip_fences(raw))
         action = Action(data["action"])
         confidence = float(data["confidence"])
         reasoning = str(data.get("reasoning", "No reasoning provided."))
