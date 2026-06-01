@@ -24,6 +24,12 @@ Each role has a single job. Roles are reusable — the same role can appear in m
 | **debugger** | `roles/debugger/` | Diagnose and fix a specific failure. Reads implementer or reviewer output. |
 | **retro** | `roles/retro/` | Engineering retrospective after a project or milestone. Feeds improvements back into the workspace. |
 
+**Orientation roles** — outside all sequences, invoke anytime:
+
+| Role | Folder | Job |
+|------|--------|-----|
+| **daily-brief** | `roles/daily-brief/` | Session-start orientation. Synthesises priorities, project status, and ideas queue into a short actionable brief. |
+
 **Writing roles** — for producing documents about projects:
 
 | Role | Folder | Job |

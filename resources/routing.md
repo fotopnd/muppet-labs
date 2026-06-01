@@ -168,6 +168,28 @@ its output feeds back into the workspace itself (`resources/`, `skills/`, `routi
 
 ---
 
+## The Daily Brief Role
+
+The `daily-brief` role is a session-start orientation. It is not part of any sequence — it can
+be invoked at any time, independently of whatever sequence is in-flight.
+
+**When to use:** At the start of any session where you want to orient before picking up work.
+Ask: "what should we work on?" or "run the daily brief" and it will synthesise current project
+state, priorities, and the ideas queue into a short actionable brief.
+
+**What it reads:** `resources/priorities.md` + `resources/project-status.md` +
+`_config/project-state.md` + `resources/project_ideas.md`
+
+**What it produces:** `roles/daily-brief/output/output.md` — a ~30–50 line brief with
+per-project next actions and the top candidate from the ideas queue.
+
+**It does not gate work.** After the brief, the human decides what to do next and which
+sequence (if any) to start.
+
+> Keep `resources/priorities.md` up to date. The brief is only as useful as that file is current.
+
+---
+
 ## Adding New Sequences
 
 Append a new section using this format:
