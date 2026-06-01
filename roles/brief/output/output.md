@@ -1,81 +1,95 @@
-# Brief — Model Behaviour Evaluation Harness
+# Brief Output — case-queue
 
-**Sequence:** `new-project-full` | **Role:** brief | **Step:** 1 of 5  
-**Date:** 2026-05-31
+**Role:** brief
+**Sequence:** `new-project-full` (step 1 of 6)
+**Date:** 2026-06-01
 
 ---
 
 ## Project Name
 
-Model Behaviour Evaluation Harness
+`case-queue`
 
 ---
 
 ## Description
 
-A Python CLI tool that runs a configurable suite of test prompts against a local Qwen model (via Ollama or LM Studio) or the Claude API, scores responses against defined rubrics using heuristic and LLM-as-judge methods, stores all results in a SQLite database, and tracks metric drift across runs. Includes commands to add custom test cases, run evaluations, diff results between runs, and list run history.
+A fullstack case management tool for trust & safety analysts: a React/TypeScript frontend with a paginated case queue, content review surface, decision logging UI, and approve/reject/escalate workflow — backed by a Python FastAPI service and PostgreSQL.
 
 ---
 
 ## Language(s)
 
-Python
+Mixed:
+- **Frontend:** TypeScript (React, strict mode)
+- **Backend:** Python (FastAPI)
+- **Database:** PostgreSQL
+- **Tooling:** pnpm (frontend), uv (backend), Docker Compose (Postgres local)
 
 ---
 
 ## Success Criteria
 
-1. `eval run` executes end-to-end against a local model and stores results in SQLite without errors
-2. `eval diff` computes and displays metric deltas between any two completed runs
-3. TruthfulQA (HuggingFace) loads and normalises to the internal `TestCase` format
-4. AdvBench (HuggingFace) loads and normalises to the internal `TestCase` format with `expect_refusal=True`
-5. LLM-as-judge scoring fires against each rubric criterion when `ANTHROPIC_API_KEY` is set
-6. Heuristic-only mode (`--no-judge`) runs without any API key or network access beyond the local LLM
-7. All unit tests pass: scorer branches, DB roundtrip, drift computation, dataset normalisation
+The project is done when all of the following are true:
+
+1. **Case queue view** — lists cases with pagination; filterable by category, severity, and date; each row shows case ID, category, severity, status, and created timestamp.
+2. **Case detail view** — shows full case payload (content text, source, metadata), plus a review decision form with action selector (approve / reject / escalate) and a required notes field.
+3. **Audit log view** — every decision is persisted to PostgreSQL with actor ID, action, notes, and timestamp; viewable per-case and as a global log page.
+4. **Role-based action controls** — two hardcoded roles: `reviewer` (can approve/reject) and `senior_reviewer` (can also escalate). Role is set via a request header (`X-Actor-Role`) — no real auth required.
+5. **Seed data** — at least 500 synthetic cases seeded from Jigsaw Toxic Comments patterns, covering all categories and severity levels.
+6. **Runs locally end-to-end** — `docker compose up` starts Postgres; `uv run uvicorn` starts the API; `pnpm dev` starts the frontend. All three work together without manual config.
+7. **README** — clear enough for a hiring manager to clone, run, and understand in under 10 minutes.
 
 ---
 
 ## Constraints
 
-- Python only; no polyglot additions
-- `uv` for package management; `ruff` for formatting and linting
-- No async — synchronous clients throughout (keeps implementation simple, no event loop complexity)
-- Storage is SQLite only — no external database, no cloud dependency
-- Local LLM accessed via OpenAI-compatible HTTP endpoint (`openai` Python client); works with both Ollama and LM Studio without code changes
-- `ANTHROPIC_API_KEY` is required only for: (a) the LLM-as-judge scorer, (b) the Claude model backend
-- Responses are scored synchronously after each prompt — no batch scoring
+- **Portfolio-first:** must look and feel production-quality, not like a tutorial project. No toy UI, no placeholder data, no debug traces left in.
+- **Freely available dataset only:** synthetic data seeded from Jigsaw Toxic Comments (Kaggle, free) — no Meta data, no proprietary sources.
+- **Local-only deployment:** no cloud deployment required; Docker Compose covers all infrastructure.
+- **No real authentication:** mock role system via header is sufficient. The point is to demonstrate the permission model, not an auth server.
+- **TypeScript strict mode throughout:** demonstrates production-quality TS, which is the core gap to close.
 
 ---
 
 ## Out of Scope
 
-- Web UI or dashboard
-- Concurrent/parallel case execution
-- Model fine-tuning or training
-- Authentication or multi-user support
-- Streaming responses
-- Automatic alerting or CI integration (evaluation is a manual run)
-- Custom scoring plugins or a plugin architecture
+- Real user authentication / OAuth / JWT
+- Cloud deployment or CI/CD pipeline
+- Live data ingestion (no streaming, no webhooks from external sources)
+- ML model integration (no classifier running in-process — data is pre-labelled from seed)
+- Mobile layout / responsive design (desktop-only is fine for a portfolio tool)
+- Multi-tenancy or multi-team support
+- Email or notification delivery on decisions
 
 ---
 
 ## Assumptions
 
-- Local model is already running and reachable before `eval run` is called — the harness does not start or manage the model process
-- Default local endpoint: `http://localhost:11434/v1` (Ollama); overridable via `EVAL_LOCAL_URL` environment variable (set to `http://localhost:1234/v1` for LM Studio)
-- TruthfulQA and AdvBench are available on HuggingFace under their standard dataset IDs; the `datasets` library handles caching
-- Rubrics are authored by the operator in YAML files; the harness ships three default rubrics (`refusal_detection`, `truthfulness`, `harmlessness`)
-- Temperature defaults to `0.0` for deterministic, reproducible eval runs
-- Dataset column names are stable; if HuggingFace schema changes, loaders will need updating
+> These were inferred from the project_ideas.md description and the SWE role JD. Flag any that the planner should revisit.
+
+1. **React + Vite** for the frontend build (fastest local dev experience; no SSR needed for an internal tool).
+2. **FastAPI + SQLAlchemy (async)** for the backend — standard modern Python API stack.
+3. **Alembic** for database migrations — standard companion to SQLAlchemy.
+4. **Postgres via Docker Compose** for local dev; connection string via `.env`.
+5. **Two primary frontend views for v1:** case queue (list) and case detail (single case + decision form). Global audit log is a third view at lower priority — include if time allows.
+6. **Actor identity** is a hardcoded string passed as a request header (`X-Actor-Id`) alongside `X-Actor-Role` — no login flow.
+7. **Jigsaw Toxic Comments categories** map to case categories: `toxic`, `severe_toxic`, `obscene`, `threat`, `insult`, `identity_hate`. Severity is derived from label confidence scores.
+8. **Project lives at** `projects/case-queue/` with two subdirectories: `api/` (Python) and `web/` (TypeScript).
+9. **`typescript-conventions.md` does not yet exist.** Planner must create it before the architect role runs. This is a hard dependency.
 
 ---
 
 ## Handoff
 
-**What this output contains:** Signed-off project brief defining scope, success criteria, constraints, and assumptions.
-
 **Next role:** planner
+**What the planner does with this:**
+- Confirm or revise tech stack assumptions (items 1–4 especially).
+- Define the full requirements list, broken into API and frontend.
+- Specify the file/module structure for both `api/` and `web/`.
+- **Create `resources/typescript-conventions.md`** — this is a blocker for architect and implementer.
+- Identify open questions with proposed answers (per routing.md convention).
 
-**What the planner does:** Reads this file and `resources/vibecoding-style.md` + `resources/python-conventions.md` + `skills/setup-uv-project.md`. Produces `roles/planner/output/output.md` with: numbered testable requirements, confirmed technology stack table, top-level file/module structure, and open questions for the architect.
-
-**Caveats:** `resources/python-conventions.md` does not currently exist in the workspace — the planner should skip loading it and apply conventions from `vibecoding-style.md` directly (which contains the Python-specific preferences).
+**Flags for planner:**
+- Assumption 9 (missing `typescript-conventions.md`) must be resolved before implementer runs.
+- Assumption 5 (global audit log priority) — confirm whether it is in v1 scope or deferred.

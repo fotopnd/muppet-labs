@@ -14,6 +14,8 @@
 4. Execute the next role in the sequence.
 5. After each role completes and the human signs off, proceed to the next.
 
+> **Role output archiving:** Before overwriting any `roles/[role]/output/output.md`, copy the existing file to `roles/[role]/archive/[date]-[project-name]-output.md`. Example: `roles/brief/archive/2026-05-31-eval-harness-output.md`. The `output/output.md` is a shared scratch space; `archive/` is the permanent record.
+
 ---
 
 ## The Retro Role
