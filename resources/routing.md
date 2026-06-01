@@ -11,8 +11,9 @@
 1. Identify the objective for the current session.
 2. Find the matching sequence in the table below.
 3. Check `_config/project-state.md` to see which role was last completed.
-4. Execute the next role in the sequence.
-5. After each role completes and the human signs off, proceed to the next.
+4. **Before executing any role:** load the language conventions file(s) for every language in the project (`resources/[lang]-conventions.md`). Check the sequence table's Resources column — if it lists `[lang]-conventions.md`, it is required, not optional. Do not skip this even if the language seems familiar.
+5. Execute the next role in the sequence.
+6. After each role completes and the human signs off, proceed to the next.
 
 > **Role output archiving:** Before overwriting any `roles/[role]/output/output.md`, copy the existing file to `roles/[role]/archive/[date]-[project-name]-output.md`. Example: `roles/brief/archive/2026-05-31-eval-harness-output.md`. The `output/output.md` is a shared scratch space; `archive/` is the permanent record.
 

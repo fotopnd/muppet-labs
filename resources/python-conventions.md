@@ -33,6 +33,7 @@
 - Pydantic preferred when: data is loaded from external sources (YAML, JSON, API), validation is needed, or the model is serialised to storage.
 - Dataclasses preferred for: internal-only lightweight data transfer objects with no validation.
 - Never use `Any` as a field type unless the field genuinely holds arbitrary external data.
+- **pydantic-settings with a shared `.env`:** always set `extra="ignore"` on the `model_config`. A shared `.env` (e.g. one used by both API and frontend) will contain keys the model doesn't declare — without `extra="ignore"`, pydantic-settings raises `ValidationError` on startup.
 
 ## File and Path Handling
 

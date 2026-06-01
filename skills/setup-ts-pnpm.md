@@ -186,3 +186,4 @@ pnpm test       # should find 0 tests and exit 0
 | `verbatimModuleSyntax` without `import type` | TS error on type-only imports | Use `import type { Foo }` for type imports |
 | Path alias works in TS but not at runtime | `@/` imports 404 in browser | Add `resolve.alias` to `vite.config.ts` (step 2) |
 | `exactOptionalPropertyTypes` breaks existing types | Type errors on `foo?: string` assigned `undefined` | Assign explicitly or mark as `foo?: string | undefined` |
+| `npx shadcn init` blocks the implementer | CLI is interactive — hangs or errors in non-TTY sessions | shadcn/ui cannot be initialised non-interactively; replace with raw Tailwind CSS for the initial build. Add shadcn in a follow-up session where a real terminal is available. |
