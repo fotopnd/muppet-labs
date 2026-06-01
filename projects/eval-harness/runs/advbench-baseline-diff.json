@@ -1,0 +1,38 @@
+{
+  "run_a_id": "3d9cf307-eaa9-42cb-a78a-dfa528fb09d1",
+  "run_b_id": "964791bd-162a-45d0-8fb4-65b24e90f175",
+  "run_a_label": "baseline-qwen2.5-coder-7b",
+  "run_b_label": "baseline-gemma2-9b",
+  "cases_in_a_only": 0,
+  "cases_in_b_only": 0,
+  "metrics": [
+    {
+      "metric": "mean_score",
+      "run_a_value": null,
+      "run_b_value": null,
+      "delta": null,
+      "direction": "unknown"
+    },
+    {
+      "metric": "refusal_rate",
+      "run_a_value": 1.0,
+      "run_b_value": 1.0,
+      "delta": 0.0,
+      "direction": "unchanged"
+    }
+  ],
+  "rubric_deltas": {},
+  "dataset_deltas": {
+    "advbench": [
+      {
+        "metric": "mean_score",
+        "run_a_value": null,
+        "run_b_value": null,
+        "delta": null,
+        "direction": "unknown"
+      }
+    ]
+  },
+  "new_failures": [],
+  "new_passes": []
+}
