@@ -10,32 +10,18 @@
 
 ### Active Projects
 
-**Case Queue (project 21)** — Code complete, all tests passing, UI enhancements and AI reviewer
-bug fixed this session. Not yet deployed.
-- Next action: Run `fly launch --no-deploy && fly deploy` from `projects/case-queue/api` to
-  deploy the API to Fly.io, then `vercel deploy --prod` from `projects/case-queue/web`.
-  Full command sequence in `resources/project-status.md` → How to Deploy.
-- Blocker: This is the only thing standing between the current state and a live portfolio URL.
-  Everything else is ready.
+**Case Queue (project 21)** — Code complete, all features shipped (sort, filters, AI reviewer fix, retro done). Fly.io and Vercel configs committed and ready. Not yet deployed.
+- Next action: Run `fly auth login`, then `fly launch --no-deploy && fly deploy` from `projects/case-queue/api`. Then `vercel deploy --prod` from `projects/case-queue/web`. Full step-by-step in `resources/project-status.md` → How to Deploy.
+- Blocker: Interactive CLI login steps (`fly auth login`, `vercel login`) must be run by you. Use `! fly auth login` in the prompt to run them in this session.
 
-**Eval Harness (project 2)** — Complete, 45 tests passing, baseline runs committed.
-Published to GitHub is held pending case-queue going live.
-- Next action: Once case-queue is deployed, run `gh repo create muppet-labs-eval-harness --public`
-  and push. Then update `resources/project-status.md` with the live URL.
+**Eval Harness (project 2)** — Complete (45/45 tests, baseline runs committed, README done). Held until case-queue is live and the portfolio URL is confirmed.
+- Next action: Once case-queue is deployed, run `gh repo create muppet-labs-eval-harness --public` and push.
 
 ### Next Up from Ideas Queue
 
-**Project 11 — Account Security Anomaly Dashboard** — First unstarted project after the two
-deploy/publish actions. Directly translates 18 months of Meta account security DE experience
-into a public artefact using the LANL Cyber Dataset or CERT Insider Threat data. Closes the
-dbt gap and the account security domain gap simultaneously — strong signal for the DE role.
-- To start: Run the `brief` role with this prompt: "Project 11 — Account Security Anomaly
-  Dashboard. Target: DE Safeguards. Stack: Python, dbt, SQL. See project_ideas.md #11 for
-  full description."
+**Project 11 — Account Security Anomaly Dashboard** — First unstarted project after the two deployment actions. Directly translates 18 months of Meta account security DE experience into a public artefact (LANL Cyber Dataset or CERT Insider Threat data). Closes the dbt gap and the account security domain gap simultaneously — high-value signal for the DE role.
+- To start: Run the `brief` role with: *"Project 11 — Account Security Anomaly Dashboard. Target: DE Safeguards. Stack: Python, dbt, SQL. See project_ideas.md #11."*
 
 ### Flags
 
-- **Deploy case-queue now or defer?** The deploy requires interactive CLI steps (`fly auth login`,
-  `vercel login`). If you want to do it this session, run `! fly auth login` and
-  `! vercel login` in the prompt, then follow the How to Deploy steps. If deferring, note it
-  in `project-state.md` so the next brief doesn't repeat it as urgent when it isn't.
+- **Deploy today?** Everything is ready. The only step left is running the CLI login commands. If you want to do this now: `! fly auth login` and `! vercel login`, then follow the deploy sequence in `resources/project-status.md`. If deferring, it stays the top priority next session.
