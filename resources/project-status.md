@@ -199,12 +199,95 @@ uv run pytest -v   # 45 tests, no external services needed
 
 ---
 
+## Project 22 — Content Moderation Event Stream and Model Comparison Platform
+
+**Last updated:** 2026-06-02
+**Location:** `projects/moderation-stream/` (frontend additions in `projects/case-queue/web/src/`)
+**Proposal target:** Both (SWE and DE Safeguards)
+**Stack:** Python 3.12 (FastAPI, confluent-kafka, transformers, SQLAlchemy), TypeScript (React, TanStack Query), Kafka, PostgreSQL (port 5433)
+
+### Current State
+
+| Item | Status | Notes |
+|---|---|---|
+| Kafka producer | ✓ Complete | Replays Jigsaw CSV at configurable rate; rate limiting; SIGINT shutdown |
+| Phase 1 consumers (3) | ✓ Complete | DistilBERT zero-shot, RoBERTa zero-shot, Detoxify |
+| Phase 2 consumers (2) | ✓ Stubbed | Fine-tuned DistilBERT + RoBERTa; exit cleanly with no checkpoint; activate via config |
+| Metrics API | ✓ Complete | FastAPI on port 8001; GROUP BY SQL with percentile_cont; GET /metrics, GET /health |
+| React dashboard | ✓ Complete | `/stream` route in case-queue; 5-card grid; 3s polling; skeleton/error states |
+| Backend tests | ✓ 17/17 | 7 unit (producer + consumers, infra-free), 7 API integration (shape + computation) |
+| Frontend tests | ✓ 21/21 | Includes ModelMetricsCard (6) and StreamDashboard (4) |
+| Technical summary | ✓ Written | `projects/moderation-stream/docs/technical-summary.md` |
+| Phase 2 weights | ✗ Pending | Requires project 8 (fine-tuned DistilBERT + RoBERTa checkpoints) |
+| Alembic migrations | ✗ Deferred | Using `create_all` for now; straightforward to add before production deploy |
+| Live deploy | ✗ | Deploys alongside case-queue on Hostinger VPS |
+
+### How to Run Locally
+
+**Prerequisites:** Docker running, `brew install librdkafka`, uv installed.
+
+```bash
+cd projects/moderation-stream
+
+# 1. Start infrastructure
+docker compose up -d   # Kafka + Zookeeper + Postgres on 5433
+uv sync
+cp .env.example .env   # edit JIGSAW_CSV_PATH to point at your Jigsaw train.csv
+
+# 2. Run (3 terminals or make all)
+make api        # metrics API on :8001
+make consumers  # 3 Phase 1 consumers
+make producer   # publish 1000 events at 10/sec
+
+# 3. Frontend (from case-queue/web, after adding VITE_STREAM_API_URL=http://localhost:8001 to .env)
+pnpm dev        # visit http://localhost:5173/stream
+```
+
+### How to Test
+
+```bash
+cd projects/moderation-stream
+
+# Unit tests (no infra needed)
+uv run pytest tests/test_producer.py tests/test_consumers.py -v
+
+# API integration tests (requires Postgres on 5433)
+createdb -U postgres -p 5433 moderation_stream_test   # one-time
+uv run pytest tests/test_api.py -v
+
+# Frontend tests (from case-queue/web)
+cd ../case-queue/web && npx vitest run
+```
+
+### How to Deploy (not yet done)
+
+Deploys to the same Hostinger VPS as case-queue. Add as additional services in the VPS docker-compose or run separately.
+
+```bash
+# On Hostinger VPS — after case-queue is deployed
+git clone https://github.com/YOUR-USERNAME/moderation-stream.git
+cd moderation-stream
+cp .env.example .env   # set JIGSAW_CSV_PATH, DATABASE_URL pointing to Postgres on 5433
+docker compose up -d
+```
+
+nginx: proxy `/stream-api/*` → `localhost:8001`.
+
+### Next Steps
+
+1. **Deploy to Hostinger** — alongside case-queue; follow steps above.
+2. **Project 8 checkpoints** — drop fine-tuned weights into config to activate Phase 2.
+3. **Alembic migration** — run `alembic revision --autogenerate -m "initial"` against live DB before first deploy.
+
+---
+
 ## Status Summary
 
 | # | Project | Code | Tests | Docs | Deploy/Published | Immediate next action |
 |---|---|---|---|---|---|---|
-| 21 | Case Queue | ✓ | ✓ 22/22 | ✓ | Config ready, not live | Run `fly launch` + `vercel deploy` |
-| 2 | Eval Harness | ✓ | ✓ 45/45 | ✓ | Held | Publish to GitHub when portfolio ready |
+| 21 | Case Queue | ✓ | ✓ 22/22 | ✓ | Not live | Push to public GitHub + deploy to Hostinger VPS |
+| 2 | Eval Harness | ✓ | ✓ 45/45 | ✓ | Held | Publish to GitHub after case-queue is live |
+| 22 | Moderation Stream | ✓ | ✓ 21/21 | ✓ | Not live | Deploy to Hostinger alongside case-queue |
 
 ---
 
