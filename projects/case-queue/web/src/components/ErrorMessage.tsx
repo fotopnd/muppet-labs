@@ -1,12 +1,10 @@
-interface ErrorMessageProps {
-  message: string
-}
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 
-export function ErrorMessage({ message }: ErrorMessageProps) {
+export function ErrorMessage({ message }: { message: string }) {
   return (
-    <div className="rounded-md border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">
-      <span className="font-medium">Error: </span>
-      {message}
-    </div>
+    <Alert variant="destructive">
+      <AlertTitle>Error</AlertTitle>
+      <AlertDescription>{message}</AlertDescription>
+    </Alert>
   )
 }

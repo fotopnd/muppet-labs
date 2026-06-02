@@ -4,12 +4,15 @@ import { Link } from 'react-router-dom'
 import { useAuditActors, useAuditLog } from '@/api/audit'
 import { ErrorMessage } from '@/components/ErrorMessage'
 import { Pagination } from '@/components/Pagination'
+import { Badge } from '@/components/ui/badge'
+import { Button } from '@/components/ui/button'
+import { Card, CardContent } from '@/components/ui/card'
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import type { Action, AuditFilters, AuditSortBy, SortDir } from '@/types'
 
 const PAGE_SIZE = 50
 
 type SortState = { by: AuditSortBy; dir: SortDir } | null
-
 type Column = { label: string; sortKey?: AuditSortBy }
 
 const COLUMNS: Column[] = [
@@ -20,12 +23,19 @@ const COLUMNS: Column[] = [
   { label: 'Notes' },
 ]
 
-function SortIcon({ state, col }: { state: SortState; col: AuditSortBy }) {
-  if (state?.by !== col) return <span className="ml-1 text-xs text-gray-300">↕</span>
-  return (
-    <span className="ml-1 text-xs text-blue-600">{state.dir === 'asc' ? '▲' : '▼'}</span>
-  )
+const ACTION_STYLES: Record<Action, string> = {
+  approve: 'bg-green-100 text-green-800 border-transparent hover:bg-green-100',
+  reject: 'bg-red-100 text-red-800 border-transparent hover:bg-red-100',
+  escalate: 'bg-purple-100 text-purple-800 border-transparent hover:bg-purple-100',
 }
+
+function SortIcon({ state, col }: { state: SortState; col: AuditSortBy }) {
+  if (state?.by !== col) return <span className="ml-1 text-xs text-muted-foreground/40">↕</span>
+  return <span className="ml-1 text-xs text-primary">{state.dir === 'asc' ? '▲' : '▼'}</span>
+}
+
+const selectCls =
+  'rounded-md border border-input bg-background px-3 py-1.5 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-ring'
 
 export function AuditLog() {
   const [page, setPage] = useState(1)
@@ -60,13 +70,12 @@ export function AuditLog() {
   return (
     <div className="mx-auto max-w-7xl px-4 py-8">
       <div className="mb-6 flex items-center justify-between">
-        <h1 className="text-2xl font-semibold text-gray-900">Audit Log</h1>
-        <Link to="/" className="text-sm text-blue-600 hover:underline">
+        <h1 className="text-2xl font-semibold text-foreground">Audit Log</h1>
+        <Link to="/" className="text-sm text-primary hover:underline">
           ← Case Queue
         </Link>
       </div>
 
-      {/* Filters */}
       <div className="mb-4 flex flex-wrap items-center gap-3">
         <select
           value={action}
@@ -74,7 +83,7 @@ export function AuditLog() {
             setAction(e.target.value as Action | '')
             setPage(1)
           }}
-          className="rounded border border-gray-300 px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+          className={selectCls}
         >
           <option value="">All decisions</option>
           <option value="approve">Approve</option>
@@ -88,7 +97,7 @@ export function AuditLog() {
             setActorId(e.target.value)
             setPage(1)
           }}
-          className="rounded border border-gray-300 px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+          className={selectCls}
         >
           <option value="">All actors</option>
           {actors?.map((a) => (
@@ -99,98 +108,91 @@ export function AuditLog() {
         </select>
 
         {aiActors.length > 0 && (
-          <button
+          <Button
+            variant={isAiOnly ? 'secondary' : 'outline'}
+            size="sm"
             onClick={() => {
-              setActorId((prev) => (isAiOnly ? '' : 'ai-reviewer'))
+              setActorId(isAiOnly ? '' : 'ai-reviewer')
               setPage(1)
             }}
-            className={`rounded border px-3 py-1.5 text-sm ${
-              isAiOnly
-                ? 'border-blue-500 bg-blue-50 text-blue-700'
-                : 'border-gray-300 bg-white text-gray-700 hover:bg-gray-50'
-            }`}
           >
             AI Reviewer only
-          </button>
+          </Button>
         )}
       </div>
 
       {isError && (
-        <ErrorMessage message={(error as Error).message ?? 'Failed to load audit log'} />
+        <div className="mb-4">
+          <ErrorMessage message={(error as Error).message ?? 'Failed to load audit log'} />
+        </div>
       )}
 
       {isLoading && (
-        <div className="py-12 text-center text-sm text-gray-500">Loading…</div>
+        <div className="py-12 text-center text-sm text-muted-foreground">Loading…</div>
       )}
 
       {data && (
         <>
-          <div className="overflow-hidden rounded-lg border border-gray-200 bg-white shadow-sm">
-            <table className="min-w-full divide-y divide-gray-200">
-              <thead className="bg-gray-50">
-                <tr>
-                  {COLUMNS.map((col) => (
-                    <th
-                      key={col.label}
-                      onClick={col.sortKey ? () => handleSort(col.sortKey!) : undefined}
-                      className={`px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500 ${
-                        col.sortKey ? 'cursor-pointer select-none hover:text-gray-700' : ''
-                      }`}
-                    >
-                      {col.label}
-                      {col.sortKey && <SortIcon state={sort} col={col.sortKey} />}
-                    </th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-gray-100 bg-white">
-                {data.items.length === 0 ? (
-                  <tr>
-                    <td colSpan={5} className="px-4 py-8 text-center text-sm text-gray-400">
-                      No decisions recorded yet.
-                    </td>
-                  </tr>
-                ) : (
-                  data.items.map((entry) => (
-                    <tr key={entry.id} className="hover:bg-gray-50">
-                      <td className="whitespace-nowrap px-4 py-3 text-sm text-gray-500">
-                        {new Date(entry.created_at).toLocaleString()}
-                      </td>
-                      <td className="px-4 py-3">
-                        <Link
-                          to={`/cases/${entry.case_id}`}
-                          className="font-mono text-sm text-blue-600 hover:underline"
-                        >
-                          {entry.case_id.slice(0, 8)}
-                        </Link>
-                      </td>
-                      <td className="px-4 py-3 text-sm text-gray-700">{entry.actor_id}</td>
-                      <td className="px-4 py-3">
-                        <span
-                          className={`inline-flex rounded-full px-2.5 py-0.5 text-xs font-medium ${
-                            entry.action === 'approve'
-                              ? 'bg-green-100 text-green-800'
-                              : entry.action === 'reject'
-                                ? 'bg-red-100 text-red-800'
-                                : 'bg-purple-100 text-purple-800'
-                          }`}
-                        >
-                          {entry.action}
-                        </span>
-                      </td>
-                      <td className="max-w-xs px-4 py-3 text-sm text-gray-600">
-                        <span title={entry.notes}>
-                          {entry.notes.length > 80
-                            ? entry.notes.slice(0, 80) + '…'
-                            : entry.notes}
-                        </span>
-                      </td>
-                    </tr>
-                  ))
-                )}
-              </tbody>
-            </table>
-          </div>
+          <Card>
+            <CardContent className="p-0">
+              <Table>
+                <TableHeader>
+                  <TableRow className="hover:bg-transparent">
+                    {COLUMNS.map((col) => (
+                      <TableHead
+                        key={col.label}
+                        onClick={col.sortKey ? () => handleSort(col.sortKey!) : undefined}
+                        className={
+                          col.sortKey
+                            ? 'cursor-pointer select-none text-xs font-medium uppercase tracking-wider hover:text-foreground'
+                            : 'text-xs font-medium uppercase tracking-wider'
+                        }
+                      >
+                        {col.label}
+                        {col.sortKey && <SortIcon state={sort} col={col.sortKey} />}
+                      </TableHead>
+                    ))}
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {data.items.length === 0 ? (
+                    <TableRow>
+                      <TableCell colSpan={5} className="py-8 text-center text-muted-foreground">
+                        No decisions recorded yet.
+                      </TableCell>
+                    </TableRow>
+                  ) : (
+                    data.items.map((entry) => (
+                      <TableRow key={entry.id}>
+                        <TableCell className="text-sm text-muted-foreground">
+                          {new Date(entry.created_at).toLocaleString()}
+                        </TableCell>
+                        <TableCell>
+                          <Link
+                            to={`/cases/${entry.case_id}`}
+                            className="font-mono text-sm text-primary hover:underline"
+                          >
+                            {entry.case_id.slice(0, 8)}
+                          </Link>
+                        </TableCell>
+                        <TableCell className="text-sm text-foreground">{entry.actor_id}</TableCell>
+                        <TableCell>
+                          <Badge className={ACTION_STYLES[entry.action]}>{entry.action}</Badge>
+                        </TableCell>
+                        <TableCell className="max-w-xs text-sm text-muted-foreground">
+                          <span title={entry.notes}>
+                            {entry.notes.length > 80
+                              ? entry.notes.slice(0, 80) + '…'
+                              : entry.notes}
+                          </span>
+                        </TableCell>
+                      </TableRow>
+                    ))
+                  )}
+                </TableBody>
+              </Table>
+            </CardContent>
+          </Card>
 
           <Pagination
             page={data.page}

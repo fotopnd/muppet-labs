@@ -6,7 +6,11 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { AuditLog } from '@/pages/AuditLog'
 
 const mockUseAuditLog = vi.fn()
-vi.mock('@/api/audit', () => ({ useAuditLog: (...args: unknown[]) => mockUseAuditLog(...args) }))
+const mockUseAuditActors = vi.fn()
+vi.mock('@/api/audit', () => ({
+  useAuditLog: (...args: unknown[]) => mockUseAuditLog(...args),
+  useAuditActors: (...args: unknown[]) => mockUseAuditActors(...args),
+}))
 
 function wrapper({ children }: { children: React.ReactNode }) {
   return (
@@ -17,7 +21,10 @@ function wrapper({ children }: { children: React.ReactNode }) {
 }
 
 describe('AuditLog', () => {
-  beforeEach(() => vi.clearAllMocks())
+  beforeEach(() => {
+    vi.clearAllMocks()
+    mockUseAuditActors.mockReturnValue({ data: undefined })
+  })
 
   it('shows loading state', () => {
     mockUseAuditLog.mockReturnValue({ isLoading: true, isError: false, data: undefined })

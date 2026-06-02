@@ -1,3 +1,5 @@
+import { Button } from '@/components/ui/button'
+
 interface PaginationProps {
   page: number
   pageSize: number
@@ -11,28 +13,28 @@ export function Pagination({ page, pageSize, total, onPageChange }: PaginationPr
   const end = Math.min(page * pageSize, total)
 
   return (
-    <div className="flex items-center justify-between px-1 py-3 text-sm text-gray-600">
-      <span>
-        {total === 0 ? 'No results' : `${start}–${end} of ${total}`}
-      </span>
-      <div className="flex gap-2">
-        <button
+    <div className="flex items-center justify-between px-1 py-3 text-sm text-muted-foreground">
+      <span>{total === 0 ? 'No results' : `${start}–${end} of ${total}`}</span>
+      <div className="flex items-center gap-2">
+        <Button
+          variant="outline"
+          size="sm"
           onClick={() => onPageChange(page - 1)}
           disabled={page <= 1}
-          className="rounded border border-gray-300 px-3 py-1 disabled:opacity-40 hover:bg-gray-50 disabled:cursor-not-allowed"
         >
           Previous
-        </button>
-        <span className="flex items-center px-1">
+        </Button>
+        <span className="px-1 text-sm">
           {page} / {totalPages}
         </span>
-        <button
+        <Button
+          variant="outline"
+          size="sm"
           onClick={() => onPageChange(page + 1)}
           disabled={page >= totalPages}
-          className="rounded border border-gray-300 px-3 py-1 disabled:opacity-40 hover:bg-gray-50 disabled:cursor-not-allowed"
         >
           Next
-        </button>
+        </Button>
       </div>
     </div>
   )

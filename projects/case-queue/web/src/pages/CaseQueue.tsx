@@ -6,12 +6,13 @@ import { ErrorMessage } from '@/components/ErrorMessage'
 import { Pagination } from '@/components/Pagination'
 import { SeverityBadge } from '@/components/SeverityBadge'
 import { StatusBadge } from '@/components/StatusBadge'
+import { Card, CardContent } from '@/components/ui/card'
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import type { CaseCategory, CaseFilters, CaseSortBy, CaseStatus, Severity, SortDir } from '@/types'
 
 const PAGE_SIZE = 50
 
 type SortState = { by: CaseSortBy; dir: SortDir } | null
-
 type Column = { label: string; sortKey?: CaseSortBy }
 
 const COLUMNS: Column[] = [
@@ -23,11 +24,12 @@ const COLUMNS: Column[] = [
 ]
 
 function SortIcon({ state, col }: { state: SortState; col: CaseSortBy }) {
-  if (state?.by !== col) return <span className="ml-1 text-xs text-gray-300">↕</span>
-  return (
-    <span className="ml-1 text-xs text-blue-600">{state.dir === 'asc' ? '▲' : '▼'}</span>
-  )
+  if (state?.by !== col) return <span className="ml-1 text-xs text-muted-foreground/40">↕</span>
+  return <span className="ml-1 text-xs text-primary">{state.dir === 'asc' ? '▲' : '▼'}</span>
 }
+
+const selectCls =
+  'rounded-md border border-input bg-background px-3 py-1.5 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-ring'
 
 export function CaseQueue() {
   const [page, setPage] = useState(1)
@@ -66,18 +68,17 @@ export function CaseQueue() {
   return (
     <div className="mx-auto max-w-7xl px-4 py-8">
       <div className="mb-6 flex items-center justify-between">
-        <h1 className="text-2xl font-semibold text-gray-900">Case Queue</h1>
-        <Link to="/audit" className="text-sm text-blue-600 hover:underline">
+        <h1 className="text-2xl font-semibold text-foreground">Case Queue</h1>
+        <Link to="/audit" className="text-sm text-primary hover:underline">
           Audit Log →
         </Link>
       </div>
 
-      {/* Filters */}
       <div className="mb-4 flex flex-wrap gap-3">
         <select
           value={category}
           onChange={handleFilterChange(setCategory as (v: string) => void)}
-          className="rounded border border-gray-300 px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+          className={selectCls}
         >
           <option value="">All categories</option>
           <option value="toxic">Toxic</option>
@@ -91,7 +92,7 @@ export function CaseQueue() {
         <select
           value={severity}
           onChange={handleFilterChange(setSeverity as (v: string) => void)}
-          className="rounded border border-gray-300 px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+          className={selectCls}
         >
           <option value="">All severities</option>
           <option value="low">Low</option>
@@ -102,7 +103,7 @@ export function CaseQueue() {
         <select
           value={status}
           onChange={handleFilterChange(setStatus as (v: string) => void)}
-          className="rounded border border-gray-300 px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+          className={selectCls}
         >
           <option value="">All statuses</option>
           <option value="pending">Pending</option>
@@ -113,69 +114,75 @@ export function CaseQueue() {
       </div>
 
       {isError && (
-        <ErrorMessage message={(error as Error).message ?? 'Failed to load cases'} />
+        <div className="mb-4">
+          <ErrorMessage message={(error as Error).message ?? 'Failed to load cases'} />
+        </div>
       )}
 
       {isLoading && (
-        <div className="py-12 text-center text-sm text-gray-500">Loading cases…</div>
+        <div className="py-12 text-center text-sm text-muted-foreground">Loading cases…</div>
       )}
 
       {data && (
         <>
-          <div className="overflow-hidden rounded-lg border border-gray-200 bg-white shadow-sm">
-            <table className="min-w-full divide-y divide-gray-200">
-              <thead className="bg-gray-50">
-                <tr>
-                  {COLUMNS.map((col) => (
-                    <th
-                      key={col.label}
-                      onClick={col.sortKey ? () => handleSort(col.sortKey!) : undefined}
-                      className={`px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500 ${
-                        col.sortKey ? 'cursor-pointer select-none hover:text-gray-700' : ''
-                      }`}
-                    >
-                      {col.label}
-                      {col.sortKey && <SortIcon state={sort} col={col.sortKey} />}
-                    </th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-gray-100 bg-white">
-                {data.items.length === 0 ? (
-                  <tr>
-                    <td colSpan={5} className="px-4 py-8 text-center text-sm text-gray-400">
-                      No cases match the current filters.
-                    </td>
-                  </tr>
-                ) : (
-                  data.items.map((c) => (
-                    <tr key={c.id} className="hover:bg-gray-50">
-                      <td className="px-4 py-3">
-                        <Link
-                          to={`/cases/${c.id}`}
-                          className="font-mono text-sm text-blue-600 hover:underline"
-                        >
-                          {c.id.slice(0, 8)}
-                        </Link>
-                      </td>
-                      <td className="px-4 py-3 text-sm text-gray-700">
-                        {c.category.replace('_', ' ')}
-                      </td>
-                      <td className="px-4 py-3">
-                        <SeverityBadge severity={c.severity} />
-                      </td>
-                      <td className="px-4 py-3">
-                        <StatusBadge status={c.status} />
-                      </td>
-                      <td className="px-4 py-3 text-sm text-gray-500">
-                        {new Date(c.created_at).toLocaleDateString()}
-                      </td>
-                    </tr>
-                  ))
-                )}
-              </tbody>
-            </table>
-          </div>
+          <Card>
+            <CardContent className="p-0">
+              <Table>
+                <TableHeader>
+                  <TableRow className="hover:bg-transparent">
+                    {COLUMNS.map((col) => (
+                      <TableHead
+                        key={col.label}
+                        onClick={col.sortKey ? () => handleSort(col.sortKey!) : undefined}
+                        className={
+                          col.sortKey
+                            ? 'cursor-pointer select-none text-xs font-medium uppercase tracking-wider hover:text-foreground'
+                            : 'text-xs font-medium uppercase tracking-wider'
+                        }
+                      >
+                        {col.label}
+                        {col.sortKey && <SortIcon state={sort} col={col.sortKey} />}
+                      </TableHead>
+                    ))}
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {data.items.length === 0 ? (
+                    <TableRow>
+                      <TableCell colSpan={5} className="py-8 text-center text-muted-foreground">
+                        No cases match the current filters.
+                      </TableCell>
+                    </TableRow>
+                  ) : (
+                    data.items.map((c) => (
+                      <TableRow key={c.id}>
+                        <TableCell>
+                          <Link
+                            to={`/cases/${c.id}`}
+                            className="font-mono text-sm text-primary hover:underline"
+                          >
+                            {c.id.slice(0, 8)}
+                          </Link>
+                        </TableCell>
+                        <TableCell className="text-sm text-foreground">
+                          {c.category.replace('_', ' ')}
+                        </TableCell>
+                        <TableCell>
+                          <SeverityBadge severity={c.severity} />
+                        </TableCell>
+                        <TableCell>
+                          <StatusBadge status={c.status} />
+                        </TableCell>
+                        <TableCell className="text-sm text-muted-foreground">
+                          {new Date(c.created_at).toLocaleDateString()}
+                        </TableCell>
+                      </TableRow>
+                    ))
+                  )}
+                </TableBody>
+              </Table>
+            </CardContent>
+          </Card>
 
           <Pagination
             page={data.page}
