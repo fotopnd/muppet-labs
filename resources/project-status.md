@@ -17,7 +17,7 @@
 | Item | Status | Notes |
 |---|---|---|
 | Backend code | ✓ Complete | FastAPI, SQLAlchemy async, asyncpg, Alembic |
-| Frontend code | ✓ Complete | React 18, TypeScript, TanStack Query, Tailwind CSS |
+| Frontend code | ✓ Complete | React 18, TypeScript, TanStack Query, shadcn/ui, Tailwind CSS |
 | `ai_reviewer` CLI | ✓ Complete | Polls queue, classifies via Ollama or Claude API |
 | Backend tests | ✓ 22/22 | pytest-asyncio, NullPool, lifespan patched |
 | Frontend tests | ✓ 11/11 | vitest, Testing Library |
@@ -125,7 +125,6 @@ Replace `projects/case-queue/` path references with live GitHub URL and Hostinge
 1. **Create public GitHub repo and push** — unblocks the live demo and makes the portfolio piece verifiable.
 2. **Deploy to Hostinger VPS** — follow the steps above.
 3. **Update ALLOWED_ORIGINS** in `.env` once the Hostinger hostname is confirmed.
-4. **shadcn/ui (optional)** — visual polish; not a portfolio blocker.
 
 ---
 

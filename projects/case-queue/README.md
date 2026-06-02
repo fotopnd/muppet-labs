@@ -9,7 +9,7 @@ The project covers the full vertical: PostgreSQL schema design, an async FastAPI
 ## Architecture
 
 ```
-web/          React + TypeScript frontend (Vite, TanStack Query, Tailwind CSS)
+web/          React + TypeScript frontend (Vite, TanStack Query, shadcn/ui, Tailwind CSS)
 api/          FastAPI backend (Python 3.12, SQLAlchemy async, asyncpg, Alembic)
 ai_reviewer/  Polling CLI that classifies cases via Ollama or Claude API
 docker-compose.yml  PostgreSQL 16
@@ -122,7 +122,7 @@ The seed script generates 540 synthetic cases (30 per category-severity bucket) 
 
 | Layer | Technology |
 |-------|-----------|
-| Frontend | React 18, TypeScript, Vite, TanStack Query, Tailwind CSS |
+| Frontend | React 18, TypeScript, Vite, TanStack Query, shadcn/ui, Tailwind CSS |
 | Backend | Python 3.12, FastAPI, SQLAlchemy 2 (async), asyncpg, Pydantic v2 |
 | Database | PostgreSQL 16, Alembic migrations |
 | AI reviewer | Typer CLI, httpx, Ollama (local), Claude API |

@@ -4,7 +4,7 @@ Content moderation queues have a recognizable shape. Cases arrive from an ingest
 
 What is hard is getting the enforcement properties right: that the audit trail is complete regardless of who acted, that role-based controls are enforced at the API layer rather than relied on in the client, and that an AI reviewer integrates into the same workflow a human analyst uses rather than running in a separate lane that quietly bypasses the enforcement logic. Those properties are invisible when they are correct and costly when they are not.
 
-Case Queue was built to demonstrate those properties end-to-end: a React and TypeScript frontend, a Python FastAPI backend, PostgreSQL with Alembic-managed migrations, and an AI reviewer command-line interface (CLI) that classifies cases via a local Ollama model or the Claude API.
+Case Queue was built to demonstrate those properties end-to-end: a React and TypeScript frontend (shadcn/ui components, TanStack Query), a Python FastAPI backend, PostgreSQL with Alembic-managed migrations, and an AI reviewer command-line interface (CLI) that classifies cases via a local Ollama model or the Claude API.
 
 ## Background
 
