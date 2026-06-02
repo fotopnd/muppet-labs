@@ -1,34 +1,36 @@
-# Doc-Reviewer Output — case-queue one-pager
+# Doc-Reviewer Output — moderation-stream technical summary
 
 **Date:** 2026-06-02
-**Document:** `projects/case-queue/docs/one-pager.md`
-**Verdict:** READY
+**Document:** `projects/moderation-stream/docs/technical-summary.md`
 
-## Key Message Audit
+---
 
-| # | Message | Verdict | Notes |
-|---|---|---|---|
-| 1 | Single write path is the correct enforcement design | LANDS | First anchor in Approach; reasoning explicit and follows through |
-| 2 | AI reviewer reflects production instincts | LANDS | Three-point list reads as considered constraints, not features |
-| 3 | RBAC via headers is deliberate tradeoff | LANDS | Framed confidently, not defensively |
-| 4 | Full vertical, 33 tests | LANDS | Testing anchor covers both suites with specifics |
-| 5 | Non-synthetic domain model | LANDS | Background closes on "The distribution is intentional." |
+## What Was Edited
 
-## Voice Audit
+Four changes applied:
 
-- Em-dashes: none found
-- Semicolons: none found
-- First-person singular: none found
-- Register: collegial, peer-to-peer, economy of words maintained
+1. **Em-dash removed (What Was Built, paragraph 1).** "under equivalent input conditions — all five classifiers..." rewritten as a parenthetical clause to comply with the voice rule banning em-dashes.
 
-## Edits Made
+2. **Em-dash removed (Known Gaps).** "no consumer supervisor process — a consumer crash" rewritten as "no consumer supervisor process, meaning a consumer crash" — same meaning, compliant punctuation.
 
-1. **"The Approach," first anchor, final sentence** — removed "and explicitly acknowledged
-   as such in the README." The phrase pointed the reader to another document mid-paragraph
-   and read as slightly defensive. "The session system is deliberately out of scope." is
-   complete and more confident without it.
+3. **Key message 5 (tests) added (What Was Built, paragraph 2).** A sentence on test coverage was absent from the draft. Added: "The pipeline is covered by infrastructure-free unit tests for the producer and consumer logic, and by integration tests for the metrics API that assert computed accuracy and latency values against seeded rows." This lands the fifth key message from the brief.
 
-## Notes for Future Revision
+4. **Offset-commit detail added (Architecture Overview).** The brief identified "synchronous offset commits" as a differentiator for the real-streaming key message. The architecture paragraph now ends with "and commit the offset only after a successful write," which makes the at-least-once delivery guarantee explicit to a technical reader without adding implementation noise.
 
-- "Where to Go Next" currently points to a local path (`projects/case-queue/`). Update to
-  the GitHub repository URL once the repository is published.
+---
+
+## Author Flags
+
+None — document is complete.
+
+---
+
+## Verdict
+
+READY
+
+---
+
+## Handoff
+
+No further action required. Document is at: `projects/moderation-stream/docs/technical-summary.md`

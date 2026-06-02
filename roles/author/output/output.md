@@ -1,37 +1,39 @@
-# Author Output — case-queue one-pager
+# Author Output — moderation-stream technical summary
 
 **Date:** 2026-06-02
-**Document:** `projects/case-queue/docs/one-pager.md`
+**Document:** `projects/moderation-stream/docs/technical-summary.md`
 **Brief:** `roles/doc-brief/output/output.md`
-**Template:** `templates/blog-post.md`
+**Template:** `templates/technical-summary.md`
+**Audience:** Tier 2 — Technical Leadership
+**Goal:** Inform
 
-## What was written
+---
 
-Blog Post / Case Study targeting Technical (Tier 1) readers. ~870 words. Follows the same
-arc as `projects/eval-harness/docs/one-pager.md`: hook, background, approach, results,
-learned, next.
+## Template Section Status
 
-## Decisions made during drafting
+| Section | Status |
+|---------|--------|
+| What Was Built | Complete |
+| Key Technical Decisions | Complete — 5 decisions |
+| Architecture Overview | Complete — prose description |
+| Known Gaps and Limitations | Complete |
+| What's Next | Complete |
 
-- Title: "What Keeps a Moderation Queue Honest" — leads with the enforcement integrity
-  question rather than naming the project or describing the stack.
-- Hook opens on the recognizable shape of moderation queues, then pivots to what is actually
-  hard (enforcement properties). Avoids listing technologies in the opening.
-- The Approach section uses three bold anchors (one write path, AI reviewer constraints,
-  testing) to give structure without requiring sub-headings that would fragment the narrative.
-- Role-based access control framing: explicitly acknowledges headers-as-RBAC is a deliberate
-  scope decision, not a gap. The phrase "The shape of the access control policy is correct
-  here" is the key signal to a technical reader.
-- "What We Learned" focuses on the structural consequence of the single-path decision
-  (it closed off a class of questions) rather than restating the feature.
+---
 
-## Notes for doc-reviewer
+## Deviations from Brief
 
-- Check that key message 1 (single write path) lands clearly in "The Approach" first anchor.
-- Check that key message 2 (AI reviewer constraints) reads as production instinct, not demo
-  features — the three-point structure (threshold, dry-run, cost guardrail) should feel like
-  a considered list, not a feature dump.
-- Check that key message 3 (RBAC framing) is honest without being defensive.
-- Voice: no em-dashes, no semicolons applied throughout. Verify none slipped through.
-- Length target was ~1000 words; draft is approximately 870. Within acceptable range given
-  the brief instruction to lean tight.
+None. Word count is approximately 640 words, within the 500–700 target. No code blocks. No em-dashes or semicolons. Jigsaw and percentile_cont defined inline on first use.
+
+---
+
+## Author Notes in Document
+
+None — document is complete from available source material.
+
+---
+
+## Handoff
+
+The doc-reviewer reads `roles/doc-brief/output/output.md` and the document at `projects/moderation-stream/docs/technical-summary.md`.
+Key concern: confirm all five key messages from the brief land clearly, particularly message 2 (parallel comparison on same stream) which must not be buried under infrastructure detail.
