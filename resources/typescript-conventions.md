@@ -22,6 +22,7 @@
 - Format with `prettier`. Lint with `eslint` (flat config, `eslint.config.ts`).
 - Follow `skills/setup-ts-pnpm.md` to initialise a new project correctly.
 - `pnpm-lock.yaml` is committed. Do not commit `node_modules/`.
+- **Environment variables:** any new `import.meta.env.VITE_*` reference must have a matching entry in `.env.example` in the same implementer pass. A missing example entry means the project won't start for anyone following the How to Run instructions.
 
 ---
 

@@ -46,6 +46,8 @@
 - Use `from exc` or `from None` on all re-raises inside `except` blocks.
 - Do not catch broad `Exception` unless it is at a boundary (CLI top-level, retry loops).
 - Do not swallow exceptions silently.
+- **At a legitimate boundary** (consumer loop, retry handler, batch processor): always log with `exc_info=True` to preserve the full traceback. `logger.warning("...", exc_info=True)` — never log only the exception message, which drops the location.
+- **Methods requiring prior initialisation** (model weights, DB connection, external resource): raise on uninitialised state rather than returning a silent default. Use `raise RuntimeError("...")` — not `if self._pipe is None: return 0`. Silent defaults write wrong data with no trace.
 
 ## Imports
 
@@ -60,6 +62,7 @@
 - Prefer real objects over mocks. Use mocks only for: external HTTP calls, API clients, file system operations that would be slow or destructive.
 - Use `pytest-httpserver` to mock HTTP endpoints rather than monkeypatching the requests library.
 - Test all non-trivial branches. If a branch exists, it should have a test.
+- **Aggregation endpoints** (endpoints that compute derived values — accuracy, latency percentiles, totals): include at least one test with seeded data that asserts computed outputs, not just response shape. An empty-DB test verifies structure; it does not verify the SQL.
 
 ## Enums
 
