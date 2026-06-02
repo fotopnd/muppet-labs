@@ -30,6 +30,17 @@ Each role has a single job. Roles are reusable — the same role can appear in m
 |------|--------|-----|
 | **daily-brief** | `roles/daily-brief/` | Session-start orientation. Synthesises priorities, project status, and ideas queue into a short actionable brief. |
 
+**Design and UI roles** — for planning and reviewing frontend interfaces:
+
+| Role | Folder | Job |
+|------|--------|-----|
+| **design-brief** | `roles/design-brief/` | UI intake: lock in interface context, primary interaction, key components, and done criteria before any frontend work begins. |
+| **frontend-architect** | `roles/frontend-architect/` | Plan component hierarchy, layout grid, design token application, and interactive states from `design_style.md` rules before the implementer writes code. |
+| **ui-reviewer** | `roles/ui-reviewer/` | Evaluate completed frontend against `design_style.md` rules and the frontend-architect spec. Verdict: READY or REWORK NEEDED with itemised violations. |
+| **ui-debugger** | `roles/ui-debugger/` | Apply targeted fixes to violations flagged by `ui-reviewer`. Fix exactly what is listed, nothing more. |
+
+---
+
 **Writing roles** — for producing documents about projects:
 
 | Role | Folder | Job |
@@ -51,9 +62,10 @@ Shared knowledge files in `resources/`. Any role can load any of these. Load onl
 | `rust-conventions.md` | Rust edition, error handling, clippy preferences |
 | `typescript-conventions.md` | TS strict mode, module style, tooling |
 | `vibecoding-style.md` | Owner's iteration preferences and collaboration style |
+| `design_style.md` | Global visual style guide — interface contexts, token rules, layout constraints; read by all UI roles |
 | `audience-tiers.md` | Three writing audience tiers: who they are, what they care about, how to calibrate content |
 | `doc-types.md` | Catalog of document types: when to use each, which template, which audience tier |
-| `writing-voice.md` | Individual writing voice guidance — stub until populated in a voice session |
+| `writing-voice.md` | Individual writing voice guidance |
 
 ---
 
@@ -82,6 +94,8 @@ or technical operation. Skills describe steps, not philosophy.
 | `setup-uv-project.md` | Initialising a Python project with uv |
 | `setup-cargo-workspace.md` | Setting up a Cargo workspace for Rust |
 | `setup-ts-pnpm.md` | Initialising a TypeScript project with pnpm |
+| `setup-design-tokens.md` | Establishing the Tailwind token layer for a new frontend project |
+| `dev-server-setup.md` | Dev server startup rules (always `--reload`); Makefile template |
 
 ---
 

@@ -52,9 +52,14 @@ its output feeds back into the workspace itself (`resources/`, `skills/`, `routi
 | 1 | `brief` | — | `vibecoding-style.md` | — | `roles/brief/output/output.md` |
 | 2 | `planner` | `brief/output.md` | `vibecoding-style.md`, `[lang]-conventions.md` | `setup-[lang]-project.md` if language decided | `roles/planner/output/output.md` |
 | 3 | `architect` | `planner/output.md` | `[lang]-conventions.md` | — | `roles/architect/output/output.md` |
-| 4 | `implementer` | `architect/output.md` | `[lang]-conventions.md`, `vibecoding-style.md` | `setup-[lang]-project.md` | `roles/implementer/output/output.md` |
-| 5 | `reviewer` | `implementer/output.md` | `[lang]-conventions.md`, `prompt-design.md` (if project includes LLM prompts) | — | `roles/reviewer/output/output.md` |
-| 6 | `retro` | `reviewer/output.md`, `implementer/output.md`, `project-state.md` | `vibecoding-style.md`, `routing.md` | — | `roles/retro/output/output.md` |
+| 4 | `design-brief` *(if project has frontend)* | `planner/output.md`, `architect/output.md` | `design_style.md`, `vibecoding-style.md` | — | `roles/design-brief/output/output.md` |
+| 5 | `frontend-architect` *(if project has frontend)* | `design-brief/output.md`, `architect/output.md` | `design_style.md`, `[lang]-conventions.md` | `setup-design-tokens.md` (new projects) | `roles/frontend-architect/output/output.md` |
+| 6 | `implementer` | `frontend-architect/output.md` + `architect/output.md`, or `architect/output.md` only if no frontend | `[lang]-conventions.md`, `vibecoding-style.md` | `setup-[lang]-project.md` | `roles/implementer/output/output.md` |
+| 7 | `ui-reviewer` *(if project has frontend)* | `implementer/output.md`, `frontend-architect/output.md`, `design-brief/output.md` | `design_style.md` | — | `roles/ui-reviewer/output/output.md` |
+| 8 | `reviewer` | `implementer/output.md` | `[lang]-conventions.md`, `prompt-design.md` (if project includes LLM prompts) | — | `roles/reviewer/output/output.md` |
+| 9 | `retro` | `reviewer/output.md`, `implementer/output.md`, `project-state.md` | `vibecoding-style.md`, `routing.md` | — | `roles/retro/output/output.md` |
+
+> **UI debug loop:** If `ui-reviewer` returns REWORK NEEDED, `ui-debugger` applies fixes, then `ui-reviewer` runs a second pass before `reviewer` proceeds.
 
 > **Plan mode note:** If plan mode ran before the sequence and produced a detailed architecture, the `architect` role may treat the plan file as pre-resolved planner output. It confirms decisions rather than re-deriving them. The architect should not duplicate what the plan already settled — validate and resolve open questions only.
 
@@ -90,12 +95,15 @@ its output feeds back into the workspace itself (`resources/`, `skills/`, `routi
 |------|------|-------|-----------|--------|--------|
 | 1 | `planner` | `_config/project-state.md` | `vibecoding-style.md`, `[lang]-conventions.md` | — | `roles/planner/output/output.md` |
 | 2 | `architect` *(conditional)* | `planner/output.md` | `[lang]-conventions.md` | — | `roles/architect/output/output.md` |
-| 3 | `implementer` | `architect/output.md` or `planner/output.md` if architect skipped | `[lang]-conventions.md`, `vibecoding-style.md` | — | `roles/implementer/output/output.md` |
-| 4 | `reviewer` | `implementer/output.md` | `[lang]-conventions.md`, `prompt-design.md` (if project includes LLM prompts) | — | `roles/reviewer/output/output.md` |
-| 5 | `retro` *(recommended for substantial features)* | `reviewer/output.md`, `implementer/output.md`, `project-state.md` | `vibecoding-style.md`, `routing.md` | — | `roles/retro/output/output.md` |
+| 3 | `design-brief` *(if feature has UI)* | `planner/output.md`, `architect/output.md` | `design_style.md` | — | `roles/design-brief/output/output.md` |
+| 4 | `frontend-architect` *(if feature has UI)* | `design-brief/output.md`, `architect/output.md` | `design_style.md`, `[lang]-conventions.md` | — | `roles/frontend-architect/output/output.md` |
+| 5 | `implementer` | `frontend-architect/output.md` + `architect/output.md`, or `architect/output.md` only if no UI | `[lang]-conventions.md`, `vibecoding-style.md` | — | `roles/implementer/output/output.md` |
+| 6 | `ui-reviewer` *(if feature has UI)* | `implementer/output.md`, `frontend-architect/output.md`, `design-brief/output.md` | `design_style.md` | — | `roles/ui-reviewer/output/output.md` |
+| 7 | `reviewer` | `implementer/output.md` | `[lang]-conventions.md`, `prompt-design.md` (if project includes LLM prompts) | — | `roles/reviewer/output/output.md` |
+| 8 | `retro` | `reviewer/output.md`, `implementer/output.md`, `project-state.md` | `vibecoding-style.md`, `routing.md` | — | `roles/retro/output/output.md` |
 
 > Skip architect if the feature fits cleanly into existing structure. Human makes this call after reviewing planner output.
-> Run retro when the feature was large enough to reveal friction in the existing architecture or workspace tooling.
+> UI debug loop: if `ui-reviewer` returns REWORK NEEDED, `ui-debugger` applies fixes, then `ui-reviewer` runs a second pass before `reviewer` proceeds.
 
 ---
 
