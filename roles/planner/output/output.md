@@ -1,205 +1,187 @@
-# Planner — case-queue
+# Planner Output — moderation-stream
 
 **Role:** planner
-**Sequence:** `new-project-full` (step 2 of 6)
-**Date:** 2026-06-01
-**Reads:** `roles/brief/output/output.md`, `resources/vibecoding-style.md`, `resources/python-conventions.md`, `resources/typescript-conventions.md` (created this session), `skills/setup-uv-project.md`, `skills/setup-ts-pnpm.md` (created this session)
+**Sequence:** `new-project-full` (step 2)
+**Date:** 2026-06-02
 
 ---
 
 ## Project
 
-**Name:** `case-queue`
-**Location:** `projects/case-queue/`
-**Description:** Fullstack case management tool for trust & safety analysts — React/TypeScript frontend with case queue, content review, decision logging, and role-based approve/reject/escalate workflow; backed by a Python FastAPI service and PostgreSQL.
+`moderation-stream` — Kafka-based content moderation event streaming platform with a five-model live comparison pipeline. A Python producer replays the Jigsaw Toxic Comment dataset as a configurable-speed Kafka stream; five classifier consumers run in parallel against each event; a FastAPI metrics service aggregates per-model accuracy, latency, and throughput to Postgres; a React `/stream` route added to the case-queue frontend shows the live comparison panel.
 
 ---
 
 ## Requirements
 
-### API Requirements
+### Producer
 
-| # | Requirement |
-|---|-------------|
-| R1 | `GET /cases` returns a paginated JSON response with fields: `items` (list), `total`, `page`, `page_size`. Accepts query params: `page` (default 1), `page_size` (default 50, max 100), `category`, `severity`, `status`, `date_from`, `date_to`. |
-| R2 | `GET /cases/{id}` returns a single case with all fields including full `content`, `metadata`, and the list of decisions made on that case. Returns 404 if not found. |
-| R3 | `POST /cases/{id}/decisions` accepts body `{action, notes}` and headers `X-Actor-Id`, `X-Actor-Role`. Persists the decision and returns it. Returns 403 if `X-Actor-Role=reviewer` and `action=escalate`. Returns 422 if `notes` is empty or missing. |
-| R4 | `GET /audit-log` returns a paginated decision log across all cases. Accepts: `page`, `page_size`, `case_id`, `actor_id`, `action`, `date_from`, `date_to`. |
-| R5 | All error responses return JSON `{"detail": "<message>"}` with an appropriate HTTP status code. |
-| R6 | CORS is configured to allow requests from `http://localhost:5173`. |
-| R7 | Database schema is managed via Alembic migrations. Running `alembic upgrade head` twice is idempotent. |
-| R8 | `python scripts/seed.py` generates ≥ 500 synthetic cases covering all six Jigsaw categories (`toxic`, `severe_toxic`, `obscene`, `threat`, `insult`, `identity_hate`) and three severity levels (`low`, `medium`, `high`). Running it twice does not create duplicate cases (seed uses deterministic IDs or checks for existing records). |
-| R9 | `uv run pytest tests/ -v` passes with no failures. |
-| R10 | `uv run ruff check app/ tests/` and `uv run ruff format --check app/ tests/` both exit 0. |
+1. The producer reads the Jigsaw Toxic Comment dataset from a local CSV path (configured via `JIGSAW_CSV_PATH` env var) and publishes each row as a JSON message to the Kafka topic `moderation-events`.
+2. Each message contains: `event_id` (UUID v4), `text` (string), `label` (int 0/1, ground-truth toxic/not-toxic), `label_detail` (dict of per-category Jigsaw scores: `toxic`, `severe_toxic`, `obscene`, `threat`, `insult`, `identity_hate`).
+3. The producer publishes at a configurable rate (`PRODUCER_RATE_PER_SEC`, default 10, max 100). It sleeps between batches to honour the rate.
+4. The producer accepts `--limit N` to cap total messages for dev runs (default: 1 000; full dataset: 159 571 rows).
+5. The producer exits cleanly on `SIGINT`; it prints total messages published and elapsed time on exit.
 
-### Frontend Requirements
+### Consumers
 
-| # | Requirement |
-|---|-------------|
-| R11 | The case queue page (`/`) renders a paginated table with columns: ID (first 8 chars), category, severity, status, created date. Table shows 50 rows per page with previous/next controls. |
-| R12 | The case queue page has filter controls for category, severity, and status. Changing a filter resets to page 1 and refetches. |
-| R13 | The case detail page (`/cases/:id`) renders: full content text, metadata (source, created date, category, severity), a list of prior decisions, and a decision form. |
-| R14 | The decision form has an action selector (approve / reject / escalate) and a required notes textarea. The escalate option is visually disabled and non-submittable when `VITE_ACTOR_ROLE=reviewer`. |
-| R15 | Submitting the decision form calls `POST /cases/:id/decisions`, shows a loading state during the request, shows a success message on completion, and returns the user to the case queue. |
-| R16 | The audit log page (`/audit`) renders a paginated table: timestamp, case ID (linked), actor ID, action, notes (truncated to 80 chars). |
-| R17 | API errors (non-2xx responses) display a visible error message to the user — never a blank or frozen screen. |
-| R18 | `pnpm build` compiles without TypeScript errors. |
-| R19 | `pnpm test` passes with no failures. |
+6. Each classifier runs as an independent OS process with its own Kafka consumer group ID (e.g. `consumer-distilbert`, `consumer-roberta`, `consumer-detoxify`).
+7. Each consumer classifies the message text, records `predicted_label` (int 0/1), and records `latency_ms` (float — time from message receipt to classification complete).
+8. Each consumer writes one `ClassificationResult` row to Postgres per message: `event_id`, `model_name`, `predicted_label`, `latency_ms`, `correct` (bool, `predicted_label == label`), `processed_at` (timestamp).
+9. Phase 2 consumers (fine-tuned DistilBERT, fine-tuned RoBERTa) read checkpoint paths from `DISTILBERT_CHECKPOINT_PATH` and `ROBERTA_CHECKPOINT_PATH`. If the env var is unset or path does not exist, the consumer starts, logs a warning, and emits `status: pending_weights` in the metrics API rather than processing events.
+10. Consumer groups commit offsets after each batch; on restart, each consumer resumes from the last committed offset.
+
+### Metrics API
+
+11. `GET /metrics` returns an array of per-model objects: `model_name`, `status` (`active` or `pending_weights`), `total_processed`, `correct`, `accuracy` (float 0–1), `p50_latency_ms`, `p95_latency_ms`, `throughput_cps` (classifications per second over the last 60 seconds).
+12. `GET /health` returns `{"status": "ok"}`.
+13. The metrics API reads `classification_results` from Postgres and computes all aggregates on query. No pre-aggregation table in Phase 1.
+14. The metrics API connects to a separate database (`moderation_stream_db`) on the same Postgres instance as case-queue.
+15. The metrics API exposes CORS allowing the case-queue frontend origin (`http://localhost:5173` in dev, configurable via `ALLOWED_ORIGIN` env var).
+
+### Frontend — `/stream` route
+
+16. A new `/stream` route is added to `projects/case-queue/web/src/App.tsx`.
+17. The route renders five `ModelMetricsCard` components — one per model slot — in a responsive grid.
+18. Each card shows: model name, status badge (`Active` / `Pending Weights`), accuracy (%), p50 / p95 latency (ms), throughput (cases/sec), total processed count.
+19. The route polls `GET /metrics` every 3 seconds using TanStack Query `useQuery` with `refetchInterval`.
+20. A nav link to `/stream` is added to the case-queue top navigation.
+21. When the metrics API is unreachable, the dashboard renders an error state using the existing `ErrorMessage` component.
+
+### Infrastructure
+
+22. `docker compose up` in `projects/moderation-stream/` starts: Kafka (single broker), Zookeeper, and a Postgres instance (`moderation_stream_db` database). The case-queue `docker-compose.yml` is unchanged.
+23. A `Makefile` provides: `make producer`, `make consumers` (starts all 3 Phase 1 consumers in background), `make api`, `make all`.
+24. The producer creates the `moderation-events` topic on startup if it does not exist (no manual topic creation step).
+25. All five consumer processes (Phase 1 + Phase 2 slots) are listed in the Makefile; Phase 2 targets are present but result in `pending_weights` mode until checkpoint env vars are set.
 
 ---
 
 ## Technology Stack
 
-### Backend
+### Python (moderation-stream backend)
 
 | Concern | Choice | Reason |
 |---------|--------|--------|
 | Language | Python 3.12 | Workspace standard |
-| Package manager | `uv` | Workspace standard |
-| Formatter / linter | `ruff` | Workspace standard |
-| Web framework | FastAPI | Async-native, Pydantic v2 integration, auto-generates OpenAPI docs |
-| ORM | SQLAlchemy 2.0 (async) | Async `AsyncSession` + `asyncpg` driver; type-safe query building |
-| Migrations | Alembic | Standard SQLAlchemy companion; env.py wired for async |
-| ASGI server | `uvicorn` | Standard FastAPI runner |
-| Data models | Pydantic v2 | Request/response schemas; FastAPI integrates natively |
-| Database | PostgreSQL 16 (via Docker Compose) | Matches SWE role JD requirement; `asyncpg` driver |
-| Testing | `pytest` + `pytest-asyncio` + `httpx` | `httpx.AsyncClient` for async FastAPI test client |
-| Config | `python-dotenv` | Loads `.env` for local dev |
+| Package manager | uv | Workspace standard |
+| Formatter / linter | ruff | Workspace standard |
+| Kafka client | `confluent-kafka-python` | Production-grade; lower latency than `kafka-python`. Requires `librdkafka` (macOS: `brew install librdkafka`; Linux: `apt install librdkafka-dev`) — documented in README. |
+| Transformer inference | `transformers` + `torch` (CPU) | Standard HuggingFace interface; `device=-1` forces CPU; no GPU dependency |
+| Detoxify | `detoxify` | Wraps `unitary/toxic-bert`; single-call toxicity classification |
+| Metrics API | `fastapi` + `uvicorn` | Matches case-queue stack |
+| ORM (API only) | `sqlalchemy[asyncio]` + `asyncpg` | Async reads in FastAPI; matches case-queue pattern |
+| ORM (consumers) | `sqlalchemy` (sync) + `psycopg2` | Consumers run a blocking Kafka poll loop; sync DB writes are simpler and sufficient |
+| Config | `pydantic-settings` | `extra="ignore"` per python-conventions.md |
+| Validation | `pydantic` v2 | Shared event schemas between producer and consumers |
+| Testing | `pytest` + `pytest-asyncio` | Workspace standard |
 
-### Frontend
+### TypeScript (case-queue frontend extension)
 
 | Concern | Choice | Reason |
 |---------|--------|--------|
-| Language | TypeScript 5.x (strict) | Workspace standard; SWE role hard requirement |
-| Package manager | `pnpm` | Workspace standard |
-| Build tool | Vite | Fast HMR, minimal config, standard for React/TS |
-| UI framework | React 18 | SWE role hard requirement |
-| Routing | React Router v6 | Standard; file-based routing not needed at this scale |
-| Server state | TanStack Query v5 | Handles caching, loading/error states; demonstrates modern React patterns |
-| Styling | Tailwind CSS v3 + shadcn/ui | Tailwind for utility classes; shadcn/ui for production-quality components owned in-tree |
-| Linting / formatting | ESLint (flat config) + Prettier | Workspace standard |
-| Testing | Vitest + Testing Library | Workspace standard per `typescript-conventions.md` |
+| Language | TypeScript 5.x strict | Existing frontend; workspace standard |
+| Polling | TanStack Query `refetchInterval` | Already installed; correct tool for polling |
+| UI components | shadcn/ui (existing) | Already installed; no new library |
+| Testing | vitest + `@testing-library/react` | Existing case-queue setup |
 
 ---
 
 ## File and Module Structure
 
+### Python project — `projects/moderation-stream/`
+
 ```
-projects/case-queue/
-├── docker-compose.yml              # postgres:16 service on port 5432
-├── .env.example                    # DATABASE_URL, VITE_API_URL, VITE_ACTOR_ID, VITE_ACTOR_ROLE
-├── README.md
-│
-├── api/                            # Python FastAPI backend
-│   ├── pyproject.toml
-│   ├── ruff.toml
-│   ├── alembic.ini
-│   ├── .env                        # gitignored; copy from .env.example
-│   ├── app/                        # importable package
+moderation-stream/
+├── pyproject.toml                     # uv project; hatchling build; pytest asyncio_mode=auto
+├── ruff.toml                          # line-length=100, select E/F/I/UP/B
+├── docker-compose.yml                 # Kafka + Zookeeper + Postgres (moderation_stream_db)
+├── .env.example                       # JIGSAW_CSV_PATH, KAFKA_BOOTSTRAP, DATABASE_URL, PRODUCER_RATE_PER_SEC
+├── Makefile                           # producer / consumers / api / all targets
+├── moderation_stream/
+│   ├── __init__.py
+│   ├── config.py                      # pydantic-settings Settings; extra="ignore"
+│   ├── types.py                       # Pydantic models: ModerationEvent, ClassificationResult, ModelMetrics
+│   ├── producer.py                    # Kafka producer; reads Jigsaw CSV; CLI entry point
+│   ├── consumers/
 │   │   ├── __init__.py
-│   │   ├── main.py                 # FastAPI app, lifespan (DB init), CORS config
-│   │   ├── database.py             # async engine, AsyncSession factory, get_db dependency
-│   │   ├── models.py               # SQLAlchemy ORM table definitions
-│   │   ├── schemas.py              # Pydantic request/response schemas
-│   │   ├── deps.py                 # FastAPI dependencies: get_db, get_actor
-│   │   └── routers/
-│   │       ├── __init__.py
-│   │       ├── cases.py            # GET /cases, GET /cases/{id}
-│   │       ├── decisions.py        # POST /cases/{id}/decisions
-│   │       └── audit.py            # GET /audit-log
-│   ├── alembic/
-│   │   ├── env.py                  # async Alembic env wired to app.database
-│   │   └── versions/               # migration scripts
-│   ├── scripts/
-│   │   └── seed.py                 # generates 500+ synthetic cases; idempotent
-│   └── tests/
-│       ├── conftest.py             # async test client, test DB session
-│       ├── test_cases.py           # R1, R2 — list + detail endpoints
-│       ├── test_decisions.py       # R3 — decision creation, role enforcement, validation
-│       └── test_audit.py           # R4 — audit log pagination and filters
-│
-└── web/                            # TypeScript React frontend
-    ├── package.json
-    ├── pnpm-lock.yaml
-    ├── tsconfig.json
-    ├── tsconfig.app.json           # strict config per typescript-conventions.md
-    ├── vite.config.ts              # path alias, vitest config
-    ├── eslint.config.ts
-    ├── .prettierrc
-    ├── index.html
-    └── src/
-        ├── main.tsx                # React entry, QueryClientProvider, RouterProvider
-        ├── App.tsx                 # route definitions
-        ├── api/
-        │   ├── client.ts           # base fetch wrapper (injects X-Actor headers, handles errors)
-        │   ├── cases.ts            # typed query functions for /cases endpoints
-        │   └── audit.ts            # typed query functions for /audit-log
-        ├── types/
-        │   └── index.ts            # shared domain types: Case, Decision, AuditEntry, ActorRole
-        ├── components/
-        │   ├── StatusBadge.tsx     # coloured badge for case status
-        │   ├── SeverityBadge.tsx   # coloured badge for severity
-        │   ├── Pagination.tsx      # prev/next/page controls
-        │   └── ErrorMessage.tsx    # standard error display
-        ├── pages/
-        │   ├── CaseQueue.tsx       # R11, R12 — list + filters
-        │   ├── CaseDetail.tsx      # R13, R14, R15 — detail + decision form
-        │   └── AuditLog.tsx        # R16 — audit table
-        └── test/
-            ├── setup.ts            # testing-library jest-dom setup
-            ├── CaseQueue.test.tsx
-            ├── CaseDetail.test.tsx
-            └── AuditLog.test.tsx
+│   │   ├── base.py                    # BaseConsumer: Kafka poll loop, DB write, latency measurement
+│   │   ├── distilbert.py              # zero-shot DistilBERT consumer (Phase 1)
+│   │   ├── roberta.py                 # zero-shot RoBERTa consumer (Phase 1)
+│   │   ├── detoxify_consumer.py       # Detoxify consumer (Phase 1)
+│   │   └── finetuned.py               # Phase 2: loads checkpoint from env var; pending_weights if absent
+│   └── api/
+│       ├── __init__.py
+│       ├── main.py                    # FastAPI app; lifespan; CORS
+│       ├── database.py                # async engine + session factory; init_db()
+│       ├── models.py                  # SQLAlchemy ORM: ClassificationResult table
+│       ├── schemas.py                 # Pydantic response schemas: ModelMetrics, MetricsResponse
+│       └── routers/
+│           └── metrics.py             # GET /metrics, GET /health
+└── tests/
+    ├── conftest.py                    # test DB; mock Kafka fixtures
+    ├── test_producer.py               # message shape, rate limiting, --limit flag
+    ├── test_consumers.py              # classification result shape; pending_weights mode
+    └── test_api.py                    # GET /metrics accuracy calculations; GET /health
+```
+
+**CLI entry points** (in `pyproject.toml` `[project.scripts]`):
+- `moderation-stream-producer` → `moderation_stream.producer:main`
+- `moderation-stream-distilbert` → `moderation_stream.consumers.distilbert:main`
+- `moderation-stream-roberta` → `moderation_stream.consumers.roberta:main`
+- `moderation-stream-detoxify` → `moderation_stream.consumers.detoxify_consumer:main`
+- `moderation-stream-finetuned-distilbert` → `moderation_stream.consumers.finetuned:main_distilbert`
+- `moderation-stream-finetuned-roberta` → `moderation_stream.consumers.finetuned:main_roberta`
+- `moderation-stream-api` → `moderation_stream.api.main:run`
+
+### Frontend additions — `projects/case-queue/web/src/`
+
+```
+src/
+├── api/
+│   └── stream.ts               # NEW: useStreamMetrics() TanStack Query hook
+├── types/
+│   └── stream.ts               # NEW: ModelMetrics type; StreamMetricsResponse type
+├── pages/
+│   └── StreamDashboard.tsx     # NEW: /stream route; 5-card grid; polling; error state
+├── components/
+│   └── ModelMetricsCard.tsx    # NEW: single model card — name, status badge, all metrics
+└── App.tsx                     # MODIFIED: add /stream route + nav link
 ```
 
 ---
 
-## Brief Assumption Confirmations
+## Resolved Brief Flags
 
-| # | Assumption | Resolution |
-|---|------------|------------|
-| 1 | React + Vite | Confirmed |
-| 2 | FastAPI + SQLAlchemy async | Confirmed |
-| 3 | Alembic for migrations | Confirmed |
-| 4 | Postgres via Docker Compose | Confirmed |
-| 5 | Global audit log in v1 | Confirmed in scope — R16, lower build priority than queue and detail |
-| 6 | Actor via headers | Confirmed — `X-Actor-Id` + `X-Actor-Role` headers; extracted in `deps.py` |
-| 7 | Jigsaw category mapping | Confirmed |
-| 8 | Project layout `api/` + `web/` | Confirmed |
-| 9 | `typescript-conventions.md` missing | Resolved — created this session |
+| Flag | Decision | Reason |
+|------|----------|--------|
+| Metrics store: in-memory vs Postgres | **Postgres** | Survives consumer restarts; consistent with existing stack; portfolio signal |
+| Kafka client: confluent vs kafka-python | **confluent-kafka-python** | Production-grade; one-time `librdkafka` install is documented |
+| Phase 2 slot activation | **Env var** (`DISTILBERT_CHECKPOINT_PATH`, `ROBERTA_CHECKPOINT_PATH`) | Config change only; no code change to enable Phase 2 |
 
 ---
 
 ## Open Questions for Architect
 
-1. **Async Alembic env.py:** Standard Alembic `env.py` is synchronous; async SQLAlchemy requires a specific async runner pattern (`run_async_main`). Architect should specify the exact `env.py` structure to avoid a known setup pitfall.
-   *Proposed answer:* Use `asyncio.run(run_migrations_online())` with `async_engine_from_config` — the pattern from SQLAlchemy 2.0 async Alembic docs.
+1. **Consumer DB write pattern.** Each consumer runs a blocking Kafka poll loop (no asyncio). Sync SQLAlchemy with psycopg2 is proposed — confirm this is the right call vs running asyncio inside each consumer process. This affects every consumer file and `BaseConsumer`.
 
-2. **Test database isolation:** API tests need a clean database state per test. Options: rollback after each test (transaction savepoints), or a separate test DB spun up per session.
-   *Proposed answer:* Use a separate test database (e.g. `case_queue_test`) defined in `conftest.py`; truncate tables between tests. Avoids savepoint complexity with async SQLAlchemy.
+2. **Metrics query performance.** `GET /metrics` computes accuracy, p50/p95, and throughput live from `classification_results` on each request. At full dataset completion: ~800K rows (159 571 × 5 models). Architect should decide: (a) index on `(model_name, processed_at)` only, or (b) add a pre-aggregation step. Phase 1 can start without pre-aggregation; architect should note the row threshold where it becomes necessary.
 
-3. **Seed idempotency strategy:** Running `seed.py` twice must not duplicate cases. Options: check-before-insert per record, or truncate-then-insert.
-   *Proposed answer:* Truncate-then-insert. The seed data is synthetic and deterministic — no value in preserving partial seed state. Add a `--confirm` flag to prevent accidental truncation.
-
-4. **TanStack Query actor header injection:** The `X-Actor-Id` and `X-Actor-Role` headers need to be injected into every API request. Options: set globally on the fetch client, or pass as query context.
-   *Proposed answer:* Set in the base `client.ts` fetch wrapper reading from `import.meta.env.VITE_ACTOR_ID` and `VITE_ACTOR_ROLE`. Single place, no per-call noise.
-
-5. **shadcn/ui initialisation:** shadcn/ui requires `npx shadcn@latest init` which writes config and component files. Architect should specify which components to install (Table, Badge, Button, Select, Textarea, Form) so the implementer does not install the full library.
-   *Proposed answer:* Install exactly: `table`, `badge`, `button`, `select`, `textarea`, `form`, `toast`. Architect confirms list.
+3. **`BaseConsumer` structure.** Architect should define the abstract interface: what `BaseConsumer.__init__` accepts, what `classify(text: str) -> tuple[int, float]` must return, and how the poll-classify-write loop is structured so each subclass only overrides `classify`.
 
 ---
 
 ## Handoff
 
 **Next role:** architect
-**What the architect does with this:**
-- Define the SQLAlchemy ORM models (`models.py`) with all column types and relationships.
-- Define all Pydantic schemas (`schemas.py`) — request bodies, response shapes, pagination wrapper.
-- Specify the FastAPI dependency injection chain (`deps.py`) for `get_db` and `get_actor`.
-- Resolve all five open questions above with concrete answers.
-- Specify the TypeScript domain types (`types/index.ts`) to match the API response schemas.
-- Confirm the shadcn/ui component list (OQ5).
+**What the architect does with this output:**
+- Design `ModerationEvent`, `ClassificationResult`, `ModelMetrics` Pydantic schemas and SQLAlchemy ORM models.
+- Define `BaseConsumer` abstract interface: poll loop, classify hook, DB write, offset commit.
+- Design `GET /metrics` SQL query and confirm indexing strategy (open question 2).
+- Define Kafka topic config and producer message serialisation.
+- Define React component interfaces: `ModelMetricsCard` props, `useStreamMetrics` return type.
+- Resolve all three open questions with explicit code patterns, not just decisions.
 
 **Flags for architect:**
-- OQ1 (async Alembic) and OQ2 (test DB isolation) are the highest-risk items — both have known async SQLAlchemy gotchas. Resolve these with explicit code patterns, not just decisions.
-- OQ5 (shadcn/ui init) must be resolved before the implementer runs the setup commands.
+- Open question 1 (sync DB in consumers) is the most structurally significant — it affects `BaseConsumer` and every subclass.
+- Open question 2 (query scale) should be resolved before implementer writes the metrics router.
+- The dual ORM pattern (sync in consumers, async in API) must be clearly documented so the implementer does not accidentally mix them.

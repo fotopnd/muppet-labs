@@ -1,278 +1,95 @@
-# Architect — case-queue
+# Architect Output — moderation-stream
 
 **Role:** architect
-**Sequence:** `new-project-full` (step 3 of 6)
-**Date:** 2026-06-01
-**Reads:** `roles/planner/output/output.md`, `resources/python-conventions.md`, `resources/typescript-conventions.md`
-
----
-
-## Open Questions Resolved
-
-| # | Question | Resolution |
-|---|----------|------------|
-| OQ1 | Async Alembic `env.py` pattern | Use `asyncio.run(run_migrations_online())` with `async_engine_from_config` + `NullPool`. Exact pattern in Implementation Notes. |
-| OQ2 | Test database isolation | Separate `case_queue_test` database. Truncate all tables between tests via a session-scoped autouse fixture. Connection string from `TEST_DATABASE_URL` env var. |
-| OQ3 | Seed idempotency | `TRUNCATE cases, decisions RESTART IDENTITY CASCADE` before insert. `--confirm` flag required to prevent accidental run. Seed data generated synthetically — no Kaggle auth required. |
-| OQ4 | Header injection for TanStack Query | Base `apiFetch` wrapper in `api/client.ts` reads `VITE_ACTOR_ID` and `VITE_ACTOR_ROLE` from `import.meta.env` and injects them into every request. |
-| OQ5 | shadcn/ui components to install | `table`, `badge`, `button`, `select`, `textarea`, `form`, `toast`. Run `npx shadcn@latest init` then `npx shadcn@latest add <component>` for each. |
+**Sequence:** `new-project-full` (step 3)
+**Date:** 2026-06-02
 
 ---
 
 ## System Overview
 
-Three processes communicate at runtime: a Vite dev server serving the React SPA, a FastAPI ASGI process serving the REST API, and a PostgreSQL instance. The SPA makes fetch requests to FastAPI; FastAPI queries PostgreSQL via SQLAlchemy async sessions. All three start with a single `docker compose up` (Postgres) followed by two terminal commands. There is no message queue, no background worker, and no websocket — all operations are synchronous request/response.
-
-Within the API, requests flow through FastAPI dependency injection: `get_db` yields an `AsyncSession` scoped to the request lifetime; `get_actor` parses `X-Actor-Id` / `X-Actor-Role` headers into an `Actor` dataclass. Routers call neither the database nor the session factory directly — they receive both through injected dependencies.
-
-When a decision is created, the handler updates `cases.status` and `cases.updated_at` in the same transaction before committing, keeping case status in sync with the latest decision without a separate background process.
+Five independent Python processes consume a Kafka stream of Jigsaw toxic-comment events and write classification results to Postgres. A Kafka producer replays the Jigsaw CSV at configurable speed, publishing `ModerationEvent` JSON messages to the `moderation-events` topic. Three Phase 1 consumer processes (DistilBERT zero-shot, RoBERTa zero-shot, Detoxify) each run a blocking poll loop: receive message → run inference → write one `ClassificationResult` row to Postgres → commit offset. A FastAPI metrics service reads `classification_results` and computes per-model accuracy, latency percentiles, and throughput on demand. A new `/stream` React route added to the case-queue frontend polls the metrics API every 3 seconds and renders a five-card comparison panel. Phase 2 consumers (fine-tuned DistilBERT, fine-tuned RoBERTa) are present as processes but enter `pending_weights` mode when their checkpoint env vars are absent; the metrics API reflects this status from config, not from the database.
 
 ---
 
 ## Data Models
 
-### Backend ORM (`app/models.py`)
+### Kafka Message — `ModerationEvent` (Pydantic, `moderation_stream.types`)
 
 ```python
-from __future__ import annotations
-import enum
-from datetime import datetime
-from sqlalchemy import String, Text, DateTime, ForeignKey
-from sqlalchemy import Enum as SAEnum, Index
-from sqlalchemy.dialects.postgresql import JSONB
-from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
-
-
-class Base(DeclarativeBase):
-    pass
-
-
-class CaseCategory(str, enum.Enum):
-    toxic         = "toxic"
-    severe_toxic  = "severe_toxic"
-    obscene       = "obscene"
-    threat        = "threat"
-    insult        = "insult"
-    identity_hate = "identity_hate"
-
-
-class Severity(str, enum.Enum):
-    low    = "low"
-    medium = "medium"
-    high   = "high"
-
-
-class CaseStatus(str, enum.Enum):
-    pending   = "pending"
-    approved  = "approved"
-    rejected  = "rejected"
-    escalated = "escalated"
-
-
-class Action(str, enum.Enum):
-    approve  = "approve"
-    reject   = "reject"
-    escalate = "escalate"
-
-
-class ActorRole(str, enum.Enum):
-    reviewer        = "reviewer"
-    senior_reviewer = "senior_reviewer"
-
-
-class Case(Base):
-    __tablename__ = "cases"
-    __table_args__ = (
-        Index("ix_cases_status",     "status"),
-        Index("ix_cases_category",   "category"),
-        Index("ix_cases_severity",   "severity"),
-        Index("ix_cases_created_at", "created_at"),
-    )
-
-    id:         Mapped[str]          = mapped_column(String,            primary_key=True)
-    content:    Mapped[str]          = mapped_column(Text,              nullable=False)
-    category:   Mapped[CaseCategory] = mapped_column(SAEnum(CaseCategory), nullable=False)
-    severity:   Mapped[Severity]     = mapped_column(SAEnum(Severity),  nullable=False)
-    status:     Mapped[CaseStatus]   = mapped_column(SAEnum(CaseStatus), nullable=False, default=CaseStatus.pending)
-    source:     Mapped[str]          = mapped_column(String,            nullable=False)
-    meta:       Mapped[dict]         = mapped_column(JSONB,             nullable=False, default=dict)
-    created_at: Mapped[datetime]     = mapped_column(DateTime(timezone=True), nullable=False)
-    updated_at: Mapped[datetime]     = mapped_column(DateTime(timezone=True), nullable=False)
-
-    decisions: Mapped[list[Decision]] = relationship(
-        "Decision", back_populates="case", order_by="Decision.created_at"
-    )
-
-
-class Decision(Base):
-    __tablename__ = "decisions"
-    __table_args__ = (
-        Index("ix_decisions_case_id",    "case_id"),
-        Index("ix_decisions_actor_id",   "actor_id"),
-        Index("ix_decisions_created_at", "created_at"),
-    )
-
-    id:         Mapped[str]       = mapped_column(String,             primary_key=True)
-    case_id:    Mapped[str]       = mapped_column(String,             ForeignKey("cases.id"), nullable=False)
-    actor_id:   Mapped[str]       = mapped_column(String,             nullable=False)
-    actor_role: Mapped[ActorRole] = mapped_column(SAEnum(ActorRole),  nullable=False)
-    action:     Mapped[Action]    = mapped_column(SAEnum(Action),     nullable=False)
-    notes:      Mapped[str]       = mapped_column(Text,               nullable=False)
-    created_at: Mapped[datetime]  = mapped_column(DateTime(timezone=True), nullable=False)
-
-    case: Mapped[Case] = relationship("Case", back_populates="decisions")
+class ModerationEvent(BaseModel):
+    event_id: str                            # UUID v4, str representation
+    text: str
+    label: int | None = None                 # ground-truth label; None for live sources
+    label_detail: dict[str, float] | None = None  # per-category scores; None for live sources
 ```
 
-### Backend Pydantic Schemas (`app/schemas.py`)
+Serialised to JSON for Kafka. Producer calls `event.model_dump_json()`. Consumers call `ModerationEvent.model_validate_json(msg.value())`.
+
+### Postgres ORM — `ClassificationResult` (`moderation_stream.api.models`)
 
 ```python
-from __future__ import annotations
-from datetime import datetime
-from typing import Generic, TypeVar
-from pydantic import BaseModel, ConfigDict, Field
-from app.models import CaseCategory, Severity, CaseStatus, Action, ActorRole
+class ClassificationResult(Base):
+    __tablename__ = "classification_results"
 
-T = TypeVar("T")
+    id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
+    event_id: Mapped[str] = mapped_column(String(36), nullable=False)
+    model_name: Mapped[str] = mapped_column(String(64), nullable=False)
+    predicted_label: Mapped[int] = mapped_column(nullable=False)
+    latency_ms: Mapped[float] = mapped_column(nullable=False)
+    correct: Mapped[bool | None] = mapped_column(nullable=True)  # None when label absent
+    processed_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, default=lambda: datetime.now(UTC)
+    )
 
-
-class Page(BaseModel, Generic[T]):
-    items:     list[T]
-    total:     int
-    page:      int
-    page_size: int
-
-
-class DecisionRead(BaseModel):
-    model_config = ConfigDict(from_attributes=True)
-    id:         str
-    actor_id:   str
-    actor_role: ActorRole
-    action:     Action
-    notes:      str
-    created_at: datetime
-
-
-class CaseListItem(BaseModel):
-    model_config = ConfigDict(from_attributes=True)
-    id:         str
-    category:   CaseCategory
-    severity:   Severity
-    status:     CaseStatus
-    created_at: datetime
-
-
-class CaseDetail(BaseModel):
-    model_config = ConfigDict(from_attributes=True)
-    id:         str
-    content:    str
-    category:   CaseCategory
-    severity:   Severity
-    status:     CaseStatus
-    source:     str
-    meta:       dict
-    created_at: datetime
-    updated_at: datetime
-    decisions:  list[DecisionRead]
-
-
-class DecisionCreate(BaseModel):
-    action: Action
-    notes:  str = Field(min_length=1)
-
-
-class AuditEntry(BaseModel):
-    model_config = ConfigDict(from_attributes=True)
-    id:         str
-    case_id:    str
-    actor_id:   str
-    actor_role: ActorRole
-    action:     Action
-    notes:      str
-    created_at: datetime
+    __table_args__ = (
+        Index("ix_cr_model_processed", "model_name", "processed_at"),
+    )
 ```
 
-### TypeScript Domain Types (`src/types/index.ts`)
+Consumers write using sync SQLAlchemy (psycopg2 driver). FastAPI reads using async SQLAlchemy (asyncpg driver). The table is shared; the driver choice per-process is independent.
+
+### Pydantic Response Schemas (`moderation_stream.api.schemas`)
+
+```python
+class ModelStatus(StrEnum):
+    ACTIVE = "active"
+    PENDING_WEIGHTS = "pending_weights"
+
+class ModelMetrics(BaseModel):
+    model_name: str
+    status: ModelStatus
+    total_processed: int
+    correct: int | None        # None when no ground-truth labels present
+    accuracy: float | None     # None when no ground-truth labels present
+    p50_latency_ms: float      # 0.0 if no data
+    p95_latency_ms: float      # 0.0 if no data
+    throughput_cps: float      # classifications/sec over last 60s; 0.0 if no data
+
+class MetricsResponse(BaseModel):
+    models: list[ModelMetrics]
+    generated_at: datetime
+```
+
+### TypeScript Types (`projects/case-queue/web/src/types/stream.ts`)
 
 ```typescript
-export type CaseCategory =
-  | 'toxic' | 'severe_toxic' | 'obscene'
-  | 'threat' | 'insult' | 'identity_hate'
+export type ModelStatus = 'active' | 'pending_weights'
 
-export type Severity    = 'low' | 'medium' | 'high'
-export type CaseStatus  = 'pending' | 'approved' | 'rejected' | 'escalated'
-export type Action      = 'approve' | 'reject' | 'escalate'
-export type ActorRole   = 'reviewer' | 'senior_reviewer'
-
-export interface Decision {
-  id:         string
-  actor_id:   string
-  actor_role: ActorRole
-  action:     Action
-  notes:      string
-  created_at: string   // ISO 8601
+export type ModelMetrics = {
+  model_name: string
+  status: ModelStatus
+  total_processed: number
+  correct: number | null     // null when no ground-truth labels
+  accuracy: number | null    // null when no ground-truth labels
+  p50_latency_ms: number
+  p95_latency_ms: number
+  throughput_cps: number
 }
 
-export interface CaseListItem {
-  id:         string
-  category:   CaseCategory
-  severity:   Severity
-  status:     CaseStatus
-  created_at: string
-}
-
-export interface CaseDetail {
-  id:         string
-  content:    string
-  category:   CaseCategory
-  severity:   Severity
-  status:     CaseStatus
-  source:     string
-  meta:       Record<string, unknown>
-  created_at: string
-  updated_at: string
-  decisions:  Decision[]
-}
-
-export interface AuditEntry {
-  id:         string
-  case_id:    string
-  actor_id:   string
-  actor_role: ActorRole
-  action:     Action
-  notes:      string
-  created_at: string
-}
-
-export interface Page<T> {
-  items:     T[]
-  total:     number
-  page:      number
-  page_size: number
-}
-
-export interface DecisionCreate {
-  action: Action
-  notes:  string
-}
-
-export interface CaseFilters {
-  page?:      number
-  page_size?: number
-  category?:  CaseCategory
-  severity?:  Severity
-  status?:    CaseStatus
-  date_from?: string
-  date_to?:   string
-}
-
-export interface AuditFilters {
-  page?:      number
-  page_size?: number
-  case_id?:   string
-  actor_id?:  string
-  action?:    Action
-  date_from?: string
-  date_to?:   string
+export type MetricsResponse = {
+  models: ModelMetrics[]
+  generated_at: string   // ISO 8601
 }
 ```
 
@@ -280,322 +97,362 @@ export interface AuditFilters {
 
 ## Module Interfaces
 
-### `app/database.py`
+### `moderation_stream.config`
 
 ```python
-from __future__ import annotations
-from collections.abc import AsyncGenerator
-from sqlalchemy.ext.asyncio import (
-    AsyncEngine, AsyncSession, async_sessionmaker, create_async_engine
-)
-from app.models import Base
+class Settings(BaseSettings):
+    model_config = SettingsConfigDict(env_file=".env", extra="ignore")
 
-def make_engine(database_url: str) -> AsyncEngine:
-    """Create async engine. Called once at startup."""
+    kafka_bootstrap_servers: str = "localhost:9092"
+    kafka_topic: str = "moderation-events"
 
-async_session_factory: async_sessionmaker[AsyncSession]   # module-level, set in init_db()
+    # Sync URL (postgresql://...) — used by consumers and Alembic
+    database_url: str
 
-async def init_db(database_url: str) -> None:
-    """Create engine, session factory, and run CREATE TABLE IF NOT EXISTS for all models.
-    Called inside FastAPI lifespan. Sets module-level async_session_factory.
-    """
+    # Async URL (postgresql+asyncpg://...) — used by FastAPI metrics API
+    # If not set explicitly, derived from database_url by replacing scheme
+    async_database_url: str | None = None
 
-async def get_db() -> AsyncGenerator[AsyncSession, None]:
-    """FastAPI dependency. Yields one AsyncSession per request; commits on clean exit,
-    rolls back on exception, always closes."""
+    jigsaw_csv_path: Path
+    producer_rate_per_sec: int = 10  # messages/sec; CLI --limit overrides row count
+    allowed_origin: str = "http://localhost:5173"
+
+    # Phase 2 — unset → pending_weights mode
+    distilbert_checkpoint_path: Path | None = None
+    roberta_checkpoint_path: Path | None = None
+
+    @property
+    def effective_async_database_url(self) -> str:
+        if self.async_database_url:
+            return self.async_database_url
+        return self.database_url.replace("postgresql://", "postgresql+asyncpg://", 1)
+
+    def phase2_status(self, checkpoint_path: Path | None) -> ModelStatus:
+        return ModelStatus.ACTIVE if checkpoint_path else ModelStatus.PENDING_WEIGHTS
 ```
 
-### `app/deps.py`
+**Model registry** — static list consumed by the metrics router to build the full 5-model response regardless of which consumers are running:
 
 ```python
-from __future__ import annotations
-from dataclasses import dataclass
-from fastapi import Header, HTTPException
-from app.models import ActorRole
+# In moderation_stream.config — not a Settings field; a module-level constant
+MODEL_REGISTRY: list[dict[str, Any]] = [
+    {"model_name": "distilbert-zero-shot",   "phase": 1},
+    {"model_name": "roberta-zero-shot",      "phase": 1},
+    {"model_name": "detoxify",               "phase": 1},
+    {"model_name": "distilbert-finetuned",   "phase": 2, "checkpoint_field": "distilbert_checkpoint_path"},
+    {"model_name": "roberta-finetuned",      "phase": 2, "checkpoint_field": "roberta_checkpoint_path"},
+]
+```
 
-@dataclass(frozen=True)
-class Actor:
-    id:   str
-    role: ActorRole
+---
 
-async def get_actor(
-    x_actor_id:   str = Header(),
-    x_actor_role: str = Header(),
-) -> Actor:
-    """Parse X-Actor-Id and X-Actor-Role headers into Actor.
-    Raises HTTP 400 if x_actor_role is not a valid ActorRole value.
-    Raises HTTP 422 automatically if headers are absent (FastAPI Header default).
+### `moderation_stream.producer`
+
+```python
+def create_producer(bootstrap_servers: str) -> Producer:
+    """Return configured confluent-kafka Producer. Creates topic if absent."""
+
+def load_jigsaw_csv(csv_path: Path, limit: int | None) -> Iterator[ModerationEvent]:
+    """Yield ModerationEvent rows from Jigsaw CSV. Stops at limit if set."""
+
+def publish_events(
+    producer: Producer,
+    events: Iterator[ModerationEvent],
+    topic: str,
+    rate_per_sec: int,
+) -> int:
+    """Publish events at rate_per_sec. Returns total published. Handles SIGINT."""
+
+def main() -> None:
+    """CLI entry point. Parses --limit. Prints stats on exit."""
+```
+
+Producer creates the `moderation-events` topic on first run using the admin client (`confluent_kafka.admin.AdminClient`). Key serialisation: `event_id` string. Value serialisation: `model_dump_json()`.
+
+---
+
+### `moderation_stream.consumers.base`
+
+**Resolution of OQ1 and OQ3:** Consumers are fully synchronous. `BaseConsumer` owns the Kafka poll loop, latency measurement, and DB write. Subclasses implement only `_load_model()` and `_run_inference()`.
+
+```python
+class BaseConsumer(ABC):
+    model_name: ClassVar[str]         # e.g. "distilbert-zero-shot"
+    consumer_group_id: ClassVar[str]  # e.g. "consumer-distilbert"
+
+    def __init__(self, settings: Settings) -> None:
+        # Initialises sync SQLAlchemy engine + sessionmaker
+        # Initialises confluent-kafka Consumer with auto.offset.reset=earliest
+        # Calls self._load_model()
+
+    @abstractmethod
+    def _load_model(self) -> None:
+        """Load model weights into memory. Called once during __init__."""
+
+    @abstractmethod
+    def _run_inference(self, text: str) -> int:
+        """Run inference. Return predicted_label (0 or 1)."""
+
+    def classify(self, text: str) -> tuple[int, float]:
+        """Wraps _run_inference with perf_counter latency measurement."""
+        start = time.perf_counter()
+        label = self._run_inference(text)
+        latency_ms = (time.perf_counter() - start) * 1000.0
+        return label, latency_ms
+
+    def _write_result(self, result: ClassificationResult) -> None:
+        """Sync session write + commit."""
+
+    def run(self) -> None:
+        """Blocking poll loop. Subscribes to topic. Handles SIGINT gracefully."""
+        # poll(timeout=1.0) → skip if None
+        # deserialise → classify → write → commit offset (synchronous=False)
+        # correct = (predicted_label == event.label) if event.label is not None else None
+```
+
+`SIGINT` handler sets a `_running = False` flag; the poll loop exits after the current message completes. The consumer calls `self._consumer.close()` before exit.
+
+Offset commit strategy: commit after each message (`synchronous=False` for throughput; synchronous commit on shutdown). At the target rate (10 msg/sec), per-message commits are fine.
+
+---
+
+### `moderation_stream.consumers.distilbert`
+
+```python
+class DistilBertZeroShotConsumer(BaseConsumer):
+    model_name = "distilbert-zero-shot"
+    consumer_group_id = "consumer-distilbert"
+    # Model: pipeline("zero-shot-classification", model="typeform/distilbert-base-uncased-mnli", device=-1)
+    # candidate_labels = ["toxic content", "safe content"]
+    # predicted_label = 1 if labels[0] == "toxic content" and scores[0] > 0.5 else 0
+
+    def _load_model(self) -> None: ...
+    def _run_inference(self, text: str) -> int: ...
+
+def main() -> None: ...
+```
+
+---
+
+### `moderation_stream.consumers.roberta`
+
+```python
+class RobertaZeroShotConsumer(BaseConsumer):
+    model_name = "roberta-zero-shot"
+    consumer_group_id = "consumer-roberta"
+    # Model: pipeline("zero-shot-classification", model="roberta-large-mnli", device=-1)
+    # Same candidate_labels + threshold as DistilBERT consumer
+
+    def _load_model(self) -> None: ...
+    def _run_inference(self, text: str) -> int: ...
+
+def main() -> None: ...
+```
+
+---
+
+### `moderation_stream.consumers.detoxify_consumer`
+
+```python
+class DetoxifyConsumer(BaseConsumer):
+    model_name = "detoxify"
+    consumer_group_id = "consumer-detoxify"
+    # Model: Detoxify("original", device="cpu")
+    # predicted_label = 1 if result["toxicity"] >= 0.5 else 0
+    # Note: Detoxify returns a dict of scores; use "toxicity" key only for binary label
+
+    def _load_model(self) -> None: ...
+    def _run_inference(self, text: str) -> int: ...
+
+def main() -> None: ...
+```
+
+---
+
+### `moderation_stream.consumers.finetuned`
+
+```python
+class FinetunedConsumer(BaseConsumer):
+    # Shared base for both Phase 2 consumers.
+    # model_name and consumer_group_id set by subclass.
+    # checkpoint_path: Path | None — if None, run() logs warning and returns immediately without polling.
+    # Model: pipeline("text-classification", model=str(checkpoint_path), device=-1)
+    # Output label mapping: model returns "LABEL_1"/"LABEL_0" or "toxic"/"not toxic" depending on
+    # how project 8 exports — implementer must confirm label mapping at integration time.
+
+    def __init__(self, settings: Settings, checkpoint_path: Path | None) -> None: ...
+    def _load_model(self) -> None: ...
+    def _run_inference(self, text: str) -> int: ...
+    def run(self) -> None:  # overrides base: exits immediately if no checkpoint
+
+class FinetunedDistilBertConsumer(FinetunedConsumer):
+    model_name = "distilbert-finetuned"
+    consumer_group_id = "consumer-distilbert-ft"
+
+class FinetunedRobertaConsumer(FinetunedConsumer):
+    model_name = "roberta-finetuned"
+    consumer_group_id = "consumer-roberta-ft"
+
+def main_distilbert() -> None: ...
+def main_roberta() -> None: ...
+```
+
+---
+
+### `moderation_stream.api.database`
+
+```python
+def create_async_engine_from_settings(settings: Settings) -> AsyncEngine: ...
+
+def get_async_session_factory(engine: AsyncEngine) -> async_sessionmaker[AsyncSession]: ...
+
+async def init_db(engine: AsyncEngine) -> None:
+    """Create tables if they do not exist (for dev). Production uses Alembic."""
+
+async def get_db(request: Request) -> AsyncGenerator[AsyncSession, None]:
+    """FastAPI dependency. Yields a session per request."""
+```
+
+---
+
+### `moderation_stream.api.routers.metrics`
+
+**Resolution of OQ2:** Single SQL query using `GROUP BY model_name` with Postgres aggregate functions. Index `ix_cr_model_processed` on `(model_name, processed_at)` covers the throughput window filter. Percentile calculation scans all rows per model — acceptable at Phase 1 scale (≤1 000 events per model). At full dataset scale (~160K rows per model), add a materialized view refreshed every 30 seconds (defer to Phase 2).
+
+```python
+# Core metrics SQL — executed once per GET /metrics request
+METRICS_SQL = text("""
+    SELECT
+        model_name,
+        COUNT(*)                                                            AS total_processed,
+        SUM(correct::int)                                                   AS correct,   -- NULL when no labelled rows
+        AVG(correct::float)                                                 AS accuracy,  -- NULL when no labelled rows
+        COALESCE(percentile_cont(0.5) WITHIN GROUP (ORDER BY latency_ms), 0) AS p50_latency_ms,
+        COALESCE(percentile_cont(0.95) WITHIN GROUP (ORDER BY latency_ms), 0) AS p95_latency_ms,
+        COALESCE(
+            COUNT(*) FILTER (WHERE processed_at >= NOW() - INTERVAL '60 seconds') / 60.0,
+            0
+        )                                                                   AS throughput_cps
+    FROM classification_results
+    GROUP BY model_name
+""")
+
+async def get_metrics(db: AsyncSession, settings: Settings) -> MetricsResponse:
+    """
+    Query DB for all active models, merge with MODEL_REGISTRY for Phase 2 status.
+    Returns all 5 model entries; pending Phase 2 models get zeroed metrics.
     """
 ```
 
-### `app/routers/cases.py`
-
+Router:
 ```python
-from fastapi import APIRouter, Depends, Query, HTTPException
-from sqlalchemy.ext.asyncio import AsyncSession
-from datetime import datetime
-from app.schemas import Page, CaseListItem, CaseDetail
-from app.models import CaseCategory, Severity, CaseStatus
-from app.database import get_db
+router = APIRouter(prefix="/metrics", tags=["metrics"])
 
-router = APIRouter(tags=["cases"])
+@router.get("", response_model=MetricsResponse)
+async def read_metrics(db: AsyncSession = Depends(get_db)) -> MetricsResponse: ...
 
-@router.get("/cases", response_model=Page[CaseListItem])
-async def list_cases(
-    page:      int                  = Query(1, ge=1),
-    page_size: int                  = Query(50, ge=1, le=100),
-    category:  CaseCategory | None  = None,
-    severity:  Severity | None      = None,
-    status:    CaseStatus | None    = None,
-    date_from: datetime | None      = None,
-    date_to:   datetime | None      = None,
-    db:        AsyncSession         = Depends(get_db),
-) -> Page[CaseListItem]:
-    """SELECT with dynamic WHERE clauses. ORDER BY created_at DESC.
-    COUNT(*) in a subquery for total. OFFSET/LIMIT for pagination.
-    """
-
-@router.get("/cases/{case_id}", response_model=CaseDetail)
-async def get_case(
-    case_id: str,
-    db:      AsyncSession = Depends(get_db),
-) -> CaseDetail:
-    """SELECT with selectinload(Case.decisions). Returns 404 if not found."""
+@router.get("/health")
+async def health() -> dict[str, str]:
+    return {"status": "ok"}
 ```
 
-### `app/routers/decisions.py`
+---
+
+### `moderation_stream.api.main`
 
 ```python
-from fastapi import APIRouter, Depends, HTTPException
-from sqlalchemy.ext.asyncio import AsyncSession
-from app.schemas import DecisionCreate, DecisionRead
-from app.models import Action, ActorRole
-from app.database import get_db
-from app.deps import get_actor, Actor
-
-router = APIRouter(tags=["decisions"])
-
-@router.post("/cases/{case_id}/decisions", response_model=DecisionRead, status_code=201)
-async def create_decision(
-    case_id: str,
-    body:    DecisionCreate,
-    actor:   Actor          = Depends(get_actor),
-    db:      AsyncSession   = Depends(get_db),
-) -> DecisionRead:
-    """1. Fetch case by id — 404 if missing.
-    2. Enforce: if actor.role == reviewer and body.action == escalate → 403.
-    3. INSERT Decision with uuid4() id and datetime.now(UTC).
-    4. UPDATE Case.status to match body.action mapping; UPDATE Case.updated_at.
-    5. Commit. Return DecisionRead.
-    Action → status mapping: approve→approved, reject→rejected, escalate→escalated.
-    """
-```
-
-### `app/routers/audit.py`
-
-```python
-from fastapi import APIRouter, Depends, Query
-from sqlalchemy.ext.asyncio import AsyncSession
-from datetime import datetime
-from app.schemas import Page, AuditEntry
-from app.models import Action
-from app.database import get_db
-
-router = APIRouter(tags=["audit"])
-
-@router.get("/audit-log", response_model=Page[AuditEntry])
-async def get_audit_log(
-    page:      int            = Query(1, ge=1),
-    page_size: int            = Query(50, ge=1, le=100),
-    case_id:   str | None     = None,
-    actor_id:  str | None     = None,
-    action:    Action | None  = None,
-    date_from: datetime | None = None,
-    date_to:   datetime | None = None,
-    db:        AsyncSession   = Depends(get_db),
-) -> Page[AuditEntry]:
-    """SELECT decisions with dynamic WHERE. ORDER BY created_at DESC.
-    No join to cases needed — AuditEntry carries case_id as a plain field.
-    """
-```
-
-### `app/main.py`
-
-```python
-from contextlib import asynccontextmanager
-from fastapi import FastAPI
-from fastapi.middleware.cors import CORSMiddleware
-from app.database import init_db
-from app.config import settings
-from app.routers import cases, decisions, audit
-
 @asynccontextmanager
-async def lifespan(app: FastAPI):
-    await init_db(settings.database_url)
+async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
+    await init_db(engine)
     yield
 
-app = FastAPI(title="case-queue API", lifespan=lifespan)
-
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["http://localhost:5173"],
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
-
-app.include_router(cases.router)
-app.include_router(decisions.router)
-app.include_router(audit.router)
+app = FastAPI(lifespan=lifespan)
+app.add_middleware(CORSMiddleware, allow_origins=[settings.allowed_origin], ...)
+app.include_router(metrics_router)
 ```
 
-### `app/config.py`
+---
 
-```python
-from pydantic_settings import BaseSettings
-
-class Settings(BaseSettings):
-    database_url: str = "postgresql+asyncpg://postgres:postgres@localhost:5432/case_queue"
-    model_config = {"env_file": ".env"}
-
-settings = Settings()
-```
-
-### `src/api/client.ts`
+### React: `src/api/stream.ts`
 
 ```typescript
-const BASE_URL = import.meta.env.VITE_API_URL ?? 'http://localhost:8000'
+const STREAM_API_BASE = import.meta.env.VITE_STREAM_API_URL  // e.g. http://localhost:8001
 
-export class ApiError extends Error {
-  constructor(public readonly status: number, message: string) {
-    super(message)
-    this.name = 'ApiError'
-  }
+async function fetchMetrics(): Promise<MetricsResponse> {
+  // Plain fetch — no X-Actor headers needed (read-only monitoring)
+  const res = await fetch(`${STREAM_API_BASE}/metrics`)
+  if (!res.ok) throw new Error(`Metrics API error: ${res.status}`)
+  return res.json() as Promise<MetricsResponse>
 }
 
-export async function apiFetch<T>(path: string, options: RequestInit = {}): Promise<T> {
-  const response = await fetch(`${BASE_URL}${path}`, {
-    ...options,
-    headers: {
-      'Content-Type': 'application/json',
-      'X-Actor-Id':   import.meta.env.VITE_ACTOR_ID   ?? 'dev-user',
-      'X-Actor-Role': import.meta.env.VITE_ACTOR_ROLE ?? 'reviewer',
-      ...options.headers,
-    },
-  })
-  if (!response.ok) {
-    const body = await response.json().catch(() => ({ detail: response.statusText }))
-    throw new ApiError(response.status, (body as { detail: string }).detail)
-  }
-  return response.json() as Promise<T>
-}
-```
-
-### `src/api/cases.ts`
-
-```typescript
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { apiFetch } from './client'
-import type { CaseListItem, CaseDetail, DecisionCreate, Decision, Page, CaseFilters } from '@/types'
-
-function toCaseParams(filters: CaseFilters): string {
-  // Serialize defined fields only into URLSearchParams
-}
-
-export function useCases(filters: CaseFilters) {
+export function useStreamMetrics(): UseQueryResult<MetricsResponse, Error> {
   return useQuery({
-    queryKey: ['cases', filters],
-    queryFn:  () => apiFetch<Page<CaseListItem>>(`/cases?${toCaseParams(filters)}`),
-  })
-}
-
-export function useCase(id: string) {
-  return useQuery({
-    queryKey: ['cases', id],
-    queryFn:  () => apiFetch<CaseDetail>(`/cases/${id}`),
-  })
-}
-
-export function useCreateDecision(caseId: string) {
-  const queryClient = useQueryClient()
-  return useMutation({
-    mutationFn: (body: DecisionCreate) =>
-      apiFetch<Decision>(`/cases/${caseId}/decisions`, {
-        method: 'POST',
-        body:   JSON.stringify(body),
-      }),
-    onSuccess: () => {
-      // Invalidate both list and the specific case detail
-      queryClient.invalidateQueries({ queryKey: ['cases'] })
-      queryClient.invalidateQueries({ queryKey: ['audit-log'] })
-    },
-  })
-}
-```
-
-### `src/api/audit.ts`
-
-```typescript
-import { useQuery } from '@tanstack/react-query'
-import { apiFetch } from './client'
-import type { AuditEntry, AuditFilters, Page } from '@/types'
-
-export function useAuditLog(filters: AuditFilters) {
-  return useQuery({
-    queryKey: ['audit-log', filters],
-    queryFn:  () => apiFetch<Page<AuditEntry>>(`/audit-log?${toAuditParams(filters)}`),
+    queryKey: ['stream-metrics'],
+    queryFn: fetchMetrics,
+    refetchInterval: 3000,
+    retry: 2,
   })
 }
 ```
 
 ---
 
-## Dependencies Map
+### React: `src/components/ModelMetricsCard.tsx`
 
-```
-app/main.py
-  → app/database.py    (init_db, get_db)
-  → app/config.py      (settings)
-  → app/routers/*      (include_router)
+```typescript
+type ModelMetricsCardProps = {
+  metrics: ModelMetrics
+}
 
-app/routers/cases.py
-  → app/database.py    (get_db)
-  → app/models.py      (ORM classes, enums)
-  → app/schemas.py     (Page, CaseListItem, CaseDetail)
-
-app/routers/decisions.py
-  → app/database.py    (get_db)
-  → app/deps.py        (get_actor, Actor)
-  → app/models.py      (Action, Case, Decision enums)
-  → app/schemas.py     (DecisionCreate, DecisionRead)
-
-app/routers/audit.py
-  → app/database.py    (get_db)
-  → app/models.py      (Action enum)
-  → app/schemas.py     (Page, AuditEntry)
-
-app/deps.py
-  → app/models.py      (ActorRole)
-
-app/schemas.py
-  → app/models.py      (enums only — no ORM imports in schemas)
-
-app/database.py
-  → app/models.py      (Base.metadata)
-
-scripts/seed.py
-  → app/database.py    (engine)
-  → app/models.py      (Case, CaseCategory, Severity, CaseStatus)
-  → app/config.py      (settings)
+// Renders a shadcn/ui Card:
+// Header: model_name + status Badge ("Active" green / "Pending Weights" grey)
+// Body (pending): single line "Awaiting fine-tuned weights from project 8"
+// Body (active): accuracy %, p50 ms, p95 ms, throughput cps, total processed
 ```
 
-No circular dependencies. `app/models.py` is the leaf node — it imports nothing from `app/`.
+---
 
-Frontend dependency flow:
+### React: `src/pages/StreamDashboard.tsx`
+
+```typescript
+// Route: /stream
+// - Calls useStreamMetrics()
+// - Loading: spinner or skeleton on first load (isLoading && !data)
+// - Error: <ErrorMessage> when error is set and no data
+// - Success: <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+//     {data.models.map(m => <ModelMetricsCard key={m.model_name} metrics={m} />)}
+//   </div>
+// - Last updated timestamp from data.generated_at
 ```
-pages/* → api/cases.ts, api/audit.ts → api/client.ts
-pages/* → components/*
-api/*   → types/index.ts
+
+---
+
+## Dependencies
+
 ```
+Producer
+  → confluent-kafka (write to moderation-events topic)
+  → ModerationEvent (moderation_stream.types)
+
+BaseConsumer / Subclasses
+  → confluent-kafka (read from moderation-events topic)
+  → ModerationEvent (moderation_stream.types)
+  → ClassificationResult ORM (moderation_stream.api.models — shared model, sync session)
+  → Settings (moderation_stream.config)
+
+Metrics API
+  → ClassificationResult ORM (moderation_stream.api.models — async session)
+  → Settings + MODEL_REGISTRY (moderation_stream.config)
+  → ModelMetrics, MetricsResponse schemas (moderation_stream.api.schemas)
+
+React StreamDashboard
+  → useStreamMetrics (src/api/stream.ts)
+  → MetricsResponse, ModelMetrics (src/types/stream.ts)
+  → ModelMetricsCard (src/components/ModelMetricsCard.tsx)
+  → ErrorMessage (existing src/components/ErrorMessage.tsx)
+```
+
+**Potential coupling issue:** Consumers import `ClassificationResult` from `moderation_stream.api.models` to use the ORM model. This couples the consumer package to the API package. Acceptable here — both live in the same project. If they were separate services, the ORM model would move to `moderation_stream.models`.
 
 ---
 
@@ -603,131 +460,51 @@ api/*   → types/index.ts
 
 | Concern | Approach |
 |---------|----------|
-| Error handling (API) | Routers raise `HTTPException` with explicit status codes. FastAPI serialises to `{"detail": "..."}`. No global exception handler needed — FastAPI's default covers unhandled exceptions as HTTP 500. |
-| Error handling (frontend) | `apiFetch` throws `ApiError` on non-2xx. TanStack Query exposes `error` state; pages render `<ErrorMessage>` component when `isError` is true. |
-| Configuration (API) | `pydantic-settings` `BaseSettings` reads `.env`. Single `settings` singleton imported where needed. |
-| Configuration (frontend) | `import.meta.env.VITE_*` for all runtime config. Values set in `.env` file at project root. |
-| Logging | `logging.getLogger(__name__)` per module. FastAPI default logs to stdout at `INFO`. No structured logging needed for a portfolio project. |
-| DB session lifetime | One `AsyncSession` per request, injected via `get_db` dependency. Commit on clean exit, rollback on exception. Never share sessions across requests. |
-| UUID generation | `uuid.uuid4()` for Decision IDs. Case IDs are generated by the seed script using the same strategy. |
-| Datetime handling | All datetimes stored as timezone-aware UTC. `datetime.now(UTC)` throughout. Serialised as ISO 8601 in JSON responses. |
-| Testing | API: `pytest-asyncio` with `httpx.AsyncClient` against a test DB. Frontend: Vitest + Testing Library + `msw` for API mocking. |
+| Error handling (Python) | Specific exceptions with `from exc` chaining. Consumers catch `KafkaError` and log; do not crash the loop on a single message failure. Fatal errors (DB connection lost) propagate to top-level and kill the process — let the Makefile restart it. |
+| Configuration | `pydantic-settings` loaded once at module level in each process. `Settings()` is passed to constructors — no global state access inside functions. |
+| Logging | Python `logging` stdlib. `basicConfig(level=INFO)`. Each consumer logs model_name, event_id, latency on every 100th message (not every message — avoid log flood at 10 msg/sec). |
+| Dual ORM | Consumers: `create_engine(settings.database_url)` + `sessionmaker` (psycopg2). API: `create_async_engine(settings.effective_async_database_url)` + `async_sessionmaker` (asyncpg). Never mix drivers. Alembic uses the sync URL. |
+| Alembic | Async migration runner pattern from case-queue (`asyncio.run(run_migrations_online())` with `async_engine_from_config`). `env.py` imports `Base.metadata` from `moderation_stream.api.models`. |
+| Testing (Python) | Unit tests mock Kafka Producer/Consumer at the confluent-kafka boundary using `unittest.mock`. API tests use `httpx.AsyncClient` against a test DB (`moderation_stream_test`). Consumer tests inject a pre-built sync session. |
+| Testing (React) | `msw` mocks `GET /metrics`. Tests verify card renders for both `active` and `pending_weights` status. Tests verify error state renders when fetch fails. |
 
 ---
 
 ## Implementation Notes for Implementer
 
-1. **Async Alembic `env.py` — exact pattern:**
-   ```python
-   import asyncio
-   from sqlalchemy.pool import NullPool
-   from sqlalchemy.ext.asyncio import async_engine_from_config
-   from alembic import context
-   from app.models import Base
+1. **`librdkafka` prerequisite.** Document in README: `brew install librdkafka` (macOS) or `apt install librdkafka-dev` (Linux) before `uv sync`. Without this, `uv add confluent-kafka` succeeds but import fails.
 
-   target_metadata = Base.metadata
+2. **Model loading latency.** Each HuggingFace transformer downloads weights on first `_load_model()` call (~250–700 MB per model). Subsequent runs use the HuggingFace cache (`~/.cache/huggingface/`). Add a log line "Loading model…" and "Model ready" so the operator sees startup progress. For tests, use a tiny local mock model or monkeypatch `_run_inference`.
 
-   async def run_migrations_online() -> None:
-       cfg = context.config.get_section(context.config.config_ini_section, {})
-       connectable = async_engine_from_config(cfg, prefix="sqlalchemy.", poolclass=NullPool)
-       async with connectable.connect() as connection:
-           await connection.run_sync(
-               lambda conn: context.configure(conn, target_metadata=target_metadata)
-           )
-           async with connection.begin():
-               await connection.run_sync(lambda _: context.run_migrations())
-       await connectable.dispose()
+3. **Detoxify returns a dict.** `Detoxify("original").predict(text)` returns `{"toxicity": float, "severe_toxicity": float, ...}`. Use only `result["toxicity"]` for `predicted_label`. Threshold 0.5.
 
-   if context.is_offline_mode():
-       run_migrations_offline()   # standard sync implementation
-   else:
-       asyncio.run(run_migrations_online())
-   ```
-   Set `sqlalchemy.url` in `alembic.ini` using an env var: `%(DATABASE_URL)s` — Alembic interpolates from environment.
+4. **Zero-shot label order is not guaranteed.** When using `pipeline("zero-shot-classification")`, the returned `labels` list is sorted by score descending, not by the order you passed `candidate_labels`. Always find the score for `"toxic content"` by matching the label string, not by index.
 
-2. **`pydantic-settings` for config:** Add `pydantic-settings` as a dependency (`uv add pydantic-settings`). It is not bundled with pydantic v2.
+5. **`VITE_STREAM_API_URL` env var.** Add to `projects/case-queue/web/.env.example`. The frontend `.env` already has `VITE_API_URL` for the case-queue API; the stream metrics API runs on a different port (8001 default).
 
-3. **`selectinload` for decisions:** In `get_case`, use `selectinload(Case.decisions)` on the SQLAlchemy select to avoid the N+1 problem. Do not use `joinedload` — it produces duplicate rows with one-to-many.
+6. **Postgres schema for `moderation_stream_db`.** Docker Compose Postgres `POSTGRES_DB` creates one database. The consumer and API both need `moderation_stream_db`. Either set `POSTGRES_DB=moderation_stream_db` in docker-compose, or run `CREATE DATABASE moderation_stream_db` in an init script. Use an `init.sql` file mounted into the Postgres container.
 
-4. **Pagination query pattern:** For `list_cases` and `get_audit_log`, run two queries: one `SELECT COUNT(*)` with filters applied, one `SELECT ... LIMIT ... OFFSET ...` with the same filters. SQLAlchemy 2.0 style:
-   ```python
-   count_stmt = select(func.count()).select_from(Case).where(*filters)
-   total = (await db.execute(count_stmt)).scalar_one()
-   items_stmt = select(Case).where(*filters).order_by(Case.created_at.desc()).offset(offset).limit(page_size)
-   items = (await db.execute(items_stmt)).scalars().all()
-   ```
+7. **`percentile_cont` requires at least one row.** Wrap all aggregate columns with `COALESCE(..., 0)` (already shown in the SQL above) to handle the case where a consumer has not processed any events yet.
 
-5. **Status update in `create_decision`:** After inserting the Decision, execute:
-   ```python
-   status_map = {Action.approve: CaseStatus.approved, Action.reject: CaseStatus.rejected, Action.escalate: CaseStatus.escalated}
-   await db.execute(update(Case).where(Case.id == case_id).values(status=status_map[body.action], updated_at=datetime.now(UTC)))
-   ```
-   Both INSERT and UPDATE run before the single `await db.commit()`.
+8. **Alembic migration.** `alembic revision --autogenerate -m "initial"` requires a live Postgres connection to `moderation_stream_db`. Run it once after `docker compose up`. Commit the generated migration file.
 
-6. **Seed script synthetic data:** Do not download from Kaggle. Generate programmatically: use `random.choice` to pick categories and severities, use a small set of template sentences per category (5–10 per category × confidence multiplier for severity). Generate at least 500 rows, evenly distributed across 6 categories × 3 severities = 18 buckets (~28 per bucket). Set `source="seed:jigsaw-synthetic"`.
+9. **Makefile `make consumers` target.** Start all three Phase 1 consumers in background (`&`) with output redirected to per-model log files. Add a `make stop` target that kills all background jobs by process group.
 
-7. **shadcn/ui initialisation order:**
-   ```bash
-   pnpm dlx shadcn@latest init          # configures tailwind, sets up components/ui/
-   pnpm dlx shadcn@latest add table badge button select textarea form toast
-   ```
-   Run from `web/` directory. shadcn writes component files into `src/components/ui/` — do not edit these manually.
-
-8. **`VITE_ACTOR_ROLE` controls escalate visibility:** In `CaseDetail.tsx`, read `import.meta.env.VITE_ACTOR_ROLE` directly to disable the escalate option in the Select component. Do not derive this from API response data.
-
-9. **Test database setup:** Add to `api/tests/conftest.py`:
-   ```python
-   TEST_DATABASE_URL = os.getenv("TEST_DATABASE_URL", "postgresql+asyncpg://postgres:postgres@localhost:5432/case_queue_test")
-
-   @pytest.fixture(scope="session", autouse=True)
-   async def setup_test_db():
-       engine = create_async_engine(TEST_DATABASE_URL)
-       async with engine.begin() as conn:
-           await conn.run_sync(Base.metadata.create_all)
-       yield
-       await engine.dispose()
-
-   @pytest.fixture(autouse=True)
-   async def truncate_tables(db_session):
-       yield
-       await db_session.execute(text("TRUNCATE cases, decisions RESTART IDENTITY CASCADE"))
-       await db_session.commit()
-   ```
-
-10. **`pytest-asyncio` mode:** Add to `pyproject.toml`:
-    ```toml
-    [tool.pytest.ini_options]
-    asyncio_mode = "auto"
-    ```
-    This avoids `@pytest.mark.asyncio` on every test function.
-
-11. **`.env.example` contents:**
-    ```
-    # API
-    DATABASE_URL=postgresql+asyncpg://postgres:postgres@localhost:5432/case_queue
-    TEST_DATABASE_URL=postgresql+asyncpg://postgres:postgres@localhost:5432/case_queue_test
-
-    # Frontend
-    VITE_API_URL=http://localhost:8000
-    VITE_ACTOR_ID=dev-user
-    VITE_ACTOR_ROLE=senior_reviewer
-    ```
+10. **Nav link placement.** The `/stream` nav link in case-queue goes alongside the existing links. Use the existing nav component pattern — do not add a new nav component.
 
 ---
 
 ## Handoff
 
 **Next role:** implementer
-**What the implementer does:**
-1. Set up Docker Compose with Postgres.
-2. Initialise `api/` with `uv` (following `skills/setup-uv-project.md`).
-3. Initialise `web/` with `pnpm` + Vite (following `skills/setup-ts-pnpm.md`).
-4. Implement in dependency order: `models.py` → `database.py` → `config.py` → `deps.py` → `schemas.py` → routers → `main.py` → `seed.py` → API tests.
-5. Implement frontend in order: `types/index.ts` → `api/client.ts` → `api/cases.ts` + `api/audit.ts` → shared components → pages → frontend tests.
-6. Run Alembic init (`alembic init alembic`) and write `env.py` using the async pattern from Implementation Note 1.
-7. Verify end-to-end: `docker compose up -d`, `uv run uvicorn app.main:app --reload`, `pnpm dev`, open `http://localhost:5173`.
+**What the implementer does with this output:**
+- Scaffold the `projects/moderation-stream/` uv project using `skills/setup-uv-project.md`.
+- Implement all modules in the order: `config.py` → `types.py` → `api/models.py` → `producer.py` → `consumers/base.py` → consumers (distilbert, roberta, detoxify) → `api/` (database, schemas, router, main) → Makefile/docker-compose → tests.
+- Add the frontend additions to `projects/case-queue/web/src/` (types, hook, card, dashboard, App.tsx modification).
+- Run `uv run pytest` and `pnpm test` before marking implementation complete.
 
 **Flags for implementer:**
-- Implementation Note 1 (async Alembic `env.py`) is the highest-risk setup step. Do it before writing any migration scripts.
-- Implementation Note 3 (`selectinload` vs `joinedload`) matters for correctness on the case detail endpoint.
-- shadcn/ui must be initialised before writing any page components that import from `@/components/ui`.
+- Implementation note 4 (zero-shot label order) will cause a silent accuracy bug if missed — read it.
+- Implementation note 2 (model download) means the first `make consumers` run takes several minutes — this is expected.
+- The finetuned consumer's label mapping (note: "LABEL_1"/"LABEL_0" vs "toxic"/"not toxic") cannot be confirmed until project 8 completes; leave a `# TODO: confirm label mapping with project 8 output` comment in `finetuned.py`.
+- Dual ORM pattern (sync consumers, async API) is not a mistake — do not "fix" it.
