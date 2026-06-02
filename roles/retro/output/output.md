@@ -1,66 +1,81 @@
-# Retro — case-queue
+# Retro — moderation-stream
 
-**Sequence:** `new-project-full` (step 6 of 6) + post-sequence feature session  
-**Date:** 2026-06-02  
+**Role:** retro
+**Sequence:** `new-project-full` (step 9 of 9)
+**Date:** 2026-06-02
 **Reads:** `roles/reviewer/output/output.md`, `roles/implementer/output/output.md`, `_config/project-state.md`, `resources/routing.md`, `resources/vibecoding-style.md`
 
 ---
 
 ## Project
 
-**Name:** case-queue  
-**Sequence used:** `new-project-full`, then one unsequenced feature session (`add-feature` equivalent)  
-**Sessions:** 2 (2026-06-01 original build; 2026-06-02 UI enhancements + AI reviewer fix)  
-**Roles that ran:** brief → planner → architect → implementer → reviewer → retro (this document)  
-**Post-sequence work (session 2):** sort columns, decision/actor filters on audit log, AI reviewer system prompt fix, bad-decision DB cleanup
+**Name:** moderation-stream (project 22)
+**Sequence:** `new-project-full`
+**Sessions:** 1 (2026-06-02)
+**Roles that ran:** brief → planner → architect → design-brief → frontend-architect → implementer → ui-reviewer → ui-debugger → reviewer → implementer pass (R2/T1/T2) → retro
+**Languages:** Python (FastAPI, Kafka consumers), TypeScript (React dashboard route in case-queue)
+**Key characteristic:** Two-project implementation — new Python service + frontend additions to an existing React app
 
 ---
 
 ## What Went Well
 
-**Backend structure absorbed additions with no friction.**  
-Adding sort params, a new `/audit-log/actors` endpoint, and optional query params to two routers required only targeted edits. No existing tests broke. The router architecture — thin routers, shared `_build_filters` helpers, Pydantic response models — made extension cheap. Worth preserving and codifying as a convention.
+**1. Phase-gated architecture held from design through frontend.**
+The Phase 1 / Phase 2 model split (`MODEL_REGISTRY` + `ModelStatus`) was decided at the architect stage and flowed cleanly through every downstream role. The API returns `pending_weights` for fine-tuned models with no checkpoint; the frontend renders a distinct pending card state; the reviewer confirmed the logic is correct. No rework, no design revisit. Designing the Phase 2 state at architecture time — even though Phase 2 doesn't run yet — meant the frontend could render all five model slots from day one without placeholders or conditional rendering hacks.
 
-**TypeScript strict mode caught issues immediately.**  
-Every change to `types/index.ts` and the hook files produced immediate compile errors when downstream pages didn't match. `pnpm tsc --noEmit` as a fast check was the right verification step. The type boundary between `CaseFilters`/`AuditFilters` and the hook layer held up correctly under extension.
+**2. Port isolation (5433 vs 5432) was decided once and held.**
+Routing Postgres to 5433 to avoid case-queue collision was a one-line decision at the architect stage. It appeared correctly in docker-compose.yml, `.env.example`, the test DB URL, and conftest. No environment collision debugging occurred. Decisions with multi-file impact made cleanly at architecture time are cheaper than any post-implementation fix.
 
-**Tri-state sort design was right the first time.**  
-The `SortState = { by; dir } | null` union type cleanly represented all three states (unsorted, asc, desc) without separate nullable fields. No rework needed.
+**3. Sync/async split between consumers and API was correct and friction-free.**
+Consumers are synchronous (blocking poll loop); the metrics API is fully async. These share a Postgres database but use separate SQLAlchemy engines. The reviewer confirmed no double-commit risk. The implementer's choice to instantiate `create_engine` in `BaseConsumer.__init__` (sync) and `create_async_engine` in the API's lifespan (async) respected the split without any overlap.
 
-**The AI reviewer's parse-failure escalation was the right fallback.**  
-When the model returned fenced JSON, the classifier escalated rather than crashing or silently doing the wrong thing. The fallback note in the decision text made the bad records easy to identify and delete. Defensive-by-default behaviour in the classifier paid off.
+**4. Adding the stream dashboard to case-queue required no structural rework.**
+The existing `App.tsx` router, `@/` path alias, shadcn/ui library, and TanStack Query provider all absorbed the new `/stream` route cleanly: 4 new files, 3 modified, one `NavLink`, one `Route`. The componentisation from the earlier case-queue build paid dividends here with zero friction.
+
+**5. ui-reviewer caught the blocking tailwind.config.js duplicate `colors` key before any manual testing.**
+The duplicate key would have silently broken all shadcn/ui token classes at runtime — invisible to TypeScript and unit tests. Left undetected, this would have produced a confusing "all the cards look wrong" symptom with no obvious cause. The ui-reviewer is the only role in the sequence that catches this class of error. It did its job.
 
 ---
 
 ## What Could Have Gone Better
 
-**1. AI reviewer approve/reject semantics were inverted from day one.**  
-The system prompt defined `approve` as "content violates policy, action it" and `reject` as "false positive, no action." The code's `ACTION_TO_STATUS` mapping treats `approve → approved` (case cleared) and `reject → rejected` (content removed). The two conflicted completely. The AI was approving harmful content throughout the first review run.
+**1. `VITE_STREAM_API_URL` missing from `.env.example` — a known gap that shipped.**
 
-*Root cause:* No one reviewed the system prompt for semantic correctness. The implementer wrote it; the reviewer checked code, not prompt logic. There was no prompt-review step in the sequence.
+The implementer's own output flagged this explicitly: "`VITE_STREAM_API_URL` not in `case-queue/web/.env.example` — must be added manually." The code references `import.meta.env['VITE_STREAM_API_URL']`; the example file doesn't mention it. Anyone following the How to Run instructions starts the frontend and gets a broken `/stream` page with no explanation.
 
-*What would have prevented it:* A checklist item in the reviewer role for AI-adjacent features: "verify that prompt action labels match the system's action semantics." Alternatively, a new resource on prompt design with this as a named convention.
+*Root cause:* Frontend env var additions weren't reflected back into `.env.example`. The implementer documented the fix in prose but didn't apply it.
 
-**2. Dev server started without `--reload`, causing a false debugging detour.**  
-The implementer output explicitly shows the correct command: `uvicorn app.main:app --reload --port 8000`. In practice, `--reload` was omitted. When sort params and the actors endpoint were added, the running server didn't pick them up. The symptom — "sort not working" — looked like a frontend or API logic bug, leading to unnecessary investigation before the stale server was identified.
+*Prevention:* Convention: "Any new `import.meta.env.VITE_*` reference must have a matching entry in `.env.example` in the same implementer pass." Add to `typescript-conventions.md`.
 
-*Root cause:* No enforcement or scripting of the dev startup command. The correct command is buried in the implementer output's "How to Run" section.
+---
 
-*What would have prevented it:* A `dev.sh` or `Makefile` target in the project that starts the API with `--reload`. The implementer should produce this as a deliverable, not just document the command in prose.
+**2. API tests shipped with empty-DB-only coverage for an aggregation-heavy system.**
 
-**3. Actor filter started as a text input; should have been a dropdown.**  
-The first implementation used a free-text input + submit for the actor ID filter. The user immediately asked for a dropdown of actual actors. This required a new API endpoint (`/audit-log/actors`) and a frontend hook — straightforward, but the initial design was wrong.
+The core value of moderation-stream is computed metrics — accuracy, p50 latency, throughput. The 6 initial API tests verified response shape and status flags against an empty database. A SQL bug in `METRICS_SQL` would have passed all of them. The reviewer caught the gap; the implementer pass added the seeded-data test. It should have been in the first pass.
 
-*Root cause:* The universe of actors is small and DB-queryable, but the design treated it as open-ended input. Text inputs are for open-ended user strings; dropdowns are for known, queryable enumerables.
+*Root cause:* The test plan followed the "verify shape, verify status" pattern appropriate for CRUD endpoints. Aggregation endpoints need a different pattern: seed known data, assert computed outputs.
 
-*What would have prevented it:* A UI pattern principle: when a filter targets a queryable set (actor IDs, DB-backed enums), use a data-driven dropdown rather than a text field.
+*Prevention:* Add to `python-conventions.md` under Testing: "For endpoints that aggregate or compute derived values, include at least one test with seeded data that asserts computed outputs, not just response shape."
 
-**4. Retro ran one session late.**  
-The retro should have run immediately after the reviewer's verdict (end of session 1). Instead, it was deferred until after a second session of feature work. The retro is now covering two phases simultaneously and some early findings are harder to reconstruct.
+---
 
-*Root cause:* The reviewer's Handoff section named "next role: retro" but the sequence wasn't checked at the start of session 2 before new work began.
+**3. Consumer loop shipped without `exc_info=True` — stack traces silently dropped.**
 
-*What would have prevented it:* Enforcing the session start protocol step: read `project-state.md` and check whether a sequence is in-flight before starting new work.
+`except Exception` in `BaseConsumer.run()` logged the exception message but not the traceback. The reviewer flagged it; the implementer pass fixed it in one character. In production, any programming error in the consumer would log a single line with no location.
+
+*Root cause:* `python-conventions.md` correctly says "do not catch broad `Exception` unless at a boundary" but gives no guidance for the legitimate boundary case — what to do when you do catch it.
+
+*Prevention:* Extend Error Handling in `python-conventions.md`: "When catching broad `Exception` at a legitimate boundary (consumer loop, retry handler), always log with `exc_info=True` to preserve the full traceback."
+
+---
+
+**4. `_run_inference` returning `0` silently when no model is loaded is a latent hazard.**
+
+`run()` exits early before `_run_inference` is called with no checkpoint, so this can't happen in practice. But the silent `return 0` means future callers or tests that bypass the early-exit guard would write wrong labels to the database with no error. A `raise RuntimeError` would fail loudly and be self-documenting.
+
+*Root cause:* No convention about methods that require prior initialisation. The `if not ready: return default` pattern is common but produces invisible failures.
+
+*Prevention:* Add to `python-conventions.md` under Error Handling: "Methods requiring prior initialisation (model weights, external connections) should raise on uninitialised state rather than returning a silent default. Prefer `raise RuntimeError(...)` over `if self._pipe is None: return 0`."
 
 ---
 
@@ -70,17 +85,16 @@ The retro should have run immediately after the reviewer's verdict (end of sessi
 
 | Stage | Issue | Estimated Waste | Recommendation |
 |-------|-------|-----------------|----------------|
-| Retro | Full implementer output loaded (166 lines) for a completed project | Low | Acceptable — file is appropriately sized. Add a Summary section to future implementer outputs so retro can read that first and drill in only if needed. |
-| Session 2 (feature work) | No role context loaded — direct ad-hoc implementation | N/A | Correct for a small `add-feature` scope. Full routing would have been overhead. |
+| Retro | `routing.md` loaded in full (216 lines) to confirm which sequence ran and whether it was right | Medium | Project-state.md already names the sequence. Retro role contract should note: skip routing.md if sequence name and completion status are clear from project-state. |
+| Implementer | Output covers two project locations in one 284-line file | Low — complexity warranted it | Acceptable. Add a "Scope" H2 early so downstream roles can skip irrelevant sections. |
 
 ### Redundancy Patterns
 
-`project-state.md` "Project File Map" duplicates the implementer's "Files Produced" table. This is useful as a workspace reference, but it will drift as features are added (e.g. `audit.ts` gained `useAuditActors` in session 2 but the file map doesn't reflect it). In future projects, `project-state.md` should link to the implementer output rather than re-listing every file.
+`project-state.md` contains a detailed "Project File Map" for case-queue (60 lines) but none for moderation-stream — the moderation-stream manifest lives only in the implementer output. This is inconsistent and will drift as both projects evolve. Either both projects should have file maps in project-state, or neither should — project-state should link to implementer output instead of re-listing files.
 
 ### Scoping Recommendations
 
-- Implementer outputs should open with a **Summary** section (1 paragraph: what was built, key deviations, critical gaps). Retro and reviewer can read the summary first and only load the full file for specific findings.
-- `vibecoding-style.md` is loaded by most roles but referenced lightly. Consider moving the "vibe mode vs structured mode" section to `routing.md` (where sequence selection happens) and keeping `vibecoding-style.md` focused on collaboration and code preferences only.
+The retro loads `routing.md` solely to confirm the sequence used and assess fit. Since `project-state.md` already records "Sequence: `new-project-full`, step N complete", the retro role contract should mark `routing.md` as optional — load only if the sequence choice itself is in question.
 
 ---
 
@@ -90,56 +104,56 @@ The retro should have run immediately after the reviewer's verdict (end of sessi
 
 | File | Change | Reason | Human decision required? |
 |------|--------|--------|--------------------------|
-| `resources/vibecoding-style.md` | Add under Code Preferences: "UI filters: use a data-driven dropdown for any filter targeting a queryable set (actor IDs, DB-backed enums). Use text input only for open-ended user strings." | Prevents the actor-filter rework pattern | No |
-| `resources/typescript-conventions.md` | Add same principle as a TS-specific note with a concrete example (actor dropdown backed by a `useXActors` hook) | Language-specific grounding for the same principle | No |
+| `resources/python-conventions.md` | Under **Error Handling**, add: "When catching broad `Exception` at a legitimate boundary (consumer loop, retry handler), always log with `exc_info=True` to preserve the full traceback." | Prevents silent traceback suppression in consumer/loop patterns | No |
+| `resources/python-conventions.md` | Under **Error Handling**, add: "Methods requiring prior initialisation (model weights, external connections) should raise on uninitialised state rather than returning a silent default. Prefer `raise RuntimeError(...)` over `if self._pipe is None: return 0`." | Prevents latent silent-default bugs | No |
+| `resources/python-conventions.md` | Under **Testing**, add: "For endpoints that aggregate or compute derived values, include at least one test with seeded data that asserts computed outputs, not just response shape." | Prevents empty-DB-only coverage for aggregation endpoints | No |
+| `resources/typescript-conventions.md` | Under **Package Management and Tooling**, add: "Any new `import.meta.env.VITE_*` reference must have a matching entry in `.env.example` in the same implementer pass." | Prevents the VITE_STREAM_API_URL gap from recurring | No |
 
 ### Skills to Update
 
-No existing skills require changes. One new skill recommended (see below).
+No changes needed. `skills/dev-server-setup.md` (created in the case-queue retro) covers the Makefile/startup pattern used correctly here.
 
 ### Routing Changes
 
 | Sequence | Change | Reason | Human decision required? |
 |----------|--------|--------|--------------------------|
-| `new-project-full`, `add-feature` | Reviewer role: add checklist item — "If the project includes an LLM system prompt, verify that each action label in the prompt matches the system's action semantics (e.g. what `approve` maps to in `models.py`)" | The approve/reject inversion was invisible to standard code review; it requires prompt-specific scrutiny | No |
-| All sequences | Session start protocol (CLAUDE.md step 6 or routing.md): "Check `project-state.md` for any sequence in-flight. If a sequence is in-flight, the next role in that sequence must run before new work begins, unless the human explicitly overrides." | Retro ran one session late; in-flight state was not checked | No |
+| All sequences | In the retro row of each sequence table, mark `routing.md` as "optional — skip if sequence is named in project-state.md" | Retro loads routing.md only to confirm sequence; project-state already names it | No |
 
 ### New Resources or Skills Needed
 
-**`resources/prompt-design.md`**  
-Conventions for writing LLM system prompts in this workspace. Minimum content:
-1. Action labels must be validated against the system's enum values and their semantic meaning in the code (e.g. `approve` in the prompt must mean what `approve` means in `ACTION_TO_STATUS`).
-2. When action semantics are non-obvious (approve/reject/escalate in a T&S context can mean different things to different people), include a one-line worked example per action in the prompt.
-3. Use `escalate` as the safe fallback action, not `approve`.
-
-Load in: implementer (when writing prompts), reviewer (to check prompt semantics).
-
-**`skills/dev-server-setup.md`**  
-How to start the dev stack for a FastAPI + Vite project. Covers: uvicorn with `--reload`, Vite dev command, docker-compose for Postgres, and the rule: "Any backend code change requires `--reload` to be active, or the server must be restarted manually." The implementer should produce a `Makefile` or `dev.sh` using this skill so the correct startup command is one target, not a prose paragraph.
-
-Load in: implementer (to produce the startup script), reviewer (to verify `--reload` is present).
+None. The moderation-stream project surfaced no gaps requiring a new file — only additions to existing ones. `prompt-design.md` and `dev-server-setup.md` recommended in the case-queue retro were both applied and were not needed here.
 
 ---
 
 ## One Change to Make Now
 
-**Create `resources/prompt-design.md`** with the three conventions above, and add a row to the reviewer step in `new-project-full` and `add-feature`: load `prompt-design.md` when the project includes an LLM prompt.
+**Add the `exc_info=True` convention to `resources/python-conventions.md` under Error Handling.**
 
-**Why this one:** The approve/reject inversion caused real data corruption — wrong decisions were written to the DB and required manual cleanup. It was invisible to standard code review because it's a semantic error in a string constant, not a type or logic error. A single resource with one named convention ("action labels must match system semantics") would have caught it at implementation time. The other findings (stale server, text input vs dropdown) are friction; this one produced bad data.
+Exact addition:
 
-**Exact change:**
-1. Create `resources/prompt-design.md` with the three conventions.
-2. In `resources/routing.md`, add to the reviewer step of `new-project-full` and `add-feature`: Resources column gets `prompt-design.md (if project includes LLM prompts)`.
+```markdown
+When catching broad `Exception` at a legitimate boundary (consumer loop, retry handler),
+always log with `exc_info=True` to preserve the full traceback:
+
+    except Exception:
+        logger.warning("Failed to process message", exc_info=True)
+
+Logging only the exception message drops the stack — undebuggable in production.
+```
+
+**Why this one:** The consumer loop is a real deployment target. A message-processing bug in production with the old code yields one log line and no stack trace. The fix is one parameter. It prevents the same miss in every future consumer, retry handler, or batch-processing loop — the class of code where broad catches are legitimately needed. The other three recommendations affect design-time correctness; this one affects runtime operability, which matters more when the system is running.
 
 ---
 
 ## Handoff
 
-Recommended actions, ordered by value:
+`new-project-full` sequence for moderation-stream is complete.
 
-1. **Create `resources/prompt-design.md`** — prevents data-corrupting bugs in AI features.
-2. **Create `skills/dev-server-setup.md`** — eliminates the stale-server debugging class of mistake.
-3. **Update `resources/vibecoding-style.md`** and `resources/typescript-conventions.md` — add UI filter pattern (dropdown vs text input).
-4. **Update `resources/routing.md`** — add reviewer LLM checklist item and session-start in-flight check.
+**Recommended actions (ordered):**
+1. Apply the `exc_info=True` addition to `resources/python-conventions.md` (One Change to Make Now).
+2. Add the seeded-data testing requirement to `python-conventions.md`.
+3. Add the `VITE_*` env example rule to `typescript-conventions.md`.
+4. Add the raise-on-uninitialised convention to `python-conventions.md`.
+5. Fix the actual gap: add `VITE_STREAM_API_URL=http://localhost:8001` to `projects/case-queue/web/.env.example` (one line, no role required).
 
-Update `_config/project-state.md` to record that the retro ran and which recommendations were applied.
+**Update `_config/project-state.md`:** Record retro complete, sequence closed, which recommendations were actioned.
