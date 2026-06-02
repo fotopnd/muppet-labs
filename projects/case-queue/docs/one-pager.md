@@ -38,4 +38,4 @@ The single write path constraint was the most structurally useful decision in th
 
 ## Where to Go Next
 
-The repository is at `projects/case-queue/`. The README covers local setup, the full API surface, and the Fly.io and Vercel deployment configuration. The AI reviewer README covers the classification flow and backend configuration options.
+The repository is at `projects/case-queue/`. The README covers local setup, the full API surface, and the deployment configuration for Hostinger VPS. The AI reviewer README covers the classification flow and backend configuration options.

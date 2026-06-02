@@ -74,44 +74,58 @@ cd projects/case-queue/web
 pnpm test                              # 11 tests
 ```
 
-### How to Deploy (not yet done — run these commands)
+### How to Deploy (not yet done)
 
-**Step 1 — Fly.io (API)**
+**Deployment target: Hostinger VPS (API + frontend via nginx) + public GitHub repository.**
+
+The existing `api/Dockerfile` and `docker-compose.yml` are the correct deployment artifacts for Hostinger. The `api/fly.toml` is Fly.io-specific and can be ignored.
+
+**Step 1 — Push to public GitHub repo**
 ```bash
-# Install CLI
-brew install flyctl
-fly auth login
-
-cd projects/case-queue/api
-fly launch --no-deploy
-# Answer prompts: choose app name, confirm lhr region, YES to Postgres
-# fly.toml is already present — it will update the app name in place
-
-fly secrets set ALLOWED_ORIGINS="https://YOUR-VERCEL-URL.vercel.app"
-fly deploy
-# Migrations run automatically via release_command before each deploy
+gh repo create case-queue --public --source=projects/case-queue --push
 ```
 
-**Step 2 — Vercel (Frontend)**
+**Step 2 — Hostinger VPS setup**
+SSH into the Hostinger VPS, then:
 ```bash
-pnpm install -g vercel
-vercel login
+# Clone from GitHub
+git clone https://github.com/YOUR-USERNAME/case-queue.git
+cd case-queue
 
-cd projects/case-queue/web
-vercel env add VITE_API_URL            # enter: https://YOUR-APP-NAME.fly.dev
-vercel env add VITE_ACTOR_ID           # enter: dev-user
-vercel env add VITE_ACTOR_ROLE         # enter: senior_reviewer
-vercel deploy --prod
+# Configure environment
+cp .env.example .env
+# Edit .env: set DATABASE_URL, ALLOWED_ORIGINS, VITE_API_URL to VPS hostname
+
+# Start API + Postgres
+docker compose up -d
+
+# Run migrations
+docker compose exec api uv run alembic upgrade head
+
+# Seed data (one-time)
+docker compose exec api uv run python scripts/seed.py --confirm
 ```
 
-**Step 3 — Update fly.toml**
-After `fly launch` assigns an app name, update the `app = 'YOUR-APP-NAME'` line in `api/fly.toml` and commit.
+**Step 3 — Build and serve frontend via nginx**
+```bash
+cd web
+pnpm install && pnpm build
+# dist/ contains the static build — serve via nginx
+```
+
+Configure nginx as a reverse proxy:
+- `/api/*` → `localhost:8000` (FastAPI)
+- `/*` → static files from `web/dist/`
+
+**Step 4 — Update README and one-pager**
+Replace `projects/case-queue/` path references with live GitHub URL and Hostinger hostname.
 
 ### Next Steps
 
-1. **Deploy** — run the commands above. Unblocks the live demo.
-2. **Add Vercel URL to ALLOWED_ORIGINS on Fly** — one `fly secrets set` command after both are live.
-3. **shadcn/ui (optional)** — visual polish; not a portfolio blocker.
+1. **Create public GitHub repo and push** — unblocks the live demo and makes the portfolio piece verifiable.
+2. **Deploy to Hostinger VPS** — follow the steps above.
+3. **Update ALLOWED_ORIGINS** in `.env` once the Hostinger hostname is confirmed.
+4. **shadcn/ui (optional)** — visual polish; not a portfolio blocker.
 
 ---
 
