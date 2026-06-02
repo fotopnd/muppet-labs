@@ -17,11 +17,13 @@ function formatThroughput(v: number): string {
   return `${v.toFixed(2)}/s`
 }
 
-function MetricRow({ label, value }: { label: string; value: string }) {
+function MetricRow({ label, value, dimmed }: { label: string; value: string; dimmed?: boolean }) {
   return (
     <div className="flex items-baseline justify-between py-0.5">
       <span className="text-xs text-muted-foreground font-interface">{label}</span>
-      <span className="text-sm text-foreground font-data tabular-nums">{value}</span>
+      <span className={`text-sm font-data tabular-nums ${dimmed ? 'text-muted-foreground' : 'text-foreground'}`}>
+        {value}
+      </span>
     </div>
   )
 }
@@ -52,7 +54,7 @@ export function ModelMetricsCard({ metrics }: Props) {
           </p>
         ) : (
           <div className="space-y-1">
-            <MetricRow label="Accuracy" value={formatAccuracy(metrics.accuracy)} />
+            <MetricRow label="Accuracy" value={formatAccuracy(metrics.accuracy)} dimmed={metrics.accuracy === null} />
             <MetricRow label="p50 latency" value={formatLatency(metrics.p50_latency_ms)} />
             <MetricRow label="p95 latency" value={formatLatency(metrics.p95_latency_ms)} />
             <MetricRow label="Throughput" value={formatThroughput(metrics.throughput_cps)} />
