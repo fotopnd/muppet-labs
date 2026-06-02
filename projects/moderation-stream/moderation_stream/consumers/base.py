@@ -93,8 +93,8 @@ class BaseConsumer(ABC):
                             "[%s] processed=%d last_latency=%.1fms",
                             self.model_name, processed, latency_ms,
                         )
-                except Exception as exc:
-                    logger.warning("[%s] Failed to process message: %s", self.model_name, exc)
+                except Exception:
+                    logger.warning("[%s] Failed to process message", self.model_name, exc_info=True)
         finally:
             self._consumer.close()
             logger.info("[%s] Consumer closed. Total processed: %d", self.model_name, processed)
