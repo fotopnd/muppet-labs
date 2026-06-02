@@ -39,6 +39,14 @@ export default {
         input: 'hsl(var(--input))',
         ring: 'hsl(var(--ring))',
       },
+      fontFamily: {
+        interface: ['Inter', 'SF Pro Display', 'Geist Sans', 'sans-serif'],
+        data: ['JetBrains Mono', 'SF Mono', 'Geist Mono', 'monospace'],
+      },
+      colors: {
+        'status-active-bg':   'hsl(var(--status-active-bg))',
+        'status-active-text': 'hsl(var(--status-active-text))',
+      },
       borderRadius: {
         '4xl': '2rem',
         lg: 'var(--radius)',
