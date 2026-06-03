@@ -1,6 +1,11 @@
+import { useEffect, useState } from 'react'
+
+import { useStreamMetrics } from '@/api/stream'
 import { ErrorMessage } from '@/components/ErrorMessage'
 import { ModelMetricsCard } from '@/components/ModelMetricsCard'
-import { useStreamMetrics } from '@/api/stream'
+import type { HistoryPoint } from '@/types/stream'
+
+const MAX_HISTORY = 30
 
 function CardSkeleton() {
   return (
@@ -20,6 +25,28 @@ function CardSkeleton() {
 
 export function StreamDashboard() {
   const { data, isLoading, error } = useStreamMetrics()
+  const [history, setHistory] = useState<Record<string, HistoryPoint[]>>({})
+
+  useEffect(() => {
+    if (!data) return
+    const t = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })
+    setHistory(prev => {
+      const next = { ...prev }
+      for (const m of data.models) {
+        if (m.status !== 'active') continue
+        const point: HistoryPoint = {
+          t,
+          accuracy: m.accuracy,
+          p50: m.p50_latency_ms,
+          p95: m.p95_latency_ms,
+          throughput: m.throughput_cps,
+        }
+        const existing = prev[m.model_name] ?? []
+        next[m.model_name] = [...existing, point].slice(-MAX_HISTORY)
+      }
+      return next
+    })
+  }, [data])
 
   return (
     <>
@@ -48,7 +75,11 @@ export function StreamDashboard() {
         {data && (
           <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
             {data.models.map(m => (
-              <ModelMetricsCard key={m.model_name} metrics={m} />
+              <ModelMetricsCard
+                key={m.model_name}
+                metrics={m}
+                history={history[m.model_name] ?? []}
+              />
             ))}
           </div>
         )}

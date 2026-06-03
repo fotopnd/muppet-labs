@@ -19,7 +19,7 @@ METRICS_SQL = text("""
         model_name,
         COUNT(*)                                                                     AS total_processed,
         SUM(correct::int)                                                            AS correct,
-        AVG(correct::float)                                                          AS accuracy,
+        AVG(correct::int::float)                                                     AS accuracy,
         COALESCE(percentile_cont(0.5) WITHIN GROUP (ORDER BY latency_ms), 0)         AS p50_latency_ms,
         COALESCE(percentile_cont(0.95) WITHIN GROUP (ORDER BY latency_ms), 0)        AS p95_latency_ms,
         COALESCE(

@@ -15,3 +15,11 @@ export type MetricsResponse = {
   models: ModelMetrics[]
   generated_at: string
 }
+
+export type HistoryPoint = {
+  t: string
+  accuracy: number | null
+  p50: number
+  p95: number
+  throughput: number
+}
