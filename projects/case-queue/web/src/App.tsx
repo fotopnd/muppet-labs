@@ -25,13 +25,13 @@ export default function App() {
               Safeguards · Case Review
             </span>
             <NavLink to="/" end className={navLinkClass}>Cases</NavLink>
-            <NavLink to="/audit" className={navLinkClass}>Audit Log</NavLink>
+            <NavLink to="/audit-log" className={navLinkClass}>Audit Log</NavLink>
             <NavLink to="/stream" className={navLinkClass}>Stream</NavLink>
           </nav>
           <Routes>
             <Route path="/" element={<CaseQueue />} />
             <Route path="/cases/:id" element={<CaseDetail />} />
-            <Route path="/audit" element={<AuditLog />} />
+            <Route path="/audit-log" element={<AuditLog />} />
             <Route path="/stream" element={<StreamDashboard />} />
           </Routes>
         </div>

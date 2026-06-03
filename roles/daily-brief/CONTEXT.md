@@ -44,6 +44,21 @@ in under two minutes and specific enough to act on immediately.
 
 ---
 
+## Archive Convention
+
+Before writing a new brief, copy the current `output/output.md` to `archive/[date]-output.md`
+where `[date]` is the date in the existing brief's heading (e.g. `archive/2026-06-03-output.md`).
+Keep only the 7 most recent files in `archive/` — delete the oldest when the count exceeds 7.
+
+```bash
+# Archive the current brief (replace DATE with the date in the current brief)
+cp roles/daily-brief/output/output.md roles/daily-brief/archive/DATE-output.md
+# Prune if more than 7 archive files
+ls -t roles/daily-brief/archive/ | tail -n +8 | xargs -I{} rm roles/daily-brief/archive/{}
+```
+
+---
+
 ## Output
 
 **File:** `roles/daily-brief/output/output.md`
