@@ -66,7 +66,7 @@ def train(
         output_dir=str(trainer_output),
         num_train_epochs=epochs,
         per_device_train_batch_size=batch_size,
-        per_device_eval_batch_size=32,  # smaller eval batch for roberta-base on MPS
+        per_device_eval_batch_size=128,
         learning_rate=lr,
         warmup_steps=100,
         weight_decay=0.01,

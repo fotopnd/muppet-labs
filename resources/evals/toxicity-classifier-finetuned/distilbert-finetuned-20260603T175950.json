@@ -1,0 +1,32 @@
+{
+  "model_slug": "distilbert-finetuned",
+  "checkpoint_dir": "checkpoints/distilbert-best",
+  "finetuned": {
+    "f1": 0.8472843450479233,
+    "precision": 0.8282323547782636,
+    "recall": 0.8672334859385219,
+    "auc_roc": 0.9240873230510407,
+    "per_category": {
+      "severe_toxic": 0.9090111542799849,
+      "obscene": 0.9487404436646196,
+      "threat": 0.9023060533901491,
+      "insult": 0.9460458704098258,
+      "identity_hate": 0.9082591803484146
+    }
+  },
+  "zero_shot_baseline": {
+    "f1": 0.32225208657518745,
+    "precision": 0.2055956678700361,
+    "recall": 0.7449313276651406,
+    "auc_roc": 0.71996029270498,
+    "per_category": {
+      "severe_toxic": 0.6600451184358942,
+      "obscene": 0.6854869031206918,
+      "threat": 0.6552199523749843,
+      "insult": 0.6844216067176337,
+      "identity_hate": 0.6579145256297781
+    }
+  },
+  "evaluated_at": "2026-06-03T17:59:50.121652+00:00",
+  "test_size": 15958
+}

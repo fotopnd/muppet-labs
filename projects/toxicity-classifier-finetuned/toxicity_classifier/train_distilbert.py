@@ -66,7 +66,7 @@ def train(
         output_dir=str(trainer_output),
         num_train_epochs=epochs,  # configurable; default 4
         per_device_train_batch_size=batch_size,
-        per_device_eval_batch_size=64,
+        per_device_eval_batch_size=256,
         learning_rate=lr,
         warmup_steps=100,  # ~10% of a typical 1k-step epoch; stabilises early training
         weight_decay=0.01,

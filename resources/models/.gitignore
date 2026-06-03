@@ -1,0 +1,9 @@
+# Ignore model weight files — too large for git
+**/*.safetensors
+**/*.bin
+**/*.pt
+**/*.pth
+
+# Track directory structure and config files
+!.gitignore
+!**/.gitkeep
