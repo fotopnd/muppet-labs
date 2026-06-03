@@ -54,6 +54,7 @@ def test_train_distilbert_creates_checkpoint(
 
     assert checkpoint.exists()
     assert (checkpoint / "config.json").exists()
+    assert (tmp_path / "out" / "distilbert-train-log.json").exists()
 
 
 def test_train_roberta_creates_checkpoint(
@@ -81,3 +82,4 @@ def test_train_roberta_creates_checkpoint(
 
     assert checkpoint.exists()
     assert (checkpoint / "config.json").exists()
+    assert (tmp_path / "out" / "roberta-train-log.json").exists()

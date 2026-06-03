@@ -9,6 +9,7 @@ from typing import Literal
 
 import numpy as np
 import torch
+from transformers import AutoModelForSequenceClassification, PreTrainedTokenizerBase
 
 from toxicity_classifier.data import LABEL_COLUMNS, get_splits, load_jigsaw, tokenise_splits
 from toxicity_classifier.device import get_device
@@ -50,7 +51,7 @@ def evaluate(
     data_dir: Path,
     output_dir: Path = Path("eval_results"),
 ) -> EvalResult:
-    from transformers import AutoModelForSequenceClassification, AutoTokenizer
+    from transformers import AutoTokenizer
 
     device_cfg = get_device()
 
@@ -61,15 +62,15 @@ def evaluate(
     ft_model.to(device_cfg.device)
     ft_model.eval()
 
-    # Load and tokenise test split
+    # Load and tokenise — test split is the single authoritative source for texts and labels
     df = load_jigsaw(data_dir)
     splits = get_splits(df)
     splits = tokenise_splits(splits, tokenizer)
     test_ds = splits.test
 
-    # Recover raw texts from the original df for zero-shot pipeline
-    _, _, test_df = _get_raw_test(df)
-    raw_texts = test_df["comment_text"].tolist()
+    # Raw texts for zero-shot pipeline come from the same test_ds to avoid split divergence
+    test_pd = test_ds.to_pandas()
+    raw_texts = test_pd["comment_text"].tolist()
     raw_labels = test_ds["labels"]
     true_labels = raw_labels.tolist() if hasattr(raw_labels, "tolist") else list(raw_labels)
 
@@ -112,17 +113,9 @@ def evaluate(
     return result
 
 
-def _get_raw_test(df) -> tuple:
-    """Reproduce the same 80/10/10 split used during training to get the raw test df."""
-    from sklearn.model_selection import train_test_split
-
-    train_val, test = train_test_split(df, test_size=0.10, random_state=42, stratify=df["toxic"])
-    return train_val, None, test
-
-
 def _predict_finetuned(
-    model,
-    tokenizer,
+    model: AutoModelForSequenceClassification,
+    tokenizer: PreTrainedTokenizerBase,
     texts: list[str],
     device: torch.device,
     batch_size: int = 64,
