@@ -201,7 +201,7 @@ uv run pytest -v   # 45 tests, no external services needed
 
 ## Project 22 — Content Moderation Event Stream and Model Comparison Platform
 
-**Last updated:** 2026-06-02
+**Last updated:** 2026-06-03
 **Location:** `projects/moderation-stream/` (frontend additions in `projects/case-queue/web/src/`)
 **Proposal target:** Both (SWE and DE Safeguards)
 **Stack:** Python 3.12 (FastAPI, confluent-kafka, transformers, SQLAlchemy), TypeScript (React, TanStack Query), Kafka, PostgreSQL (port 5433)
@@ -214,12 +214,16 @@ uv run pytest -v   # 45 tests, no external services needed
 | Phase 1 consumers (3) | ✓ Complete | DistilBERT zero-shot, RoBERTa zero-shot, Detoxify |
 | Phase 2 consumers (2) | ✓ Stubbed | Fine-tuned DistilBERT + RoBERTa; exit cleanly with no checkpoint; activate via config |
 | Metrics API | ✓ Complete | FastAPI on port 8001; GROUP BY SQL with percentile_cont; GET /metrics, GET /health |
-| React dashboard | ✓ Complete | `/stream` route in case-queue; 5-card grid; 3s polling; skeleton/error states |
+| React dashboard | ✓ Complete | `/stream` route in case-queue; 5-card grid; 3s polling; skeleton/error states; time series charts |
+| Time series charts | ✓ Complete | Accuracy + latency (p50/p95) sparklines per active card; 30-point rolling history in StreamDashboard |
+| SQL cast bug | ✓ Fixed | `correct::float` → `correct::int::float` (PostgreSQL boolean→float requires intermediate int cast) |
+| README.md | ✓ Added | Was missing; caused hatchling build failure on `uv run` |
 | Backend tests | ✓ 17/17 | 7 unit (producer + consumers, infra-free), 7 API integration (shape + computation) |
-| Frontend tests | ✓ 21/21 | Includes ModelMetricsCard (6) and StreamDashboard (4) |
+| Frontend tests | ✓ 21/21 | Includes ModelMetricsCard (6) and StreamDashboard (4) — chart tests not yet written |
 | Technical summary | ✓ Written | `projects/moderation-stream/docs/technical-summary.md` |
 | Phase 2 weights | ✗ Pending | Requires project 8 (fine-tuned DistilBERT + RoBERTa checkpoints) |
 | Alembic migrations | ✗ Deferred | Using `create_all` for now; straightforward to add before production deploy |
+| Jigsaw CSV | ✗ Not on machine | Producer requires real `train.csv`; synthetic CSV used for local dev only |
 | Live deploy | ✗ | Deploys alongside case-queue on Hostinger VPS |
 
 ### How to Run Locally
@@ -275,9 +279,11 @@ nginx: proxy `/stream-api/*` → `localhost:8001`.
 
 ### Next Steps
 
-1. **Deploy to Hostinger** — alongside case-queue; follow steps above.
-2. **Project 8 checkpoints** — drop fine-tuned weights into config to activate Phase 2.
-3. **Alembic migration** — run `alembic revision --autogenerate -m "initial"` against live DB before first deploy.
+1. **Deploy to Hostinger** — alongside case-queue; follow steps above. Requires real Jigsaw `train.csv` on the VPS for the producer to run.
+2. **Add real Jigsaw CSV** — download from Kaggle; place at `data/train.csv` (gitignored). The synthetic CSV in `data/` is local-dev only.
+3. **Project 8 checkpoints** — drop fine-tuned weights into config to activate Phase 2.
+4. **Alembic migration** — run `alembic revision --autogenerate -m "initial"` against live DB before first deploy.
+5. **Chart tests** — `ModelMetricsCard` and `StreamDashboard` tests do not yet cover the recharts sparklines; add tests once chart behaviour is stable.
 
 ---
 
