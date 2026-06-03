@@ -37,6 +37,7 @@ def main() -> None:
     common = {
         "model_name": args.model,
         "group_id": group_id,
+        "mode": args.mode,
         "bootstrap_servers": settings.kafka_bootstrap_servers,
         "topic": settings.kafka_topic,
         "db_url": settings.postgres_url_sync,

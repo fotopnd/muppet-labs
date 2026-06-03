@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import logging
 from pathlib import Path
+from typing import Literal
 
 from moderation_dashboard.consumers.base import BaseConsumer
 
@@ -16,12 +17,13 @@ class FinetunedConsumer(BaseConsumer):
         self,
         model_name: str,
         group_id: str,
+        mode: Literal["production", "shadow"],
         bootstrap_servers: str,
         topic: str,
         db_url: str,
         checkpoint_path: Path,
     ) -> None:
-        super().__init__(model_name, group_id, bootstrap_servers, topic, db_url)
+        super().__init__(model_name, group_id, mode, bootstrap_servers, topic, db_url)
         from transformers import pipeline
 
         logger.info("Loading fine-tuned model from %s...", checkpoint_path)

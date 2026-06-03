@@ -14,6 +14,7 @@ class _FakeConsumer(BaseConsumer):
         # Skip Kafka/DB setup — patch at the class level
         self.model_name = "test-model"
         self._group_id = "moderation-production"
+        self._group = "production"
         self._topic = "test-topic"
         self._running = True
         self._Session = MagicMock()

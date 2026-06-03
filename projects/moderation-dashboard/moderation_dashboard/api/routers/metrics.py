@@ -72,21 +72,6 @@ _COMPARISON_SQL = text("""
     WHERE event_id = :event_id AND "group" = 'shadow'
 """)
 
-_COMPARISON_META_SQL = text("""
-    SELECT content, category,
-           (predicted_label = predicted_label)::int AS ground_truth_approx
-    FROM classifications
-    WHERE event_id = :event_id
-    LIMIT 1
-""")
-
-_GROUND_TRUTH_SQL = text("""
-    SELECT predicted_label, correct
-    FROM classifications
-    WHERE event_id = :event_id
-    LIMIT 1
-""")
-
 
 def _build_model_metrics(rows: list[Any], group: str) -> list[ModelMetrics]:
     settings = get_settings()

@@ -25,8 +25,7 @@ async def test_stream_metrics_returns_event_rate(
     response = await api_client.get("/metrics/stream")
     assert response.status_code == 200
     data = response.json()
-    # 15 rows seeded; rate may be 0 if timestamps > 60s old in CI, but count should work
-    assert data["total_events"] >= 0
+    assert data["total_events"] == 15  # seeded_classifications inserts 15 rows
 
 
 async def test_production_metrics_returns_all_models(api_client: AsyncClient) -> None:

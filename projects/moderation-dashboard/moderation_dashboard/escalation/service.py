@@ -78,6 +78,8 @@ class EscalationService:
         logger.info("Evaluating %d unescalated shadow events", len(event_ids))
 
         for event_id in event_ids:
+            if not self._running:
+                break
             try:
                 shadow_rows = self._get_shadow_rows(event_id)
                 if len(shadow_rows) < 2:

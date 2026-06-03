@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import logging
+from typing import Literal
 
 from moderation_dashboard.consumers.base import BaseConsumer
 
@@ -12,9 +13,15 @@ _TOXIC_LABEL = "toxic content"
 
 class RobertaZeroShotConsumer(BaseConsumer):
     def __init__(
-        self, model_name: str, group_id: str, bootstrap_servers: str, topic: str, db_url: str
+        self,
+        model_name: str,
+        group_id: str,
+        mode: Literal["production", "shadow"],
+        bootstrap_servers: str,
+        topic: str,
+        db_url: str,
     ) -> None:
-        super().__init__(model_name, group_id, bootstrap_servers, topic, db_url)
+        super().__init__(model_name, group_id, mode, bootstrap_servers, topic, db_url)
         from transformers import pipeline
 
         logger.info("Loading RoBERTa zero-shot model...")

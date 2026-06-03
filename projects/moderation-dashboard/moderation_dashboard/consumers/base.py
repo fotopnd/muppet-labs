@@ -6,6 +6,7 @@ import time
 import uuid
 from abc import ABC, abstractmethod
 from datetime import UTC, datetime
+from typing import Literal
 
 from confluent_kafka import Consumer, KafkaError, KafkaException
 from sqlalchemy import create_engine
@@ -22,12 +23,14 @@ class BaseConsumer(ABC):
         self,
         model_name: str,
         group_id: str,
+        mode: Literal["production", "shadow"],
         bootstrap_servers: str,
         topic: str,
         db_url: str,
     ) -> None:
         self.model_name = model_name
         self._group_id = group_id
+        self._group = mode
         self._topic = topic
         self._running = True
 
@@ -74,8 +77,7 @@ class BaseConsumer(ABC):
                     predicted_label, confidence = self.classify(event.content)
                     latency_ms = (time.perf_counter() - t0) * 1000.0
                     correct = predicted_label == event.ground_truth
-                    # group_id is 'moderation-production' or 'moderation-shadow-{model}'
-                    group = "production" if self._group_id == "moderation-production" else "shadow"
+                    group = self._group
                     result = Classification(
                         id=str(uuid.uuid4()),
                         event_id=event.event_id,
