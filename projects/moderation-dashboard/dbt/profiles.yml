@@ -1,0 +1,12 @@
+moderation_dashboard:
+  target: dev
+  outputs:
+    dev:
+      type: postgres
+      host: "{{ env_var('DBT_DB_HOST', 'localhost') }}"
+      port: "{{ env_var('DBT_DB_PORT', '5434') | int }}"
+      user: "{{ env_var('DBT_DB_USER', 'postgres') }}"
+      password: "{{ env_var('DBT_DB_PASSWORD', 'postgres') }}"
+      dbname: "{{ env_var('DBT_DB_NAME', 'moderation_dashboard') }}"
+      schema: dbt_moderation
+      threads: 4

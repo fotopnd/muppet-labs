@@ -1,0 +1,50 @@
+[project]
+name = "moderation-dashboard"
+version = "0.1.0"
+description = "Unified content moderation dashboard — Kafka streaming, round-robin + shadow evaluation, anomaly detection, escalation, dbt analytics"
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = [
+    "confluent-kafka>=2.3.0",
+    "transformers>=4.40.0",
+    "torch>=2.2.0",
+    "detoxify>=0.5.2",
+    "fastapi>=0.110.0",
+    "uvicorn[standard]>=0.29.0",
+    "sqlalchemy[asyncio]>=2.0.0",
+    "asyncpg>=0.29.0",
+    "psycopg2-binary>=2.9.0",
+    "pydantic>=2.6.0",
+    "pydantic-settings>=2.2.0",
+    "httpx>=0.27.0",
+    "numpy>=1.26.0",
+    "alembic>=1.13.0",
+]
+
+[project.scripts]
+md-producer   = "moderation_dashboard.producer:main"
+md-consumer   = "moderation_dashboard.consumers.runner:main"
+md-anomaly    = "moderation_dashboard.anomaly.detector:main"
+md-escalation = "moderation_dashboard.escalation.service:main"
+md-api        = "moderation_dashboard.api.main:run"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["moderation_dashboard"]
+
+[tool.uv]
+package = true
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+
+[dependency-groups]
+dev = [
+    "pytest>=8.0.0",
+    "pytest-asyncio>=0.23.0",
+    "httpx>=0.27.0",
+    "ruff>=0.4.0",
+]

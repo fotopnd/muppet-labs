@@ -29,13 +29,14 @@ async def list_cases(
     category: CaseCategory | None = None,
     severity: Severity | None = None,
     status: CaseStatus | None = None,
+    source: str | None = None,
     date_from: datetime | None = None,
     date_to: datetime | None = None,
     sort_by: str | None = Query(None, pattern="^(created_at|severity|category|status)$"),
     sort_dir: str = Query("desc", pattern="^(asc|desc)$"),
     db: AsyncSession = Depends(get_db),
 ) -> Page[CaseListItem]:
-    filters = _build_filters(category, severity, status, date_from, date_to)
+    filters = _build_filters(category, severity, status, source, date_from, date_to)
 
     total_result = await db.execute(select(func.count()).select_from(Case).where(*filters))
     total = total_result.scalar_one()
@@ -97,6 +98,7 @@ def _build_filters(
     category: CaseCategory | None,
     severity: Severity | None,
     status: CaseStatus | None,
+    source: str | None,
     date_from: datetime | None,
     date_to: datetime | None,
 ) -> list:
@@ -107,6 +109,8 @@ def _build_filters(
         filters.append(Case.severity == severity)
     if status is not None:
         filters.append(Case.status == status)
+    if source is not None:
+        filters.append(Case.source == source)
     if date_from is not None:
         filters.append(Case.created_at >= date_from)
     if date_to is not None:

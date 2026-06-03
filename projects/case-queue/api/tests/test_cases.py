@@ -130,3 +130,30 @@ async def test_create_case_appears_in_queue(client: AsyncClient) -> None:
 async def test_create_case_missing_fields_rejected(client: AsyncClient) -> None:
     response = await client.post("/cases", json={"content": "Missing category and severity."})
     assert response.status_code == 422
+
+
+async def test_list_cases_filter_by_source(
+    client: AsyncClient, db_session: AsyncSession
+) -> None:
+    now = datetime.now(UTC)
+    for source in ("moderation-dashboard", "manual-review", "moderation-dashboard"):
+        db_session.add(
+            Case(
+                id=str(uuid.uuid4()),
+                content="Test content",
+                category=CaseCategory.toxic,
+                severity=Severity.medium,
+                status=CaseStatus.pending,
+                source=source,
+                meta={},
+                created_at=now,
+                updated_at=now,
+            )
+        )
+    await db_session.commit()
+
+    response = await client.get("/cases?source=moderation-dashboard")
+    assert response.status_code == 200
+    data = response.json()
+    assert data["total"] == 2
+    assert all(item["source"] == "moderation-dashboard" for item in data["items"])
