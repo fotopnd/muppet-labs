@@ -51,7 +51,19 @@ def load_jigsaw_csv(path: Path, limit: int | None = None) -> list[dict[str, Any]
 
 def ensure_topic(bootstrap_servers: str, topic: str, num_partitions: int) -> None:
     admin = AdminClient({"bootstrap.servers": bootstrap_servers})
-    metadata = admin.list_topics(timeout=5)
+    # Retry — librdkafka sometimes resets the first connection attempt
+    metadata = None
+    for attempt in range(6):
+        try:
+            metadata = admin.list_topics(timeout=5)
+            if metadata.topics:
+                break
+        except Exception:
+            pass
+        logger.info("Waiting for Kafka metadata (attempt %d/6)...", attempt + 1)
+        time.sleep(3)
+    if metadata is None:
+        raise RuntimeError(f"Could not connect to Kafka at {bootstrap_servers} after 6 attempts")
     if topic not in metadata.topics:
         new_topic = NewTopic(topic, num_partitions=num_partitions, replication_factor=1)
         futures = admin.create_topics([new_topic])
@@ -117,14 +129,18 @@ def main() -> None:
     settings = get_settings()
     limit: int | None = args.limit if args.limit > 0 else None
 
-    logger.info(
-        "Ensuring topic '%s' exists (%d partitions)...",
-        settings.kafka_topic,
-        settings.kafka_num_partitions,
-    )
-    ensure_topic(
-        settings.kafka_bootstrap_servers, settings.kafka_topic, settings.kafka_num_partitions
-    )
+    try:
+        logger.info(
+            "Ensuring topic '%s' exists (%d partitions)...",
+            settings.kafka_topic,
+            settings.kafka_num_partitions,
+        )
+        ensure_topic(
+            settings.kafka_bootstrap_servers, settings.kafka_topic, settings.kafka_num_partitions
+        )
+    except Exception:
+        # Topic is auto-created by KAFKA_CREATE_TOPICS; AdminClient transport errors are non-fatal
+        logger.warning("ensure_topic failed — proceeding anyway", exc_info=True)
 
     logger.info("Loading events from %s (limit=%s)...", settings.jigsaw_csv_path, limit or "all")
     events = load_jigsaw_csv(settings.jigsaw_csv_path, limit)
