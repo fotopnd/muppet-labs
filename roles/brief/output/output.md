@@ -1,4 +1,4 @@
-# Brief Output — toxicity-classifier-finetuned
+# Brief Output — model-trainer
 
 **Role:** brief
 **Sequence:** `new-project-full` (step 1)
@@ -8,85 +8,68 @@
 
 ## Project Name
 
-`toxicity-classifier-finetuned`
+model-trainer
 
 ---
 
 ## Description
 
-A full PyTorch fine-tuning pipeline that trains DistilBERT and RoBERTa on the Jigsaw Toxic Comments dataset, evaluates both models against their zero-shot baselines, and exports production-ready checkpoint files for loading into the moderation-stream platform (project 22, Phase 2).
+A reusable workspace role that validates prerequisites, runs a fine-tuning pipeline (smoke run + full run), evaluates the resulting checkpoint, and produces a structured handoff for downstream consumers.
 
 ---
 
 ## Language(s)
 
-- **Primary:** Python
-- **ML stack:** PyTorch, HuggingFace `transformers`, `datasets`
-- **Tooling:** uv, ruff, pytest
+Python — the role is a workspace process definition, not a standalone project. The training code it drives is Python (PyTorch / HuggingFace Transformers via uv).
 
 ---
 
 ## Success Criteria
 
-The project is done when all of the following are true:
-
-1. **Data pipeline** — Jigsaw Toxic Comments dataset loads from local CSV, tokenises correctly for both DistilBERT and RoBERTa, splits into train/val/test sets with reproducible seed.
-2. **Training loop — DistilBERT** — fine-tuned on Jigsaw binary toxicity label; runs to convergence on MPS (Apple Silicon) or falls back to CPU; saves best checkpoint by val F1.
-3. **Training loop — RoBERTa** — same as above, separate training run, separate checkpoint.
-4. **Evaluation** — both models evaluated against held-out test set; per-category breakdown reported (toxic, severe_toxic, obscene, threat, insult, identity_hate via multi-label framing or binary proxy); zero-shot baseline included for direct comparison.
-5. **Checkpoint export** — two checkpoint files in a format compatible with `transformers.AutoModelForSequenceClassification.from_pretrained()` — ready to drop into project 22 config with an env var pointing to the path.
-6. **Experiment doc** — markdown document summarising: zero-shot baseline vs fine-tuned F1/AUC for each model, which categories improved most, where each model still fails. This becomes part of the project README.
-7. **Tests** — unit tests covering: data loading and tokenisation, model forward pass (mock weights), checkpoint save/load round-trip.
-8. **Runs on local Mac (MPS or CPU)** — no GPU requirement. Colab fallback documented in README if MPS training is impractical.
+- Role contract (`CONTEXT.md`) is written and follows the standard role contract format
+- Role validates dataset path and `.env` before running anything — hard stop if missing
+- Role executes in order: validate → uv sync → smoke run → full run → evaluate
+- Role produces `output/output.md` containing: checkpoint paths (absolute), eval metrics table (F1, AUC-ROC, fine-tuned vs zero-shot), epoch loss curve summary, downstream wiring instructions
+- Role is generic enough to be reused across model architectures — not hardcoded to DistilBERT/RoBERTa
 
 ---
 
 ## Constraints
 
-- **CPU/MPS only:** no CUDA dependency; training uses `torch.device("mps")` if available, else CPU. Colab T4 is an optional fast-path, not a requirement.
-- **Inference must run on CPU at 5–50ms** after export — this is the constraint from project 22 (all five models run on the VPS without GPU).
-- **Freely available dataset only:** Jigsaw Toxic Comment Classification Challenge (Kaggle, free download). Dataset assumed to be downloaded locally.
-- **Output is checkpoint files, not a running service:** no API, no server, no Docker. The output of this project is two directories consumable by `AutoModelForSequenceClassification.from_pretrained()`.
-- **Portfolio-grade training code:** the training loop must be readable and explicit — no opaque Trainer wrappers as the only path. HuggingFace `Trainer` is acceptable if the custom loop is also present or clearly documented.
+- Must fit the existing role contract format (`roles/[role]/CONTEXT.md` + `output/output.md`)
+- Smoke run is required on first execution of any new model/dataset combination; optional on reruns
+- MPS device support must be accounted for: no `bf16`, no `pin_memory` warnings treated as errors, RoBERTa-class models default `--batch-size 8` on Apple Silicon
+- Dataset lives in `resources/datasets/` — role must resolve absolute path and validate before training starts
+- No wandb / tensorboard dependencies — `report_to="none"` always
 
 ---
 
 ## Out of Scope
 
-- Model serving / inference API (project 22 handles this)
-- Fine-tuning beyond DistilBERT and RoBERTa (other models are not needed for project 22)
-- Hyperparameter search / AutoML (one well-documented training run per model is sufficient)
-- Multi-label classification as the primary training objective (binary toxicity label is the target; multi-label breakdown is evaluation-only)
-- Any frontend or dashboard (experiment doc is a markdown file, not a Streamlit app)
-- Automated Kaggle download (README documents the manual download step)
+- Does not implement training code — it drives existing CLI entry points (`uv run train`, `uv run evaluate`)
+- Does not manage model architecture design or hyperparameter search
+- Does not deploy or upload checkpoints to HuggingFace Hub or cloud storage
+- Does not handle distributed training (multi-GPU, FSDP, DDP)
+- Does not manage dataset download — assumes dataset is already present in `resources/datasets/`
 
 ---
 
 ## Assumptions
 
-1. **Binary classification target** — Jigsaw's `toxic` column is the primary label. The six fine-grained labels (severe_toxic, obscene, threat, insult, identity_hate) are used for evaluation breakdown only, not as training targets.
-2. **HuggingFace `Trainer` + custom loop** — training uses HuggingFace `Trainer` for the main runs (faster iteration, built-in MPS support), with the training loop logic documented explicitly so it reads as first-principles.
-3. **DistilBERT base:** `distilbert-base-uncased` → fine-tuned as `AutoModelForSequenceClassification` with `num_labels=2`.
-4. **RoBERTa base:** `roberta-base` → fine-tuned as `AutoModelForSequenceClassification` with `num_labels=2`. (`roberta-large` excluded — memory pressure on MPS + too slow on CPU for inference.)
-5. **Checkpoint format:** saved via `model.save_pretrained()` + `tokenizer.save_pretrained()` to a local directory. Project 22 loads via `from_pretrained(path)`.
-6. **Jigsaw dataset path** is configured via an env var (e.g. `JIGSAW_DATA_DIR`) — not hardcoded.
-7. **Project lives at** `projects/toxicity-classifier-finetuned/` — separate from moderation-stream.
-8. **Colab fallback:** if MPS training is too slow (estimated >6h per model), a Colab notebook is provided that runs the same training code on T4/A100. The checkpoint is then downloaded and used locally.
+- **Training CLI follows the established pattern:** `uv run train --model <key> --output-dir <dir> --epochs <n>` and `uv run evaluate --model <key> --checkpoint-dir <dir>`. If a future project uses a different CLI shape, the role contract will need a project-specific override section.
+- **One model at a time.** The role runs one model key per invocation. Running DistilBERT + RoBERTa in sequence requires two role invocations (or a compound invocation the human initiates).
+- **Sequence used:** `new-project-full` — model-trainer is a workspace role, not a software project, but it benefits from the full sequence (brief → planner → implementer writes the CONTEXT.md).
 
 ---
 
 ## Handoff
 
 **Next role:** planner
-**What the planner does with this:**
-- Define the full module/file structure: data loader, tokeniser, training loop, evaluation module, checkpoint manager, CLI entry points.
-- Decide train/val/test split ratios and reproducibility strategy (seed, dataset version).
-- Define the evaluation output format — what the experiment doc contains, how metrics are computed and stored.
-- Confirm the HuggingFace `Trainer` configuration: batch size, learning rate, epochs, warmup, weight decay — or propose sensible defaults with justification.
-- Confirm checkpoint naming convention that project 22 expects (planner should check project 22 config to ensure compatibility).
-- Identify open questions with proposed answers (per routing.md convention).
 
-**Flags for planner:**
-- Assumption 1 (binary vs multi-label) — confirm binary is the right training objective; multi-label would require a different loss function and may produce better per-category performance.
-- Assumption 3/4 (model size) — confirm `roberta-base` over `roberta-large`; the constraint is CPU inference latency at 5–50ms in project 22.
-- Assumption 8 (Colab fallback) — planner should estimate training time on MPS for both models and decide whether to include a Colab notebook as a deliverable.
+The planner reads this file to define:
+- The role contract structure for `roles/model-trainer/CONTEXT.md`
+- The exact prerequisite checklist (env validation steps)
+- The process steps the role executes (with CLI commands)
+- The output file structure for `roles/model-trainer/output/output.md`
+
+**Flag for planner:** The "one model at a time vs. multi-model" question is left open. The planner should propose an answer — likely a `models:` list field in the role input section — and note it as a proposed answer for the architect to confirm.

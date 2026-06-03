@@ -1,4 +1,4 @@
-# Retro — toxicity-classifier-finetuned
+# Retro — model-trainer
 
 **Role:** retro
 **Sequence:** `new-project-full` (step 9)
@@ -8,62 +8,33 @@
 
 ## Project
 
-**Name:** toxicity-classifier-finetuned (project 8)
-**Sequence:** `new-project-full` — all 9 steps completed in a single session
-**Roles that ran:** brief → planner → architect → implementer → reviewer → retro (steps 4, 5, 7 skipped — no frontend)
-**Sessions:** 1
+`model-trainer` workspace role. Sequence: `new-project-full`. One session (2026-06-03). Roles that ran: planner → architect → architect (revised) → implementer → reviewer (with post-review fixes) → retro.
 
 ---
 
 ## What Went Well
 
-**1. Brief flags resolved efficiently at the planner stage**
+**`dataset_env_var` as the generalisation lever.**
+The brief specified "generic enough to be reused across model architectures" but didn't identify the mechanism. The architect found it: decoupling the dataset env var name from the role contract. This is the kind of structural decision the architect role is meant to make — abstract an interface, not a specific use case. Worth noting as a pattern: when a role needs to be project-agnostic, look for the concrete point of coupling (in this case, an env var name) and make it an input.
 
-All three brief flags (binary vs multi-label, `roberta-base` vs `roberta-large`, Colab deliverable) were resolved at the planner with proposed answers inline, per the routing.md convention. The architect confirmed or accepted them without reopening debate. This is the intended flow and it worked cleanly — no flag survived to the implementer as an unresolved question.
+**Reviewer findings were additive only.**
+All three reviewer findings were Notes additions — no restructuring, no interface changes. This means the architect spec was precise enough that the implementer produced a clean first pass. The architect's decision to resolve all four open questions before handing off to the implementer removed ambiguity that would otherwise have appeared as reviewer blockers.
 
-**2. Cross-project dependency check at the architect stage added real value**
-
-Reading `projects/moderation-stream/moderation_stream/consumers/distilbert.py` and `roberta.py` directly confirmed the zero-shot baseline checkpoint names (`typeform/distilbert-base-uncased-mnli`, `roberta-large-mnli`) and candidate label format. Without this check, the evaluate module would have used a different zero-shot interface than project 22's live consumers, making the comparison meaningless. The routing.md flag to cross-check upstream projects at the architect stage paid off.
-
-**3. Deferred imports handled consistently throughout**
-
-All slow imports (`from transformers import ...`, `from datasets import ...`) are deferred inside function bodies. CLI startup is fast. The implementer notes and reviewer both handled this correctly. The tension with type annotation conventions was identified, documented, and resolved (module-level import of abstract base classes only).
-
-**4. Reviewer Finding 1 caught a real structural fragility**
-
-`_get_raw_test()` was a silent duplicate of the first half of `get_splits()`. It was correct at the time of writing but would silently produce wrong results if either split's parameters ever changed. The reviewer identified and resolved this in the same pass. The fix (derive raw texts from `test_ds.to_pandas()`) is cleaner and the two-path risk is eliminated.
+**Memory file from project 8 accelerated the brief.**
+`project-model-trainer-role.md` captured the right design learnings (prerequisite sequence, MPS constraints, callback-based logging, checkpoint cleanup). The brief and architect drew on this directly. This is the memory system working as intended — no re-derivation from first principles.
 
 ---
 
 ## What Could Have Gone Better
 
-**1. `accelerate` dependency not anticipated at the planning stage**
+**Architect output initially contained Jigsaw-specific content.**
+The first architect output included a Per-Category Accuracy table with Jigsaw label columns and assumed a zero-shot baseline exists. The human caught this during review and required a rewrite. Root cause: the architect role was designing from the context of project 8 rather than from the brief's stated generality requirement. The brief explicitly said "generic enough to be reused across model architectures" — this should have been the architect's primary constraint, not a secondary consideration.
 
-The planner spec listed `torch`, `transformers`, `datasets` as the ML stack, but did not include `accelerate`. HuggingFace `Trainer` in transformers 5.x requires `accelerate>=1.1.0` at `TrainingArguments.__init__` time — a hard dependency. This caused a test failure and a retroactive `uv add` during the implementer pass.
+**Language conventions loaded unnecessarily for a Markdown deliverable.**
+The planner, architect, and implementer all loaded `python-conventions.md` per the routing.md convention. None referenced it in their outputs — the deliverable is a Markdown file with no Python code. This is structural: `new-project-full` was designed for software projects. Using it for a workspace role definition caused three unnecessary resource loads.
 
-**Cause:** The dependency was not captured in the planner's technology stack table. The planner listed `transformers` but not its runtime dependencies.
-
-**Prevention:** Add a note to `python-conventions.md` (or a new HuggingFace skill) that `Trainer`-based fine-tuning requires `accelerate` as an explicit dependency. The planner should always list `accelerate` alongside `transformers` when `Trainer` is in scope.
-
----
-
-**2. `no_cuda` API removal not anticipated**
-
-`TrainingArguments(no_cuda=...)` was specified in the architect output but has been removed in transformers 5.x. This caused a `TypeError` at runtime and required a code fix during the implementer pass (remove the argument; `Trainer` auto-detects device).
-
-**Cause:** The architect spec was written against pre-5.x API knowledge. `transformers` 5.x has significant `TrainingArguments` API changes.
-
-**Prevention:** Add a note to `python-conventions.md` (or a dedicated HuggingFace fine-tuning skill) documenting that `TrainingArguments` in transformers 5.x uses `use_cpu=True` semantics (or just Trainer auto-detection), and that `no_cuda` and `warmup_ratio` are removed. This is a specific, concrete gotcha worth capturing.
-
----
-
-**3. Branch drift during implementer setup**
-
-During `uv init` and `uv add` commands, the working directory shifted out of the git root, causing git operations to silently fall through to `main`. The feature branch commits existed but we were operating on `main`. Detected and corrected by checking `git status` before the final commit, but caused a confusing intermediate state.
-
-**Cause:** `uv init` and `cd` into the new project directory combined with the git commands not using `-C` consistently.
-
-**Prevention:** No routing or convention change needed — this is an environmental artefact of uv project initialisation. The `setup-uv-project.md` skill already instructs `cd /path/to/parent/; uv init ...` — the branch check at the end of the implementer pass (before commit) is the right safeguard and worked as intended.
+**Architect specified step 1.3 without a concrete check method.**
+"Confirm `<dataset_env_var>` in `.env` resolves to `dataset_path`" stated what to confirm but not how. The implementer faithfully reproduced this vagueness. The reviewer caught it. The root cause is in the architect output, not the implementer — the architect should specify validation steps precisely enough that the implementer doesn't need to interpret them.
 
 ---
 
@@ -73,19 +44,19 @@ During `uv init` and `uv add` commands, the working directory shifted out of the
 
 | Stage | Issue | Estimated Waste | Recommendation |
 |-------|-------|-----------------|----------------|
-| Architect | Cross-referenced `moderation_stream/config.py` and both consumer files to find zero-shot checkpoint names — 3 files read for what is essentially a constant | Low | Document `ZERO_SHOT_CHECKPOINTS` in a project-level comment in `moderation_stream/config.py` or in the project 8 brief directly; architect shouldn't need to read consumer implementation files for this |
-| Implementer | `skills/setup-uv-project.md` read again despite being read in previous sessions this workspace | Low | Expected — skills are stateless and short. No change. |
-| Retro | All reviewer + implementer outputs in context simultaneously | Low | This is intended — retro needs both. No change. |
+| Planner | `python-conventions.md` loaded; not referenced in output | Low | Skip for Markdown-only deliverables |
+| Architect | `python-conventions.md` loaded; not referenced in output | Low | Skip for Markdown-only deliverables |
+| Implementer | `python-conventions.md` + `vibecoding-style.md` loaded; neither referenced | Low–Medium | Skip for Markdown-only deliverables |
+| Architect (pass 1) | Full rewrite required due to project-specific content; doubled architect context cost | Medium | Generalisation check before writing output |
 
 ### Redundancy Patterns
 
-- The four reviewer fixes (post-PASS WITH NOTES) were applied immediately in the same turn as the reviewer output. This is efficient but means the reviewer output already describes the pre-fix state. No structural redundancy in the outputs themselves.
-- `asyncio_mode = "auto"` appeared in `pyproject.toml` from the workspace uv template and was never used. Minor noise removed during the reviewer pass.
+The architect's Open Questions Resolved section and the planner's Brief Flags Resolved section both restated the same four decisions. The architect section was necessary (it confirmed the decisions). The planner section was redundant — the planner made the decisions; the architect just confirmed them. The planner's "Brief Flags Resolved" section added context load without adding new information by the time the architect ran.
 
 ### Scoping Recommendations
 
-- The retro role instruction says "do not load language conventions files unless a specific finding requires it." Followed correctly — no python-conventions.md loaded in this role. Convention held.
-- The architect stage could have been slightly lighter if the zero-shot checkpoint names were documented upstream (in the brief or project-state.md) rather than requiring a cross-project file read. Low priority.
+- Planner should not write a "Flags Resolved" section — those resolutions belong in the architect output where they are confirmed, not the planner output where they are proposed.
+- For a `new-role` sequence (see below), skip loading language conventions files at all roles. The deliverable is Markdown.
 
 ---
 
@@ -95,50 +66,62 @@ During `uv init` and `uv add` commands, the working directory shifted out of the
 
 | File | Change | Reason | Human decision required? |
 |------|--------|--------|--------------------------|
-| `resources/python-conventions.md` | Add **HuggingFace Trainer** section: (1) always add `accelerate` as an explicit dep when `Trainer` is in scope; (2) `no_cuda` removed in transformers 5.x — use Trainer auto-detection; (3) `warmup_ratio` removed in transformers 5.2 — use `warmup_steps`; (4) `eval_strategy` and `save_strategy` must match when `load_best_model_at_end=True` | Two real gotchas hit this session that a conventions note would prevent next time | No |
+| — | — | — | — |
 
 ### Skills to Update
 
 | File | Change | Reason | Human decision required? |
 |------|--------|--------|--------------------------|
-| None | — | `setup-uv-project.md` held up correctly. No changes needed. | — |
+| — | — | — | — |
 
 ### Routing Changes
 
 | Sequence | Change | Reason | Human decision required? |
 |----------|--------|--------|--------------------------|
-| None | — | `new-project-full` ran cleanly. Steps 4–5 (design-brief, frontend-architect) correctly skipped for a Python-only project. | — |
+| `new-project-full` | Add a note: when the deliverable is Markdown-only (e.g. a workspace role definition), planner/architect/implementer should not load language conventions files | Prevents unnecessary context load for non-code projects | No |
+| `routing.md` | Add a `new-role` sequence (see below) | Dedicated lighter-weight sequence for workspace role creation | Yes — review the proposed sequence before adding |
 
 ### New Resources or Skills Needed
 
-None required. The HuggingFace conventions note (above) is additive to `python-conventions.md` and does not warrant a new file.
+**Proposed: `new-role` sequence in `routing.md`**
+
+```
+## Sequence: `new-role`
+
+Objective: Create a new reusable workspace role (CONTEXT.md + output template).
+Use when: Adding a role that does not exist yet. Deliverable is Markdown only.
+Review gate: After architect (confirm spec before writing the contract); after reviewer.
+
+| Step | Role     | Reads                          | Resources              | Skills | Output                              |
+|------|----------|-------------------------------|------------------------|--------|-------------------------------------|
+| 1    | brief    | —                             | vibecoding-style.md    | —      | roles/brief/output/output.md        |
+| 2    | planner  | brief/output.md               | vibecoding-style.md    | —      | roles/planner/output/output.md      |
+| 3    | architect| planner/output.md             | —                      | —      | roles/architect/output/output.md    |
+| 4    | implementer | architect/output.md        | vibecoding-style.md    | —      | roles/implementer/output/output.md  |
+| 5    | reviewer | implementer/output.md + files | —                      | —      | roles/reviewer/output/output.md     |
+| 6    | retro    | reviewer/output.md, implementer/output.md, project-state.md | vibecoding-style.md, routing.md | — | roles/retro/output/output.md |
+```
+
+No language conventions files loaded at any step. The architect note should include: "When designing a role, verify the contract would work unchanged on a project with a completely different dataset, label schema, and model architecture. If it would not, the contract is not generic enough."
+
+**Proposed: Architect role note on generalisation**
+Add to `roles/architect/CONTEXT.md` Notes section:
+> When the deliverable is a workspace role (not software code), apply a generalisation check before writing output: would this role contract work unchanged on a project with a completely different dataset, task, and model family? If not, identify what is project-specific and convert it to an input field.
 
 ---
 
 ## One Change to Make Now
 
-**Add a HuggingFace Trainer section to `resources/python-conventions.md`.**
+**Add the `new-role` sequence to `resources/routing.md`.**
 
-Append the following block to the end of that file:
-
-```markdown
-## HuggingFace Trainer (fine-tuning projects)
-
-- Always add `accelerate` as an **explicit** dependency when `Trainer` is in scope. It is a hard runtime dep of `transformers.Trainer` in versions ≥5.x and is not auto-installed.
-- `no_cuda` was removed in transformers 5.x. Use Trainer auto-detection (MPS → CUDA → CPU). Do not pass `no_cuda` to `TrainingArguments`.
-- `warmup_ratio` was removed in transformers 5.2. Use `warmup_steps` (integer) instead.
-- `eval_strategy` and `save_strategy` must use the same value (e.g. both `"epoch"`) when `load_best_model_at_end=True`. Mismatched values raise a config error at `Trainer.__init__`.
-- Deferred imports inside `train()` function bodies are correct for slow HuggingFace loads. Patch at `transformers.AutoModelForSequenceClassification.from_pretrained` (the source), not at the module-level name (which doesn't exist for deferred imports).
-```
-
-This directly prevents the two real failures hit this session (`accelerate` missing, `no_cuda` error) and the test-patching confusion on the first attempt. High value, zero risk, takes 2 minutes to apply.
+This is the highest-value change because it prevents the two main friction points from this session recurring: unnecessary language conventions loading and absence of a generalisation prompt in the architect step. The sequence is short and well-defined above — it can be appended to routing.md as a new section immediately.
 
 ---
 
 ## Handoff
 
-This output is for human review. After sign-off:
-
-1. **Apply the One Change:** append the HuggingFace Trainer block to `resources/python-conventions.md`.
-2. **Update `_config/project-state.md`:** mark `new-project-full` complete for project 8; set next action to retro recommendations applied + Hostinger deploy.
-3. **Merge `project-8-toxicity-classifier` into `main`** once deploy is ready (or keep on branch until weights are produced and project 22 Phase 2 can be tested end-to-end).
+Human reviews recommendations above. Suggested actions before the next project:
+1. Append `new-role` sequence to `resources/routing.md` (text above is ready to paste).
+2. Add generalisation check note to `roles/architect/CONTEXT.md` Notes section.
+3. Add language-conventions skip note to `new-project-full` in `routing.md`.
+4. Update `_config/project-state.md` to record model-trainer role complete and retro actioned.

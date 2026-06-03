@@ -65,6 +65,8 @@ its output feeds back into the workspace itself (`resources/`, `skills/`, `routi
 
 > **Planner open questions convention:** When the planner raises open questions, each question should include a `Proposed answer:` inline. This lets the architect confirm or override rather than design from scratch.
 
+> **Markdown-only deliverables:** When the project output is Markdown only (e.g. a workspace role definition, a design document), planner, architect, and implementer should not load language conventions files — there is no code to lint or type-check. Use the `new-role` sequence instead if the deliverable is a workspace role.
+
 ---
 
 ## Sequence: `new-project-vibe`
@@ -195,6 +197,27 @@ per-project next actions and the top candidate from the ideas queue.
 sequence (if any) to start.
 
 > Keep `resources/priorities.md` up to date. The brief is only as useful as that file is current.
+
+---
+
+## Sequence: `new-role`
+
+**Objective:** Create a new reusable workspace role (`CONTEXT.md` + blank output template).
+**Use when:** Adding a role that does not exist yet. The deliverable is Markdown only — no source code is produced.
+**Review gate:** After architect (confirm spec before writing the contract); after reviewer.
+
+| Step | Role | Reads | Resources | Skills | Output |
+|------|------|-------|-----------|--------|--------|
+| 1 | `brief` | — | `vibecoding-style.md` | — | `roles/brief/output/output.md` |
+| 2 | `planner` | `brief/output.md` | `vibecoding-style.md` | — | `roles/planner/output/output.md` |
+| 3 | `architect` | `planner/output.md` | — | — | `roles/architect/output/output.md` |
+| 4 | `implementer` | `architect/output.md` | `vibecoding-style.md` | — | `roles/implementer/output/output.md` |
+| 5 | `reviewer` | `implementer/output.md` + produced files | — | — | `roles/reviewer/output/output.md` |
+| 6 | `retro` | `reviewer/output.md`, `implementer/output.md`, `project-state.md` | `vibecoding-style.md`, `routing.md` | — | `roles/retro/output/output.md` |
+
+> **No language conventions files** are loaded at any step — the deliverable is Markdown.
+> **Architect generalisation check:** Before writing the CONTEXT.md spec, confirm the role contract would work unchanged on a project with a completely different dataset, task, and model family. Any project-specific detail must become an input field.
+> **Implementer deliverables:** `roles/<role-name>/CONTEXT.md` and `roles/<role-name>/output/output.md` (blank template). No source code.
 
 ---
 
