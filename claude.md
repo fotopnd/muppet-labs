@@ -63,9 +63,11 @@ muppet-labs/
 │   ├── models/                      ← fine-tuned model checkpoints (workspace-shared)
 │   │   └── <project-name>/          ← one subdirectory per training project
 │   │       └── <model-key>-<YYYY-MM-DD>/
-│   └── evals/                       ← evaluation results JSON (workspace-shared)
-│       └── <project-name>/
-│           └── <model-key>-<timestamp>.json
+│   ├── evals/                       ← evaluation results JSON (workspace-shared)
+│   │   └── <project-name>/
+│   │       └── <model-key>-<timestamp>.json
+│   └── datasets/                    ← raw training data (gitignored; directory structure tracked)
+│       └── <dataset-name>/          ← e.g. jigsaw-toxic-comments/
 │
 ├── skills/                          ← reusable technical how-to procedures
 │   ├── setup-uv-project.md

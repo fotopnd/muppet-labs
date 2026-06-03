@@ -1,0 +1,11 @@
+# Ignore data files — datasets are large and not committed
+**/*.csv
+**/*.csv.zip
+**/*.parquet
+**/*.json
+**/*.jsonl
+**/*.tsv
+
+# Track directory structure
+!.gitignore
+!**/.gitkeep

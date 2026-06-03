@@ -68,6 +68,7 @@ Shared knowledge files in `resources/`. Any role can load any of these. Load onl
 | `writing-voice.md` | Individual writing voice guidance |
 | `models/<project-name>/` | Fine-tuned model checkpoints — workspace-shared so any consuming project can reference them by stable path. Each subdirectory is a `save_pretrained()` output loadable via `from_pretrained()`. |
 | `evals/<project-name>/` | Evaluation results JSON — one file per model run. Written by `uv run evaluate`; read by the model-trainer role to fill the output metrics table. |
+| `datasets/<dataset-name>/` | Raw training data. Files are gitignored (large); directory structure is tracked. Place data files here before invoking the model-trainer role. |
 
 ---
 

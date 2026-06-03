@@ -11,7 +11,7 @@ This role validates prerequisites, executes a fine-tuning pipeline, evaluates th
 | Field | Type | Default | Required | Description |
 |-------|------|---------|----------|-------------|
 | `project_dir` | Path | — | Yes | Absolute path to the target project root |
-| `dataset_path` | Path | — | Yes | Absolute path to training data file |
+| `dataset_path` | Path | — | Yes | Absolute path to training data file — canonical location is `resources/datasets/<dataset-name>/` |
 | `dataset_env_var` | str | — | Yes | Name of the env var in `.env` that holds the dataset path (e.g. `JIGSAW_DATA_DIR`, `IMDB_DATA_DIR`) |
 | `smoke_run` | bool | `true` | No | Set `false` to skip smoke run on reruns |
 | `models` | list | — | Yes | One entry per model to train; processed in order (see sub-fields below) |
