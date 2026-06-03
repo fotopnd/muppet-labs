@@ -83,3 +83,4 @@ Flag any interface that is uncertain or likely to need revision during implement
 - Pseudocode is fine for complex logic, but keep it brief. Full function bodies belong in the implementer output.
 - In the `refactor` sequence, the constraint is that behaviour must not change. Call out any case where achieving the target structure would require a behaviour change — that is a decision for the human, not the implementer.
 - If the planner flagged open questions for the architect, resolve them here or explicitly escalate to the human.
+- **Generalisation check for workspace roles:** When the deliverable is a workspace role contract (not software code), verify before writing output that the contract would work unchanged on a project with a completely different dataset, task, and model family. If it would not, identify what is project-specific and convert it to an input field.
