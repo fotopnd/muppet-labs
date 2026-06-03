@@ -1,4 +1,4 @@
-# Brief Output — toxicity-classifier-finetuned
+# Brief Output — moderation-dashboard
 
 **Role:** brief
 **Sequence:** `new-project-full` (step 1)
@@ -8,85 +8,104 @@
 
 ## Project Name
 
-`toxicity-classifier-finetuned`
+`moderation-dashboard`
 
 ---
 
 ## Description
 
-A full PyTorch fine-tuning pipeline that trains DistilBERT and RoBERTa on the Jigsaw Toxic Comments dataset, evaluates both models against their zero-shot baselines, and exports production-ready checkpoint files for loading into the moderation-stream platform (project 22, Phase 2).
+A unified content moderation platform that streams Jigsaw Toxic Comments through Kafka, routes events to N attached models via both round-robin production routing and parallel shadow evaluation simultaneously, surfaces per-model performance metrics and head-to-head comparisons, detects anomalies on the raw event stream, transforms results through dbt for rolling analytics, and escalates low-confidence cases to the case-queue service for human review.
 
 ---
 
 ## Language(s)
 
-- **Primary:** Python
-- **ML stack:** PyTorch, HuggingFace `transformers`, `datasets`
-- **Tooling:** uv, ruff, pytest
+- **Primary:** Python (FastAPI metrics API, Kafka producer and consumers, anomaly detector)
+- **Analytics:** dbt-core with dbt-postgres adapter (SQL transformation layer)
+- **Frontend:** TypeScript, React (unified dashboard — new app, separate from case-queue web/)
 
 ---
 
 ## Success Criteria
 
-The project is done when all of the following are true:
+The project is done (Phase 1) when all of the following are true:
 
-1. **Data pipeline** — Jigsaw Toxic Comments dataset loads from local CSV, tokenises correctly for both DistilBERT and RoBERTa, splits into train/val/test sets with reproducible seed.
-2. **Training loop — DistilBERT** — fine-tuned on Jigsaw binary toxicity label; runs to convergence on MPS (Apple Silicon) or falls back to CPU; saves best checkpoint by val F1.
-3. **Training loop — RoBERTa** — same as above, separate training run, separate checkpoint.
-4. **Evaluation** — both models evaluated against held-out test set; per-category breakdown reported (toxic, severe_toxic, obscene, threat, insult, identity_hate via multi-label framing or binary proxy); zero-shot baseline included for direct comparison.
-5. **Checkpoint export** — two checkpoint files in a format compatible with `transformers.AutoModelForSequenceClassification.from_pretrained()` — ready to drop into project 22 config with an env var pointing to the path.
-6. **Experiment doc** — markdown document summarising: zero-shot baseline vs fine-tuned F1/AUC for each model, which categories improved most, where each model still fails. This becomes part of the project README.
-7. **Tests** — unit tests covering: data loading and tokenisation, model forward pass (mock weights), checkpoint save/load round-trip.
-8. **Runs on local Mac (MPS or CPU)** — no GPU requirement. Colab fallback documented in README if MPS training is impractical.
+1. **Producer** — replays Jigsaw Toxic Comments CSV as a live Kafka stream at configurable rate; SIGINT shutdown.
+2. **Production consumer group** — 3 zero-shot models (DistilBERT, RoBERTa, Detoxify) in the same Kafka consumer group; Kafka round-robins events across them. Per-model metrics recorded: F1 vs ground truth, latency p50/p95, throughput (events/sec).
+3. **Shadow consumer group** — same 3 models each in separate consumer groups; every event hits every model. Per-event model verdicts recorded for comparison.
+4. **Anomaly detector** — monitors raw event stream on rolling 5-minute windows; flags: volume spikes (Z-score > 3), per-category classification rate shifts, model disagreement rate anomalies. Flagged events surfaced in Stream Monitor.
+5. **dbt layer** — dbt-core models run on the Postgres event store; analytical models cover: category trends over time, per-model accuracy rolling windows, escalation rates. Refreshed on a schedule (Makefile target or cron, not real-time).
+6. **Escalation** — events where shadow models disagree (majority verdict ≠ unanimous) OR max softmax confidence < 0.6 are posted to case-queue API. Escalation threshold is configurable via env var.
+7. **Dashboard — 5 panels:**
+   - Stream Monitor: raw event rate, category distribution, anomaly flags
+   - Model Performance: round-robin per-model F1, latency, throughput (production group metrics)
+   - Model Comparison: side-by-side shadow group verdicts on identical events; accuracy delta
+   - Human Review: escalation queue pulling from case-queue API; links to case-queue detail view
+   - Analytics: dbt output — category trends, enforcement rates, model accuracy over time
+8. **Phase 2 consumers** — fine-tuned DistilBERT and RoBERTa consumers stubbed; activate via `DISTILBERT_CHECKPOINT_PATH` and `ROBERTA_CHECKPOINT_PATH` env vars when project 8 delivers weights. No code change required to activate.
+9. **Tests** — producer unit tests, consumer classification tests (mocked weights), anomaly detector unit tests, metrics API integration tests, dbt model tests (`dbt test`), frontend component tests (vitest).
+10. **README** — local run instructions (Docker, uv, pnpm), dbt setup, Hostinger deploy guide.
 
 ---
 
 ## Constraints
 
-- **CPU/MPS only:** no CUDA dependency; training uses `torch.device("mps")` if available, else CPU. Colab T4 is an optional fast-path, not a requirement.
-- **Inference must run on CPU at 5–50ms** after export — this is the constraint from project 22 (all five models run on the VPS without GPU).
-- **Freely available dataset only:** Jigsaw Toxic Comment Classification Challenge (Kaggle, free download). Dataset assumed to be downloaded locally.
-- **Output is checkpoint files, not a running service:** no API, no server, no Docker. The output of this project is two directories consumable by `AutoModelForSequenceClassification.from_pretrained()`.
-- **Portfolio-grade training code:** the training loop must be readable and explicit — no opaque Trainer wrappers as the only path. HuggingFace `Trainer` is acceptable if the custom loop is also present or clearly documented.
+- **Hostinger KVM2 (8GB RAM):** 5 transformer models (CPU inference) + Kafka + Zookeeper + Postgres + API + nginx must fit within 8GB. Models must load lazily — only the consumers actively assigned events load their weights at startup. Phase 1 max: 3 models in memory simultaneously.
+- **CPU inference only on server:** no CUDA or MPS dependency in production path. Target <100ms per classification on CPU (relaxed from project 22's 5–50ms — Hostinger CPU is slower than M4).
+- **Case-queue dependency:** escalation integration requires case-queue API to be running. Local dev: case-queue on `localhost:8000`. Production: case-queue deployed to same VPS. Dashboard degrades gracefully if case-queue is unavailable (Human Review panel shows error state, stream continues).
+- **Phase 2 is blocked on project 8 RoBERTa:** fine-tuned consumers are stubs at launch. Phase 2 is a config change, not a code change.
+- **Reuse project 22 code:** producer, consumer base class, model consumer implementations, and metrics API are the starting point. This is a refactor and extension, not a greenfield build.
+- **Port allocation (local dev):**
+  - Kafka: 9092 (existing)
+  - Postgres: 5434 (5432 = case-queue, 5433 = moderation-stream during transition)
+  - Metrics API: 8002 (8000 = case-queue, 8001 = moderation-stream)
+  - Frontend dev: 5174 (5173 = case-queue web)
 
 ---
 
 ## Out of Scope
 
-- Model serving / inference API (project 22 handles this)
-- Fine-tuning beyond DistilBERT and RoBERTa (other models are not needed for project 22)
-- Hyperparameter search / AutoML (one well-documented training run per model is sufficient)
-- Multi-label classification as the primary training objective (binary toxicity label is the target; multi-label breakdown is evaluation-only)
-- Any frontend or dashboard (experiment doc is a markdown file, not a Streamlit app)
-- Automated Kaggle download (README documents the manual download step)
+- Fine-tuning models (project 8 handles this entirely)
+- Replacing case-queue (it is called via API; it remains a separate repo and service)
+- Authentication or multi-user sessions (portfolio demo — no auth)
+- WebSocket or SSE real-time push (polling is sufficient; 3s interval as per project 22)
+- Data migration from moderation-stream's Postgres (fresh schema; moderation-stream is retired by this project)
+- Kafka topic management UI or admin tooling
+- Custom dbt scheduler (Makefile target is sufficient; no Airflow or Prefect)
+- Any frontend work inside the case-queue repo (Human Review panel links to case-queue; no embedded iframe or cross-repo component)
 
 ---
 
 ## Assumptions
 
-1. **Binary classification target** — Jigsaw's `toxic` column is the primary label. The six fine-grained labels (severe_toxic, obscene, threat, insult, identity_hate) are used for evaluation breakdown only, not as training targets.
-2. **HuggingFace `Trainer` + custom loop** — training uses HuggingFace `Trainer` for the main runs (faster iteration, built-in MPS support), with the training loop logic documented explicitly so it reads as first-principles.
-3. **DistilBERT base:** `distilbert-base-uncased` → fine-tuned as `AutoModelForSequenceClassification` with `num_labels=2`.
-4. **RoBERTa base:** `roberta-base` → fine-tuned as `AutoModelForSequenceClassification` with `num_labels=2`. (`roberta-large` excluded — memory pressure on MPS + too slow on CPU for inference.)
-5. **Checkpoint format:** saved via `model.save_pretrained()` + `tokenizer.save_pretrained()` to a local directory. Project 22 loads via `from_pretrained(path)`.
-6. **Jigsaw dataset path** is configured via an env var (e.g. `JIGSAW_DATA_DIR`) — not hardcoded.
-7. **Project lives at** `projects/toxicity-classifier-finetuned/` — separate from moderation-stream.
-8. **Colab fallback:** if MPS training is too slow (estimated >6h per model), a Colab notebook is provided that runs the same training code on T4/A100. The checkpoint is then downloaded and used locally.
+1. **Project location:** `projects/moderation-dashboard/` — new directory. Project 22 (`projects/moderation-stream/`) is archived but not deleted until moderation-dashboard is verified working.
+2. **Starting point:** project 22 codebase is copied and refactored into moderation-dashboard. Not built from scratch.
+3. **Consumer group naming:** production group = `moderation-production`; shadow groups = `moderation-shadow-distilbert`, `moderation-shadow-roberta`, `moderation-shadow-detoxify` (separate group per model for parallel coverage).
+4. **Anomaly detection method:** rolling Z-score on 5-minute tumbling windows. No ML model for anomaly detection — statistical only. Simple, interpretable, no additional weight files.
+5. **Escalation endpoint:** POST event content to `case-queue POST /cases` — the existing endpoint with a `source_system: "moderation-dashboard"` metadata field. Planner must verify case-queue's schema supports this; if not, a lightweight case-queue API extension may be required (single new field on CaseCreate schema).
+6. **dbt adapter:** dbt-core + dbt-postgres. dbt project lives at `projects/moderation-dashboard/dbt/`. Models: `stg_events`, `stg_classifications`, `fct_category_trends`, `fct_model_accuracy`, `fct_escalation_rates`.
+7. **Frontend:** new React/TypeScript app at `projects/moderation-dashboard/web/`. shadcn/ui + Tailwind (same pattern as case-queue). TanStack Query for data fetching, 3s polling for live panels.
+8. **Postgres schema:** clean break from moderation-stream. New schema with tables for: raw events, classifications (production + shadow), anomaly flags, dbt-managed analytical tables.
+9. **Phase 2 activation:** same pattern as project 22 — `MODEL_REGISTRY` in config drives active vs `pending_weights` state per consumer. Dashboard shows pending state for fine-tuned models until weights are wired.
+10. **Case-queue escalation display:** Human Review panel polls `GET /cases?source_system=moderation-dashboard` on a 5s interval. Shows case count, links each case to case-queue detail view at its URL (not embedded). Graceful degradation if case-queue is unreachable.
 
 ---
 
 ## Handoff
 
 **Next role:** planner
+
 **What the planner does with this:**
-- Define the full module/file structure: data loader, tokeniser, training loop, evaluation module, checkpoint manager, CLI entry points.
-- Decide train/val/test split ratios and reproducibility strategy (seed, dataset version).
-- Define the evaluation output format — what the experiment doc contains, how metrics are computed and stored.
-- Confirm the HuggingFace `Trainer` configuration: batch size, learning rate, epochs, warmup, weight decay — or propose sensible defaults with justification.
-- Confirm checkpoint naming convention that project 22 expects (planner should check project 22 config to ensure compatibility).
-- Identify open questions with proposed answers (per routing.md convention).
+- Define the complete file and module structure: which code is copied from project 22 as-is, which is refactored, which is new.
+- Lock tech decisions: dbt model granularity, Kafka topic and partition config, Postgres schema design (tables, indexes, retention strategy for event volume).
+- Specify the consumer group architecture in detail: how many partitions on the Kafka topic, how round-robin distribution actually works at the partition level, whether 3 consumers in one group with 3 partitions gives true round-robin.
+- Define the anomaly detector interface: does it run as a separate consumer, a sidecar to the metrics API, or a scheduled job?
+- Determine whether case-queue's schema needs extension for the escalation integration — flag if a case-queue API PR is needed before this project can complete.
+- Define dbt model structure and identify which Postgres tables dbt reads from vs writes to.
+- Confirm port allocation and Docker Compose layout.
 
 **Flags for planner:**
-- Assumption 1 (binary vs multi-label) — confirm binary is the right training objective; multi-label would require a different loss function and may produce better per-category performance.
-- Assumption 3/4 (model size) — confirm `roberta-base` over `roberta-large`; the constraint is CPU inference latency at 5–50ms in project 22.
-- Assumption 8 (Colab fallback) — planner should estimate training time on MPS for both models and decide whether to include a Colab notebook as a deliverable.
+- Assumption 5 (escalation endpoint) — planner must read `projects/case-queue/api/app/schemas.py` and `app/routers/cases.py` to confirm POST /cases schema. A `source_system` field may not exist; adding it to case-queue is a dependency that must be scoped and sequenced.
+- Assumption 3 (consumer group round-robin) — Kafka round-robins across *partitions*, not consumers. If the topic has only 1 partition, all events go to one consumer. Planner must spec the partition count to match the number of production consumers (minimum 3 for Phase 1, 5 for Phase 2).
+- Assumption 6 (dbt models) — planner should validate that the proposed dbt model names and grain are achievable given the Postgres schema design; adjust if needed.
+- Memory budget on Hostinger — planner should estimate per-model memory footprint (DistilBERT ~260MB, RoBERTa ~480MB, Detoxify ~500MB) and confirm 3-model Phase 1 fits within 8GB alongside Kafka + Postgres + API + nginx.
