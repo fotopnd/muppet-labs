@@ -1,39 +1,35 @@
-# Author Output — moderation-stream technical summary
+# Author Output — toxicity-classifier fine-tuning experiment
 
-**Date:** 2026-06-02
-**Document:** `projects/moderation-stream/docs/technical-summary.md`
-**Brief:** `roles/doc-brief/output/output.md`
-**Template:** `templates/technical-summary.md`
-**Audience:** Tier 2 — Technical Leadership
-**Goal:** Inform
+**Role:** author
+**Sequence:** `write-doc` (step 2)
+**Date:** 2026-06-03
 
 ---
 
-## Template Section Status
+## Document Written
 
-| Section | Status |
-|---------|--------|
-| What Was Built | Complete |
-| Key Technical Decisions | Complete — 5 decisions |
-| Architecture Overview | Complete — prose description |
-| Known Gaps and Limitations | Complete |
-| What's Next | Complete |
-
----
-
-## Deviations from Brief
-
-None. Word count is approximately 640 words, within the 500–700 target. No code blocks. No em-dashes or semicolons. Jigsaw and percentile_cont defined inline on first use.
-
----
-
-## Author Notes in Document
-
-None — document is complete from available source material.
+**File:** `projects/toxicity-classifier-finetuned/docs/distilbert-finetuning-experiment.md`
+**Type:** Technical Deep-Dive
+**Template:** `templates/technical-deep-dive.md`
+**Word count:** ~1,500 words
 
 ---
 
 ## Handoff
 
-The doc-reviewer reads `roles/doc-brief/output/output.md` and the document at `projects/moderation-stream/docs/technical-summary.md`.
-Key concern: confirm all five key messages from the brief land clearly, particularly message 2 (parallel comparison on same stream) which must not be buried under infrastructure detail.
+**Next role:** doc-reviewer
+
+Read `roles/doc-brief/output/output.md` for the key messages to verify, and `resources/writing-voice.md` for voice enforcement.
+
+Key messages to check:
+1. Zero-shot precision failure (0.21) clearly motivated — not buried
+2. Epoch 2 overfitting signal visible in the table and explained in the text
+3. AUC-ROC 0.924 interpreted, not just reported
+4. Env-var activation pattern explained with enough specificity
+5. MPS constraints (bf16, pin_memory) stated honestly without apology
+
+Voice checks to enforce:
+- No em-dashes or semicolons
+- "Though" not "but" for concessive points
+- Third person throughout
+- No transformer background padding
