@@ -68,6 +68,16 @@
 
 - Use `StrEnum` (Python 3.11+) instead of `(str, Enum)` for string enums. Ruff UP042 enforces this.
 
+## HuggingFace Trainer (fine-tuning projects)
+
+- Always add `accelerate` as an **explicit** dependency when `Trainer` is in scope. It is a hard runtime dep of `transformers.Trainer` in versions ≥5.x and is not auto-installed.
+- `no_cuda` was removed in transformers 5.x. Use Trainer auto-detection (MPS → CUDA → CPU). Do not pass `no_cuda` to `TrainingArguments`.
+- `warmup_ratio` was removed in transformers 5.2. Use `warmup_steps` (integer) instead.
+- `eval_strategy` and `save_strategy` must use the same value (e.g. both `"epoch"`) when `load_best_model_at_end=True`. Mismatched values raise a config error at `Trainer.__init__`.
+- Deferred imports inside training functions are correct for slow HuggingFace loads. When patching in tests, patch at `transformers.AutoModelForSequenceClassification.from_pretrained` (the source), not at the module-level name — deferred imports create no module-level binding to patch against.
+
+---
+
 ## General Style
 
 - **Working before clean.** The first pass should run. Refactoring is the reviewer's job.
