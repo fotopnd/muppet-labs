@@ -30,8 +30,9 @@ Read before issuing any training commands.
 - **`pin_memory`** — do not pass. MPS does not support pinned memory; the CLI should not include this flag.
 - **Large-encoder-class models** (RoBERTa, BERT-large, etc.): default `batch_size: 8` on Apple Silicon 8 GB unified memory. Higher values cause OOM.
 - **Small-encoder-class models** (DistilBERT, ALBERT-base, etc.): default `batch_size: 32` on Apple Silicon 8 GB.
-- **Checkpoint path derivation:** `<project_dir>/checkpoints/<model-key>-<YYYY-MM-DD>/`
-- **Smoke dir:** `<project_dir>/checkpoints/.smoke-<model-key>/` — cleaned up after human confirms the smoke run.
+- **Checkpoint path:** `resources/models/<project-name>/<model-key>-<YYYY-MM-DD>/` — workspace-level, shared across consuming projects. `<project-name>` is the training project's directory name (e.g. `toxicity-classifier-finetuned`).
+- **Eval results path:** `resources/evals/<project-name>/<model-key>-<timestamp>.json` — written by `uv run evaluate`. The model-trainer role reads this file in step 2.4.
+- **Smoke dir:** `<project_dir>/checkpoints/.smoke-<model-key>/` — project-local temp directory, cleaned up after human confirms the smoke run.
 - **Same-day reruns:** append `-v2`, `-v3` to the checkpoint directory rather than overwriting.
 
 ---
@@ -61,7 +62,7 @@ Read before issuing any training commands.
      uv run evaluate --model <key> --checkpoint-dir <checkpoint_dir>
      ```
      Append `--baseline-checkpoint <baseline_checkpoint>` if provided.
-   - 2.4. **Read epoch log** from `<checkpoint_dir>/epoch_log.json` — extract per-epoch train loss, val loss, val F1.
+   - 2.4. **Read epoch log** from `<checkpoint_dir>/epoch_log.json` and eval results from `resources/evals/<project-name>/<model-key>-<timestamp>.json` — extract per-epoch train loss, val loss, val F1, and final metrics.
    - 2.5. **Write output section** for this model to `output/output.md` (fill all sections per Output template).
 
 3. **Write Session Summary** table to `output/output.md`.
@@ -115,5 +116,6 @@ Read before issuing any training commands.
 - `smoke_run: false` skips step 2.1 entirely — estimated wall time is not shown. The human accepts this means no fast-fail validation before the full run.
 - The role does not download datasets and does not run tests — both are the human's responsibility before invoking the role.
 - This role does not modify any project source files. It reads `.env` for validation only.
+- Checkpoint paths written to `output/output.md` must use the workspace-level path (`resources/models/...`), not the project-local path. Consuming projects (e.g. moderation-stream) reference these paths via env vars — the workspace-level path is stable regardless of where the training project lives.
 - If `uv run train` or `uv run evaluate` fails, write the model's output section with whatever data is available, set the Session Summary status to `failed`, and stop. Do not proceed to the next model.
 - If the target dataset has fewer than 20,000 samples, `--max-train-samples 20000` in the smoke run is silently ignored and the full dataset is used. Wall time estimates from the smoke run will be accurate rather than conservative — this is acceptable.

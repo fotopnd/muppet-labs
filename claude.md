@@ -59,7 +59,13 @@ muppet-labs/
 │   ├── python-conventions.md
 │   ├── rust-conventions.md
 │   ├── typescript-conventions.md
-│   └── vibecoding-style.md
+│   ├── vibecoding-style.md
+│   ├── models/                      ← fine-tuned model checkpoints (workspace-shared)
+│   │   └── <project-name>/          ← one subdirectory per training project
+│   │       └── <model-key>-<YYYY-MM-DD>/
+│   └── evals/                       ← evaluation results JSON (workspace-shared)
+│       └── <project-name>/
+│           └── <model-key>-<timestamp>.json
 │
 ├── skills/                          ← reusable technical how-to procedures
 │   ├── setup-uv-project.md

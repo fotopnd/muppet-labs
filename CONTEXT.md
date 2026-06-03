@@ -66,6 +66,8 @@ Shared knowledge files in `resources/`. Any role can load any of these. Load onl
 | `audience-tiers.md` | Three writing audience tiers: who they are, what they care about, how to calibrate content |
 | `doc-types.md` | Catalog of document types: when to use each, which template, which audience tier |
 | `writing-voice.md` | Individual writing voice guidance |
+| `models/<project-name>/` | Fine-tuned model checkpoints — workspace-shared so any consuming project can reference them by stable path. Each subdirectory is a `save_pretrained()` output loadable via `from_pretrained()`. |
+| `evals/<project-name>/` | Evaluation results JSON — one file per model run. Written by `uv run evaluate`; read by the model-trainer role to fill the output metrics table. |
 
 ---
 
