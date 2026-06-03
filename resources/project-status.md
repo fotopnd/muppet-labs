@@ -291,7 +291,7 @@ nginx: proxy `/stream-api/*` → `localhost:8001`.
 
 **Last updated:** 2026-06-03
 **Location:** `projects/toxicity-classifier-finetuned/`
-**Branch:** `project-8-toxicity-classifier` (not yet merged to main — merge after training run validates output)
+**Branch:** merged to `main`
 **Proposal target:** Both (SWE and DE Safeguards)
 **Stack:** Python 3.12, PyTorch, HuggingFace transformers + datasets, scikit-learn, Typer CLI
 
@@ -313,29 +313,63 @@ nginx: proxy `/stream-api/*` → `localhost:8001`.
 | Project 22 Phase 2 activated | ✗ Pending | Set env vars once weights produced |
 | Portfolio write-doc (technical summary) | ✗ Pending | Run `write-doc` sequence post-training; audience: Technical / Technical Leadership |
 
-### How to Run Training
+### Training Plan
 
-**Prerequisites:** Jigsaw Toxic Comments dataset downloaded from Kaggle to a local directory.
+**Step 0 — Get the dataset**
+
+Download `train.csv` from the [Jigsaw Toxic Comments Classification Challenge](https://www.kaggle.com/c/jigsaw-toxic-comment-classification-challenge) on Kaggle (free, requires account). Place it at `data/train.csv` inside the project, or set `JIGSAW_DATA_DIR` in `.env` to an absolute path. The same CSV doubles as the producer input for moderation-stream — copy it to `projects/moderation-stream/data/train.csv` at the same time.
+
+**Step 1 — Choose local or Colab**
+
+| Option | Time | Cost | Recommendation |
+|---|---|---|---|
+| Local MPS (Apple Silicon) | ~40–50 min DistilBERT, ~60–80 min RoBERTa | Free | Good if not time-constrained; keeps weights on local disk |
+| Colab T4 | ~15–20 min per model | ~$1–2 total | Faster; use the notebook at `notebooks/colab_training.ipynb`; save weights to Google Drive then download |
+| Local CPU | ~3–5 hours per model | Free | Not recommended |
+
+**Step 2 — Run training**
 
 ```bash
 cd projects/toxicity-classifier-finetuned
 export PATH="$HOME/.local/bin:$PATH"
 cp .env.example .env
-# Edit .env: set JIGSAW_DATA_DIR=/path/to/directory/containing/train.csv
+# Edit .env: set JIGSAW_DATA_DIR=data  (relative, or absolute path)
 
 uv sync
 
-# Fast local iteration (MPS, ~15 min)
-uv run train --model distilbert --epochs 2 --max-train-samples 20000 --output-dir checkpoints
+# Smoke test first (~5 min, confirms the pipeline works end-to-end)
+uv run train --model distilbert --epochs 1 --max-train-samples 2000
 
-# Full training — DistilBERT (MPS, ~40–50 min)
-uv run train --model distilbert --epochs 4 --output-dir checkpoints
+# Full DistilBERT (4 epochs, all data)
+uv run train --model distilbert --epochs 4
 
-# Full training — RoBERTa (MPS 8GB, ~60–80 min; use --batch-size 8 if memory-constrained)
-uv run train --model roberta --epochs 4 --batch-size 8 --output-dir checkpoints
+# Full RoBERTa (reduce batch if MPS runs out of memory)
+uv run train --model roberta --epochs 4 --batch-size 8
 ```
 
-**Faster alternative:** Use `notebooks/colab_training.ipynb` on Colab T4 (~30–45 min total, ~$1–2).
+**Step 3 — What training produces**
+
+```
+checkpoints/
+  distilbert-best/        ← best val-F1 epoch; ~250MB on disk
+    config.json
+    model.safetensors
+    tokenizer.json / vocab.txt / ...
+  roberta-best/           ← same structure; ~480MB on disk
+  distilbert-train-log.json   ← per-epoch loss + val F1 (for experiment doc)
+  roberta-train-log.json
+```
+
+Training picks the best epoch automatically (`load_best_model_at_end=True`, metric=F1). No manual checkpoint selection needed.
+
+**Expected results (reference targets)**
+
+| Model | Zero-shot F1 | Fine-tuned F1 target |
+|---|---|---|
+| DistilBERT | ~0.55–0.65 | ~0.89–0.92 |
+| RoBERTa | ~0.55–0.65 | ~0.91–0.94 |
+
+If fine-tuned F1 is below 0.85 after 4 epochs, check: class imbalance in splits, learning rate too high, or CSV encoding issues.
 
 ### How to Evaluate
 
@@ -367,11 +401,13 @@ Restart the fine-tuned consumers (`make all`). Slots 4 and 5 in the stream dashb
 
 ### Next Steps
 
-1. **Download Jigsaw dataset** from Kaggle and run training (local MPS or Colab T4).
-2. **Write experiment doc** — post-training; markdown file in `projects/toxicity-classifier-finetuned/docs/experiment-results.md` covering: zero-shot baseline vs fine-tuned F1/AUC per model, per-category improvement breakdown, failure modes. This is both a project success criterion and portfolio evidence of ML reasoning.
-3. **Activate project 22 Phase 2** — set env vars, verify dashboard shows 5 active models.
-4. **Run `write-doc` sequence** — produce a portfolio-facing technical summary. Audience: Technical (hiring engineer). Goal: Inform + demonstrate PyTorch fine-tuning competence. Inputs: experiment doc + README + eval results JSON.
-5. **Merge `project-8-toxicity-classifier` → `main`** after training validates and experiment doc is written.
+1. **Download Jigsaw CSV** — place at `data/train.csv` and copy to `projects/moderation-stream/data/train.csv` simultaneously. Unblocks both training and the stream producer.
+2. **Run smoke test** — `uv run train --model distilbert --epochs 1 --max-train-samples 2000`. Confirms pipeline works before committing to a full run.
+3. **Run full training** — DistilBERT then RoBERTa (see Training Plan above). Local MPS or Colab T4.
+4. **Evaluate** — `uv run evaluate --model distilbert --checkpoint-dir checkpoints/distilbert-best` and RoBERTa equivalent. Check F1 ≥ 0.85 before proceeding.
+5. **Activate project 22 Phase 2** — set `DISTILBERT_CHECKPOINT_PATH` / `ROBERTA_CHECKPOINT_PATH` in `projects/moderation-stream/.env`; restart consumers; verify stream dashboard shows 5 active cards.
+6. **Write experiment doc** — `docs/experiment-results.md`: zero-shot vs fine-tuned F1 per model, per-category breakdown, failure modes. Portfolio evidence of ML reasoning.
+7. **Run `write-doc` sequence** — technical summary for portfolio. Audience: Technical. Inputs: experiment doc + README + eval results JSON.
 
 ---
 
