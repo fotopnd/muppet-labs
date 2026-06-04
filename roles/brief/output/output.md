@@ -1,93 +1,169 @@
-# Brief Output — moderation-dashboard
+# Brief Output — moderation-dashboard demo hardening
 
 **Role:** brief
-**Sequence:** `new-project-full` (step 1)
-**Date:** 2026-06-03
+**Sequence:** planner → architect → implementer
+**Date:** 2026-06-04
 
 ---
 
 ## Project Name
 
-`moderation-dashboard`
+`moderation-dashboard-demo`
 
 ---
 
 ## Description
 
-A unified content moderation platform that streams Jigsaw Toxic Comments through Kafka, routes events to N attached models via both round-robin production routing and parallel shadow evaluation simultaneously, surfaces per-model performance metrics and head-to-head comparisons, detects anomalies on the raw event stream, transforms results through dbt for rolling analytics, and escalates low-confidence cases to the case-queue service for human review.
+A demo hardening pass on the completed moderation-dashboard: make it deployable as a live public portfolio demo where visitors see a real Kafka-backed content moderation stream running 2 live ML models, historical metrics pre-seeded for 3 additional models, case escalations flowing to a built-in review queue, and analytics populated — all on a $4/month VPS.
 
 ---
 
 ## Language(s)
 
-- **Primary:** Python (FastAPI metrics API, Kafka producer and consumers, anomaly detector)
-- **Analytics:** dbt-core with dbt-postgres adapter (SQL transformation layer)
-- **Frontend:** TypeScript, React (unified dashboard — new app, separate from case-queue web/)
+- **Python** — FastAPI (API additions), seeding script, consumer changes
+- **TypeScript / React** — dashboard UI improvements
+- **SQL** — schema additions, seed data
+
+---
+
+## Background: What Is Already Built
+
+The moderation-dashboard (`projects/moderation-dashboard/`) is complete and running locally. It includes:
+
+- **Kafka** (`apache/kafka:3.7.0` KRaft, port 9093) — working, connectivity confirmed
+- **Postgres** (port 5434) — schema migrated, tables present
+- **Producer** (`md-producer`) — streams Jigsaw CSV events to `moderation-events` topic
+- **Consumers** (`md-consumer`) — DistilBERT, RoBERTa, Detoxify (zero-shot); fine-tuned DistilBERT and RoBERTa (activated via `DISTILBERT_CHECKPOINT_PATH` / `ROBERTA_CHECKPOINT_PATH` env vars)
+- **FastAPI metrics API** (`md-api`, port 8002) — `/metrics`, `/health`, `/metrics/analytics`
+- **Anomaly detector** (`md-anomaly`) and **escalation service** (`md-escalation`)
+- **React frontend** (`web/`, port 5174) — Stream Monitor, Model Performance, Model Comparison, Human Review, Analytics panels
+- **Fine-tuned checkpoints** — `resources/models/toxicity-classifier-finetuned/distilbert-best` (F1=0.8473) and `resources/models/toxicity-classifier-finetuned/roberta-best` (F1=0.8424, 1 epoch)
+
+**Known issues with current dashboard (to fix in this pass):**
+- Sparklines are flat with no labels — visitors don't know what metric they're looking at or what constitutes good/bad
+- Round-robin routing only shows one model's results in the production panel despite 3 consumers active (likely partition/group config issue)
+- Stream Monitor lacks a time-series line chart — only shows current snapshot stats
+- Analytics tab empty — dbt mart tables not populated; no dbt runtime planned for hosted deployment
+- Escalation service not wired to case-queue — fires events internally but doesn't POST to any external endpoint
+
+---
+
+## The Demo Vision
+
+When a visitor arrives at the hosted site they should see:
+
+1. **A live event stream** — Jigsaw comments flowing through the system in real-time, classified by models
+2. **Model metrics** that are non-zero on arrival — not starting from scratch
+3. **All 5 models showing data** — 2 running live, 3 showing pre-seeded historical metrics
+4. **A case queue** — escalated events accumulating, actionable (approve/reject) during the visit
+5. **Analytics** — category trends, model accuracy over time, enforcement rates
+6. **A restart button** — replays the stream from the beginning
+
+Each visitor sees a continuously running stream. On arrival the stream is already mid-run (pre-seeded historical data gives non-zero baselines). The live models keep classifying new events throughout the visit.
+
+---
+
+## Architecture Decisions (already made — do not re-open)
+
+**1. Two live models, three seeded.**
+
+On the hosted server, only DistilBERT zero-shot and Detoxify run as live consumers. Their classifications accumulate in real-time. The other three models — RoBERTa zero-shot, fine-tuned DistilBERT, fine-tuned RoBERTa — have their classifications pre-seeded into the DB via a one-time seed script run locally before deploy. Their metrics show correctly in the dashboard; they just don't process new events.
+
+Memory budget (Hetzner CX22, 4GB RAM):
+- DistilBERT consumer: ~260MB
+- Detoxify consumer: ~270MB
+- Kafka: ~400MB
+- Postgres: ~200MB
+- API + anomaly + escalation: ~150MB
+- **Total: ~1.3GB** — comfortable on 4GB
+
+**2. Looping producer.**
+
+The producer runs on a subset (~10k events) and loops continuously. This keeps the stream perpetually live. Historical data from previous loops accumulates in the DB, making metrics progressively richer over time.
+
+**3. Pre-seeded historical data.**
+
+A local seed script (`scripts/seed_sim.py`) runs all 5 models over the 10k-event subset, writes classifications to the DB, and marks them with a `seeded=true` flag so they can be distinguished from live results. This script is run once before deploy; its output is loaded into the hosted Postgres via pg_dump/restore.
+
+**4. Built-in case queue panel.**
+
+Rather than depending on the separate `projects/case-queue/` service for the demo, a lightweight case queue is built directly into the moderation-dashboard. The "Human Review" panel shows escalated events with approve/reject buttons. Decisions are stored in a `case_decisions` table within the moderation-dashboard DB. In production, the escalation service would POST to the real case-queue API — this is a `CASE_QUEUE_URL` env var that can be set to enable the real integration. For the demo, it falls back to the built-in panel.
+
+**5. Analytics from DB aggregates, not dbt.**
+
+The analytics tab is populated via SQL aggregates computed by the FastAPI API directly (no dbt runtime required). The `/metrics/analytics` endpoint is extended to return time-series data computed from the `classifications` table. dbt remains in the codebase for local dev / real deployments but is not required for the hosted demo.
+
+**6. No simulation mode / DEMO_MODE flag.**
+
+The system runs as a real Kafka streaming pipeline, not a simulation. The only "demo" mechanics are: (a) pre-seeded historical data for 3 models, (b) the looping producer, and (c) a restart endpoint that truncates live classifications and restarts the producer from event 0. This keeps the architecture genuine.
+
+**7. Deploy target: Hetzner CX22.**
+
+~$4.35/month, 4GB RAM, 2 vCPU, 40GB NVMe. Docker Compose + nginx reverse proxy. React built to static files, served by nginx. FastAPI behind nginx at `/api`. Kafka and Postgres internal to Docker network.
 
 ---
 
 ## Success Criteria
 
-The project is done (Phase 1) when all of the following are true:
+This pass is done when all of the following are true:
 
-1. **Producer** — replays Jigsaw Toxic Comments CSV as a live Kafka stream at configurable rate; SIGINT shutdown.
-2. **Production consumer group** — 3 zero-shot models (DistilBERT, RoBERTa, Detoxify) in the same Kafka consumer group; Kafka round-robins events across them. Per-model metrics recorded: F1 vs ground truth, latency p50/p95, throughput (events/sec).
-3. **Shadow consumer group** — same 3 models each in separate consumer groups; every event hits every model. Per-event model verdicts recorded for comparison.
-4. **Anomaly detector** — monitors raw event stream on rolling 5-minute windows; flags: volume spikes (Z-score > 3), per-category classification rate shifts, model disagreement rate anomalies. Flagged events surfaced in Stream Monitor.
-5. **dbt layer** — dbt-core models run on the Postgres event store; analytical models cover: category trends over time, per-model accuracy rolling windows, escalation rates. Refreshed on a schedule (Makefile target or cron, not real-time).
-6. **Escalation** — events where shadow models disagree (majority verdict ≠ unanimous) OR max softmax confidence < 0.6 are posted to case-queue API. Escalation threshold is configurable via env var.
-7. **Dashboard — 5 panels:**
-   - Stream Monitor: raw event rate, category distribution, anomaly flags
-   - Model Performance: round-robin per-model F1, latency, throughput (production group metrics)
-   - Model Comparison: side-by-side shadow group verdicts on identical events; accuracy delta
-   - Human Review: escalation queue pulling from case-queue API; links to case-queue detail view
-   - Analytics: dbt output — category trends, enforcement rates, model accuracy over time
-8. **Phase 2 consumers** — fine-tuned DistilBERT and RoBERTa consumers stubbed; activate via `DISTILBERT_CHECKPOINT_PATH` and `ROBERTA_CHECKPOINT_PATH` env vars when project 8 delivers weights. No code change required to activate.
-9. **Tests** — producer unit tests, consumer classification tests (mocked weights), anomaly detector unit tests, metrics API integration tests, dbt model tests (`dbt test`), frontend component tests (vitest).
-10. **README** — local run instructions (Docker, uv, pnpm), dbt setup, Hostinger deploy guide.
+1. **Seed script** — `scripts/seed_sim.py` classifies 10k Jigsaw events with all 5 models and writes results to the DB. Runs locally in under 30 minutes. Produces a pg_dump file ready for VPS restore.
+
+2. **Looping producer** — `md-producer` accepts a `--loop` flag. When set, it replays the 10k-event subset continuously. Producer restart can be triggered via `POST /admin/restart` API endpoint (clears live classifications, resets producer offset).
+
+3. **All 5 models visible** — Dashboard shows metrics for all 5 models. DistilBERT and Detoxify show live counters incrementing. RoBERTa, fine-tuned DistilBERT, fine-tuned RoBERTa show seeded historical metrics that do not increment (clearly distinguished in UI — e.g., "Historical" badge vs "Live" badge).
+
+4. **Sparklines** — each model metrics card has a labelled sparkline showing the metric trend over the last N events. Label states the metric name and current value. A reference line shows the zero-shot baseline for comparison on the fine-tuned cards.
+
+5. **Stream monitor time-series** — a line chart showing event volume by category over the last 10 minutes (or since stream start, whichever is shorter). Updates on each poll.
+
+6. **Analytics tab populated** — shows category trend chart, per-model accuracy over time, and escalation rate. Computed from DB aggregates, no dbt required.
+
+7. **Case queue** — escalated events (confidence < 0.6 OR model disagreement) appear in Human Review panel. Approve/reject buttons write to `case_decisions` table. Decision state persists within the session. Panel shows pending count badge.
+
+8. **Restart button** — calls `POST /admin/restart`. Truncates live (non-seeded) classifications and anomaly flags. Restarts the producer from event 0. Dashboard reflects reset within 3 seconds.
+
+9. **Live/Historical distinction** — UI clearly distinguishes live model results from pre-seeded historical results. Suggested: a "LIVE" green indicator on active consumers, a "SEEDED" grey badge on historical models.
+
+10. **Deployed to Hetzner** — site accessible at a public URL. Docker Compose running. nginx serving React static build and proxying API. Kafka and Postgres persisted via named volumes.
+
+11. **README updated** — local run guide, deploy guide (Hetzner), seed script usage, environment variable reference.
 
 ---
 
 ## Constraints
 
-- **Hostinger KVM2 (8GB RAM):** 5 transformer models (CPU inference) + Kafka + Zookeeper + Postgres + API + nginx must fit within 8GB. Models must load lazily — only the consumers actively assigned events load their weights at startup. Phase 1 max: 3 models in memory simultaneously.
-- **CPU inference only on server:** no CUDA or MPS dependency in production path. Target <100ms per classification on CPU (relaxed from project 22's 5–50ms — Hostinger CPU is slower than M4).
-- **Case-queue dependency:** escalation integration requires case-queue API to be running. Local dev: case-queue on `localhost:8000`. Production: case-queue deployed to same VPS. Dashboard degrades gracefully if case-queue is unavailable (Human Review panel shows error state, stream continues).
-- **Phase 2 is blocked on project 8 RoBERTa:** fine-tuned consumers are stubs at launch. Phase 2 is a config change, not a code change.
-- **Reuse project 22 code:** producer, consumer base class, model consumer implementations, and metrics API are the starting point. This is a refactor and extension, not a greenfield build.
-- **Port allocation (local dev):**
-  - Kafka: 9092 (existing)
-  - Postgres: 5434 (5432 = case-queue, 5433 = moderation-stream during transition)
-  - Metrics API: 8002 (8000 = case-queue, 8001 = moderation-stream)
-  - Frontend dev: 5174 (5173 = case-queue web)
+- **No dbt runtime on hosted deployment** — analytics computed via SQL in FastAPI; dbt stays in the repo for local use only
+- **No case-queue dependency for demo** — built-in case panel must work standalone; `CASE_QUEUE_URL` env var optionally enables real integration
+- **CPU inference only** — no CUDA, no MPS on Hetzner; all model inference at `device=-1`
+- **4GB RAM ceiling** — total memory footprint of all running services must stay under 3GB to leave headroom
+- **Kafka must persist across restarts** — named Docker volume required; current config uses `/tmp/kraft-combined-logs` which must be fixed
+- **Restart must not affect seeded data** — `POST /admin/restart` truncates only rows where `seeded=false`
+- **Fine-tuned model checkpoints are not deployed** — too large (500MB each) for a $4 VPS image; fine-tuned consumers remain stubbed with `pending_weights` status on hosted deployment unless checkpoints are pre-downloaded to a mounted volume
 
 ---
 
 ## Out of Scope
 
-- Fine-tuning models (project 8 handles this entirely)
-- Replacing case-queue (it is called via API; it remains a separate repo and service)
-- Authentication or multi-user sessions (portfolio demo — no auth)
-- WebSocket or SSE real-time push (polling is sufficient; 3s interval as per project 22)
-- Data migration from moderation-stream's Postgres (fresh schema; moderation-stream is retired by this project)
-- Kafka topic management UI or admin tooling
-- Custom dbt scheduler (Makefile target is sufficient; no Airflow or Prefect)
-- Any frontend work inside the case-queue repo (Human Review panel links to case-queue; no embedded iframe or cross-repo component)
+- Running fine-tuned consumers live on the hosted deployment (resource constraint; seeded data covers their metrics)
+- Replacing or modifying the `projects/case-queue/` codebase
+- WebSocket or SSE (polling continues at 3s)
+- Authentication or per-user sessions
+- dbt runtime on the VPS
+- Anomaly detector changes (it runs as-is; anomaly flags surface in the existing Stream Monitor panel)
+- CI/CD pipeline (manual deploy via SSH + docker compose pull is sufficient for portfolio)
 
 ---
 
 ## Assumptions
 
-1. **Project location:** `projects/moderation-dashboard/` — new directory. Project 22 (`projects/moderation-stream/`) is archived but not deleted until moderation-dashboard is verified working.
-2. **Starting point:** project 22 codebase is copied and refactored into moderation-dashboard. Not built from scratch.
-3. **Consumer group naming:** production group = `moderation-production`; shadow groups = `moderation-shadow-distilbert`, `moderation-shadow-roberta`, `moderation-shadow-detoxify` (separate group per model for parallel coverage).
-4. **Anomaly detection method:** rolling Z-score on 5-minute tumbling windows. No ML model for anomaly detection — statistical only. Simple, interpretable, no additional weight files.
-5. **Escalation endpoint:** POST event content to `case-queue POST /cases` — the existing endpoint with a `source_system: "moderation-dashboard"` metadata field. Planner must verify case-queue's schema supports this; if not, a lightweight case-queue API extension may be required (single new field on CaseCreate schema).
-6. **dbt adapter:** dbt-core + dbt-postgres. dbt project lives at `projects/moderation-dashboard/dbt/`. Models: `stg_events`, `stg_classifications`, `fct_category_trends`, `fct_model_accuracy`, `fct_escalation_rates`.
-7. **Frontend:** new React/TypeScript app at `projects/moderation-dashboard/web/`. shadcn/ui + Tailwind (same pattern as case-queue). TanStack Query for data fetching, 3s polling for live panels.
-8. **Postgres schema:** clean break from moderation-stream. New schema with tables for: raw events, classifications (production + shadow), anomaly flags, dbt-managed analytical tables.
-9. **Phase 2 activation:** same pattern as project 22 — `MODEL_REGISTRY` in config drives active vs `pending_weights` state per consumer. Dashboard shows pending state for fine-tuned models until weights are wired.
-10. **Case-queue escalation display:** Human Review panel polls `GET /cases?source_system=moderation-dashboard` on a 5s interval. Shows case count, links each case to case-queue detail view at its URL (not embedded). Graceful degradation if case-queue is unreachable.
+1. The 10k-event subset is drawn from the same Jigsaw train.csv at `resources/datasets/jigsaw-toxic-comments/train.csv`, rows 0–9999.
+2. The seed script runs all 5 models at `device=-1` (CPU). On M4 Air this takes ~20–30 minutes. It writes directly to a local Postgres instance at the project's standard port (5434).
+3. The `classifications` table already has a `model_name` column that distinguishes which consumer wrote each row. A `seeded` boolean column needs to be added (Alembic migration).
+4. The looping producer runs the 10k-event subset; larger event content variety isn't needed for demo purposes.
+5. Hetzner account needs to be created; SSH key configured. Standard Ubuntu 24.04 image. Docker + Docker Compose installed via setup script.
+6. The "restart" mechanic is global — one visitor triggering restart affects all concurrent visitors. Accepted tradeoff for simplicity (no session isolation in the live system).
+7. Sparkline data comes from the last 50 classification events per model (configurable), stored in the existing `classifications` table.
 
 ---
 
@@ -96,16 +172,20 @@ The project is done (Phase 1) when all of the following are true:
 **Next role:** planner
 
 **What the planner does with this:**
-- Define the complete file and module structure: which code is copied from project 22 as-is, which is refactored, which is new.
-- Lock tech decisions: dbt model granularity, Kafka topic and partition config, Postgres schema design (tables, indexes, retention strategy for event volume).
-- Specify the consumer group architecture in detail: how many partitions on the Kafka topic, how round-robin distribution actually works at the partition level, whether 3 consumers in one group with 3 partitions gives true round-robin.
-- Define the anomaly detector interface: does it run as a separate consumer, a sidecar to the metrics API, or a scheduled job?
-- Determine whether case-queue's schema needs extension for the escalation integration — flag if a case-queue API PR is needed before this project can complete.
-- Define dbt model structure and identify which Postgres tables dbt reads from vs writes to.
-- Confirm port allocation and Docker Compose layout.
+- Define the complete list of file changes: new files, modified files, new DB columns, new API endpoints
+- Spec the `seeded` column migration and confirm it doesn't break existing queries
+- Define the seed script architecture: one pass per model or batched; output format
+- Lock the looping producer implementation: how offset/position is tracked across loops
+- Spec the `POST /admin/restart` endpoint: what it truncates, how it signals the producer
+- Define the sparkline data contract: what the API returns, how the frontend renders it
+- Spec the time-series stream chart data structure
+- Spec the analytics endpoint extensions (what SQL, what shape)
+- Define the case queue data flow: escalation service → `case_decisions` table → Human Review panel
+- Define the Hetzner deploy steps: Docker Compose changes (Kafka volume, nginx service), seed restore procedure
+- Identify all files that need to change and flag any that are risky to touch (e.g. existing migrations)
 
 **Flags for planner:**
-- Assumption 5 (escalation endpoint) — planner must read `projects/case-queue/api/app/schemas.py` and `app/routers/cases.py` to confirm POST /cases schema. A `source_system` field may not exist; adding it to case-queue is a dependency that must be scoped and sequenced.
-- Assumption 3 (consumer group round-robin) — Kafka round-robins across *partitions*, not consumers. If the topic has only 1 partition, all events go to one consumer. Planner must spec the partition count to match the number of production consumers (minimum 3 for Phase 1, 5 for Phase 2).
-- Assumption 6 (dbt models) — planner should validate that the proposed dbt model names and grain are achievable given the Postgres schema design; adjust if needed.
-- Memory budget on Hostinger — planner should estimate per-model memory footprint (DistilBERT ~260MB, RoBERTa ~480MB, Detoxify ~500MB) and confirm 3-model Phase 1 fits within 8GB alongside Kafka + Postgres + API + nginx.
+- The current Kafka `KAFKA_LOG_DIRS` is set to `/tmp/kraft-combined-logs` — this must be changed to a named volume before deploy or all Kafka data is lost on restart. This is a docker-compose change.
+- The fine-tuned consumers read checkpoint paths from env vars. On Hetzner these vars will not be set, so the consumers will show `pending_weights`. Confirm this graceful degradation is already implemented and test it.
+- The existing escalation service fires internally but its POST logic needs to be confirmed: does it currently write to the DB, to case-queue API, or both? This determines how much wiring is actually new work.
+- Round-robin routing showing only one model is a known bug — planner must diagnose (likely a partition count issue: if the `moderation-events` topic has fewer partitions than production consumers, some consumers sit idle). Fixing this is in scope.
