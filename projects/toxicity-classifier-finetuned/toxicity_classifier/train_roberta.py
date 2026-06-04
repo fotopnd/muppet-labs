@@ -62,6 +62,13 @@ def train(
                     }
                 )
 
+        def on_save(self, args, state, control, **kwargs):  # noqa: B006
+            # MPS tensors must be explicitly flushed before the Trainer writes safetensors;
+            # without this the checkpoint gets partially-uninitialized weights on Apple Silicon.
+            import torch
+            if hasattr(torch, "mps") and torch.backends.mps.is_available():
+                torch.mps.synchronize()
+
     training_args = TrainingArguments(
         output_dir=str(trainer_output),
         num_train_epochs=epochs,

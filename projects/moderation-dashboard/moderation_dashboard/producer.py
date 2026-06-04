@@ -139,7 +139,7 @@ def main() -> None:
             settings.kafka_bootstrap_servers, settings.kafka_topic, settings.kafka_num_partitions
         )
     except Exception:
-        # Topic is auto-created by KAFKA_CREATE_TOPICS; AdminClient transport errors are non-fatal
+        # Topic may already exist or be auto-created; AdminClient transport errors are non-fatal
         logger.warning("ensure_topic failed — proceeding anyway", exc_info=True)
 
     logger.info("Loading events from %s (limit=%s)...", settings.jigsaw_csv_path, limit or "all")
