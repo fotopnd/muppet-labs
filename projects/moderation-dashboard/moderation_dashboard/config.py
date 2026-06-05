@@ -21,9 +21,6 @@ MODEL_REGISTRY: dict[str, ModelSpec] = {
     "finetuned_distilbert": ModelSpec(
         "finetuned_distilbert", "DistilBERT (fine-tuned)", True, "DISTILBERT_CHECKPOINT_PATH"
     ),
-    "finetuned_detoxify": ModelSpec(
-        "finetuned_detoxify", "Detoxify (fine-tuned)", True, "DETOXIFY_CHECKPOINT_PATH"
-    ),
 }
 
 
@@ -65,7 +62,6 @@ class Settings(BaseSettings):
 
     # Phase 2 checkpoints (None = pending_weights)
     distilbert_checkpoint_path: Path | None = None
-    detoxify_checkpoint_path: Path | None = None
 
     # Demo config
     # Models with live consumers on this deployment. Used to label metrics as 'live' vs 'seeded'.

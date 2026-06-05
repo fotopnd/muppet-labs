@@ -19,6 +19,7 @@ dependencies = [
     "httpx>=0.27.0",
     "numpy>=1.26.0",
     "alembic>=1.13.0",
+    "websockets>=12.0",
 ]
 
 [project.scripts]
@@ -29,6 +30,7 @@ md-escalation = "moderation_dashboard.escalation.service:main"
 md-api        = "moderation_dashboard.api.main:run"
 seed-sim      = "moderation_dashboard.seed_sim:main"
 demo-stream   = "scripts.demo_stream:main"
+bsky-stream   = "scripts.bsky_stream:main"
 
 [build-system]
 requires = ["hatchling"]

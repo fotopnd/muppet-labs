@@ -55,13 +55,8 @@ def main() -> None:
         from moderation_dashboard.consumers.detoxify_consumer import DetoxifyConsumer
 
         consumer = DetoxifyConsumer(**common)
-    elif args.model in ("finetuned_distilbert", "finetuned_detoxify"):
-        checkpoint_attr = (
-            "distilbert_checkpoint_path"
-            if args.model == "finetuned_distilbert"
-            else "detoxify_checkpoint_path"
-        )
-        checkpoint_path = getattr(settings, checkpoint_attr)
+    elif args.model == "finetuned_distilbert":
+        checkpoint_path = settings.distilbert_checkpoint_path
         if checkpoint_path is None:
             logger.warning(
                 "%s not set — exiting without consuming.",
@@ -69,14 +64,9 @@ def main() -> None:
             )
             sys.exit(0)
 
-        if args.model == "finetuned_distilbert":
-            from moderation_dashboard.consumers.finetuned import FinetunedDistilBertConsumer
+        from moderation_dashboard.consumers.finetuned import FinetunedDistilBertConsumer
 
-            consumer = FinetunedDistilBertConsumer(checkpoint_path=checkpoint_path, **common)
-        else:
-            from moderation_dashboard.consumers.finetuned import FinetunedDetoxifyConsumer
-
-            consumer = FinetunedDetoxifyConsumer(checkpoint_path=checkpoint_path, **common)
+        consumer = FinetunedDistilBertConsumer(checkpoint_path=checkpoint_path, **common)
     else:
         logger.error("Unknown model: %s", args.model)
         sys.exit(1)

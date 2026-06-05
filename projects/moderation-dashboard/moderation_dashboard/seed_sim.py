@@ -143,36 +143,6 @@ def seed_model(
             predicted = 1 if label in _positive_labels else 0
             return predicted, score
 
-    elif model_key == "finetuned_detoxify":
-        checkpoint_path = settings.detoxify_checkpoint_path
-        if checkpoint_path is None:
-            logger.warning(
-                "%s not set — skipping %s (%d previously seeded rows deleted, none written)",
-                spec.checkpoint_path_env_var,
-                model_key,
-                deleted_count,
-            )
-            return 0
-
-        import torch
-        from transformers import AutoModelForSequenceClassification, AutoTokenizer
-
-        logger.info("Loading detoxify-finetuned from %s...", checkpoint_path)
-        _tokenizer = AutoTokenizer.from_pretrained(str(checkpoint_path))
-        _det_model = AutoModelForSequenceClassification.from_pretrained(
-            str(checkpoint_path), num_labels=6
-        )
-        _det_model.eval()
-
-        def classify(content: str) -> tuple[int, float]:
-            inputs = _tokenizer(
-                content[:512], return_tensors="pt", truncation=True, padding=True
-            )
-            with torch.no_grad():
-                logits = _det_model(**inputs).logits  # [1, 6]
-            toxic_prob = float(torch.sigmoid(logits[0, 0]))
-            return (1 if toxic_prob >= 0.5 else 0), toxic_prob
-
     else:
         raise ValueError(f"Unknown model key: {model_key!r}")
 
