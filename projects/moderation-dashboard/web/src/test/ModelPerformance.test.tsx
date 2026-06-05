@@ -20,6 +20,8 @@ const PRODUCTION_DATA: ModelMetrics[] = [
     throughput_per_sec: 3.1,
     source: 'live',
     has_seeded_data: false,
+    live_event_count: 500,
+    live_flagged_count: 193,
   },
   {
     model_name: 'finetuned_distilbert',
@@ -34,6 +36,8 @@ const PRODUCTION_DATA: ModelMetrics[] = [
     throughput_per_sec: null,
     source: 'seeded',
     has_seeded_data: false,
+    live_event_count: 0,
+    live_flagged_count: 0,
   },
 ]
 

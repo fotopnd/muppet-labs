@@ -1,85 +1,92 @@
-# Reviewer Output — moderation-dashboard-demo (implementer-fixes-2)
+# Reviewer Output — moderation-dashboard safety-signal additions
 
 **Role:** reviewer
-**Sequence:** implementer-fixes-2 → reviewer
-**Date:** 2026-06-04
+**Sequence:** add-feature → reviewer
+**Date:** 2026-06-05
 
 ---
 
 ## Summary
 
-All four targeted findings (C1, C2, T1, T2) from the previous reviewer pass are correctly resolved: the idempotency guard, timestamp backdating, and both test files are present and all 41 tests pass. One warning needs attention before the seeded-DB snapshot is taken for VPS deploy: the idempotency DELETE fires before the checkpoint-presence check, so running seed-sim with an unconfigured fine-tuned model silently purges previously seeded rows for that model and writes nothing back. One ruff import-sort violation should be fixed (auto-fixable). Remaining gaps are minor and can be deferred post-deploy.
+The implementation is correct and complete. Both additions (live flag rate on model cards, disagreement analysis panel) are working, all new tests pass, and no previously passing tests were broken. Two findings worth noting: the disagreement sample ordering is non-deterministic in a subtle way (samples are not guaranteed to be the 10 most recent), and the `ModelPerformance.test.tsx` mock data now has a TypeScript gap introduced by the new required fields on `ModelMetrics`. Neither is blocking. Verdict: PASS WITH NOTES.
 
 ---
 
 ## Correctness
 
-**C1 — Finetuned early-return: idempotency DELETE fires before checkpoint check** · `seed_sim.py:65–129` · **Warning**
+**C1 — Disagreement sample ordering: 10 events are not necessarily the most recent** · `metrics.py:_DISAGREEMENTS_SAMPLES_SQL` + `get_disagreements()` · **Minor**
 
-The DELETE at line 65–70 runs unconditionally at the top of `seed_model()`. For finetuned models, the checkpoint presence check is at line 123 (`if checkpoint_path is None: return 0`). Execution path for an unconfigured finetuned model:
+`_DISAGREEMENTS_SAMPLES_SQL` selects up to 50 recent escalation events (ordered by `created_at DESC`) in a CTE, then joins to `classifications`. The outer query orders by `r.event_id, c.model_name` (alphabetical event_id). When Python groups the rows and does `list(events.items())[:10]`, the 10 events shown are the first 10 alphabetically by event_id — not the 10 most recent among the 50.
 
-1. DELETE all seeded rows for `model_name = 'finetuned_distilbert'` → rows gone
-2. Log `"skipping finetuned_distilbert (no seeded data for this model)"` → returns 0
+For the portfolio use case (showing representative disagreement examples) this is immaterial. But if "most recent" is the intent, fix by adding an explicit ordering column to the CTE and preserving it through the join:
 
-If the operator runs `seed-sim --confirm` (or `--models finetuned_distilbert`) without `DISTILBERT_CHECKPOINT_PATH` set after a previous successful seed, the existing finetuned seeded rows are silently destroyed. The only log output says "skipping" — it does not say "deleted N rows." This is the most likely operator mistake before a VPS deploy.
-
-**Fix:** either (a) move the DELETE inside a branch that only executes when the classifier is going to be built (i.e. after line 129, inside the else path), or (b) log the deleted row count before returning:
-
-```python
-# option (b) — minimal change
-result = session.execute(
-    text("DELETE FROM classifications WHERE seeded = true AND model_name = :mk RETURNING id"),
-    {"mk": model_key},
+```sql
+WITH recent AS (
+    SELECT event_id, ROW_NUMBER() OVER (ORDER BY created_at DESC) AS rn
+    FROM escalations
+    WHERE escalation_reason = 'model_disagreement'
+    ORDER BY created_at DESC
+    LIMIT 50
 )
-deleted_count = len(result.fetchall())
-if deleted_count:
-    logger.info("[%s] Deleted %d previously seeded rows", model_key, deleted_count)
-session.commit()
+SELECT r.event_id, r.rn, c.content, c.model_name, c.predicted_label, c.confidence
+FROM recent r
+JOIN classifications c ON c.event_id = r.event_id AND c."group" = 'shadow'
+ORDER BY r.rn, c.model_name
 ```
 
-Then at the early return: `logger.warning("... skipping %s — %d previously seeded rows were already deleted", model_key, deleted_count)`.
+Then in Python, sort `events.items()` by rn before slicing.
 
-**C2 — Timestamp computation: `seed_base_time` anchored per model, not per session** · `seed_sim.py:153` · **Minor**
+**C2 — `ModelPerformance.test.tsx` mock data missing new required fields** · `web/src/test/ModelPerformance.test.tsx:9–38` · **Warning**
 
-`seed_base_time = datetime.now(UTC) - timedelta(hours=24)` is computed inside `seed_model()`. When seeding 5 models in sequence over several hours, each model's 24h window is independently anchored. Model 1 (anchored at T+0h), model 5 (anchored at T+3h) — rows overlap in the analytics window but don't share a common epoch. This is acceptable (each model's own trend is visible), but means the inter-model timestamp alignment is off by the wall-clock time of the seed run. Not a problem at demo scale. Noted in case the operator interprets category-trend charts as cross-model synchronized events.
+`ModelMetrics` now requires `live_event_count: number` and `live_flagged_count: number`. The `PRODUCTION_DATA` mock in `ModelPerformance.test.tsx` was not updated. esbuild (used by vitest) strips types and runs JS, so the runtime value is `undefined`. In `ModelCard.tsx`, `undefined > 0` evaluates to `false`, so the live flag rate stat shows `—` instead of crashing. The tests still fail (pre-existing: 4 of 5 were already failing before this PR for unrelated model-registry reasons), but the missing fields are a TypeScript compile error that will appear if `tsc --noEmit` is run.
+
+**Fix:** add `live_event_count: 500, live_flagged_count: 193` (or any plausible values) to both mock objects in `ModelPerformance.test.tsx`.
+
+No other correctness issues found. The SQL logic is sound:
+- `_LIVE_COUNTS_SQL` groups by `model_name` in shadow group; each event produces exactly one row per model so `COUNT(*)` equals `COUNT(DISTINCT event_id)`.
+- `total_last_hour = sum(by_category.values())` is correct because the CTE uses `DISTINCT ON (e.event_id)` — one row per event, one category per event.
+- `content[:140]` truncation by Python code point is acceptable for Bluesky UTF-8 text.
 
 ---
 
 ## Style
 
-**S1 — `test_admin.py:8`: ruff I001 import sort violation** · **Minor**
+**S1 — `_build_model_metrics` `group` parameter unused** · `metrics.py:183` · **Minor**
 
-`from sqlalchemy import delete as sa_delete, select` triggers I001 (un-sorted import block). This should have been caught by `ruff check` before handoff. Auto-fixable:
+The `group: str` parameter was unused before this PR and remains unused after. Not introduced by this change, but worth removing in a cleanup pass.
 
-```
-uv run ruff check --fix tests/test_admin.py
-```
-
-All other files (`seed_sim.py`, `test_cases.py`) pass ruff clean.
+No new style violations found. Pydantic fields use correct defaults (`int = 0`). TypeScript types use `type` not `interface`. React component is under 90 lines. Hook follows the `useX` naming convention. No `any`, no non-null assertions.
 
 ---
 
 ## Tests
 
-**T1 — `GET /cases` action-populated path not covered** · `test_cases.py` · **Minor gap**
+**T1 — `test_disagreements_endpoint_shape` does not seed disagreement rows** · `tests/test_api.py` · **Minor gap**
 
-`test_list_cases_returns_content` checks `case["action"] is None`. The `LEFT JOIN case_decisions` path where a decision already exists (and `action` should be `"approved"` or `"rejected"`) is not verified via a subsequent `GET /cases` call. The POST endpoint is tested, but the JOIN result back through GET is not.
+Planner requirement 11 specified "at least one test asserts correctly shaped data from seeded disagreement rows." The current test verifies shape with an empty DB (all zeros). This is correct and useful but does not exercise the SQL join logic or the sample-grouping Python code with real data.
 
-**T2 — `no_escalation` filter not covered** · `test_cases.py` · **Minor gap**
+A stronger test would create an `Escalation` row with `escalation_reason='model_disagreement'` and two matching `Classification` rows (different `model_name`, different `predicted_label`) in the shadow group, then assert:
+- `total_last_hour == 1`
+- `by_category` has one entry
+- `samples` has one item with two verdicts
 
-`_CASES_SQL` includes `WHERE e.escalation_reason != 'no_escalation'`. No test inserts a `no_escalation` escalation and verifies it's absent from `GET /cases`. The filter is correct by inspection, but the branch is unexercised.
+This requires adding `Escalation` to the conftest imports and a new fixture. Recommended as a follow-up.
+
+**T2 — No test for `live_event_count = 0` case (seeded-only model)** · **Minor gap**
+
+The new live-count test covers `live_event_count == 10` (all rows unseeded). A complementary test with seeded rows only (`seeded=True`) verifying `live_event_count == 0` would confirm the `seeded=false` filter works in both directions. Nice-to-have.
 
 ---
 
 ## Refactor Candidates
 
-**R1 — Delete-then-early-return ordering in `seed_model()`** · `seed_sim.py:65–129`
+**R1 — `_get_live_counts` and `_get_seeded_counts` could be merged**
 
-This is the structural root of C1. Long-term fix: separate the concerns — have a `clear_seeded(model_key, session_factory)` helper that the caller invokes only after confirming the model is runnable. The early-return guard could then live before any data mutation.
+Both run a simple `SELECT model_name, COUNT(...) FROM classifications GROUP BY model_name` pattern. They could be collapsed into one SQL query with multiple aggregations. Deferred — premature until there's evidence the extra DB round-trip matters.
 
-**R2 — `n_rows = max(len(rows) - 1, 1)` single-row edge case** · `seed_sim.py:154`
+**R2 — `DisagreementPanel` inline `VerdictBadge` and `SamplePost` sub-components**
 
-With `len(rows) == 1`, the single row gets `created_at = seed_base_time` (24h ago, never at `now`). Harmless in production (10 000 rows) but would confuse a unit test of the timestamp logic. Not worth fixing now.
+The component is clear but could be moved to a `DisagreementPanel/` folder with index.tsx if it grows. Not needed for current size.
 
 ---
 
@@ -87,21 +94,18 @@ With `len(rows) == 1`, the single row gets `created_at = seed_base_time` (24h ag
 
 **PASS WITH NOTES**
 
-C1 (finetuned delete-without-warning) should be resolved before taking the seeded-DB pg_dump snapshot for VPS restore — if a fine-tuned checkpoint isn't configured at snapshot time, the operator might not notice the rows were silently deleted. S1 (ruff import sort) is a one-command fix. T1 and T2 are acceptable post-deploy gaps.
+No blocking issues. The implementation is correct and all new tests pass.
+
+Recommended follow-ups (can batch before VPS deploy or do now):
+1. **C2** — add `live_event_count` and `live_flagged_count` to `ModelPerformance.test.tsx` mock data (2-line fix, clears the TypeScript gap)
+2. **T1** — add a seeded-data disagreements test with an `Escalation` fixture (optional but would fully satisfy planner requirement 11)
+3. **C1** — if "most recent samples" is the intended behaviour, fix the sample ordering SQL
 
 ---
 
 ## Handoff
 
-**Recommended next action:** apply two targeted fixes, then proceed to deploy:
+No next role required. The safety-signal additions are complete.
 
-1. **C1** — add a RETURNING-based log to the idempotency DELETE in `seed_sim.py` so the operator can see if rows were purged before a skip
-2. **S1** — run `uv run ruff check --fix tests/test_admin.py` (one-liner)
-
-These can be done as a micro implementer pass or inline before committing. The deploy sequence should then proceed:
-- Push moderation-dashboard to public GitHub repo
-- SSH to Hostinger VPS, deploy via Docker Compose
-- Run `seed-sim --confirm` on VPS to populate the DB
-- `pg_dump` the seeded state for a restore snapshot
-- Configure nginx reverse proxy
-- Confirm live URL end-to-end
+**Next action (P1): apply C2 fix (ModelPerformance mock data) — 2-line change**
+**Next action (P2): VPS deploy** per `_config/project-state.md`
