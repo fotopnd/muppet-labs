@@ -12,6 +12,9 @@ from moderation_dashboard.api.schemas import (
     AnalyticsResponse,
     AnomalyFlagRead,
     CategoryTrend,
+    DisagreementSample,
+    DisagreementsResponse,
+    DisagreementVerdict,
     EscalationRatePoint,
     EventComparison,
     ModelAccuracyPoint,
@@ -49,6 +52,52 @@ _SEEDED_COUNTS_SQL = text("""
     FROM classifications
     WHERE seeded = true
     GROUP BY model_name
+""")
+
+# Live counts from the shadow group (all events, all models), excluding seeded rows
+_LIVE_COUNTS_SQL = text("""
+    SELECT
+        model_name,
+        COUNT(*) FILTER (WHERE seeded = false)                         AS live_event_count,
+        COUNT(*) FILTER (WHERE seeded = false AND predicted_label = 1) AS live_flagged_count
+    FROM classifications
+    WHERE "group" = 'shadow'
+    GROUP BY model_name
+""")
+
+# Disagreements: per-category breakdown in the last hour, one row per unique disagreement event
+_DISAGREEMENTS_CATEGORY_SQL = text("""
+    WITH disagreement_events AS (
+        SELECT DISTINCT ON (e.event_id) e.event_id, c.category
+        FROM escalations e
+        JOIN classifications c ON c.event_id = e.event_id AND c."group" = 'shadow'
+        WHERE e.escalation_reason = 'model_disagreement'
+          AND e.created_at >= NOW() - INTERVAL '1 hour'
+        ORDER BY e.event_id, c.created_at DESC
+    )
+    SELECT category, COUNT(*) AS cnt
+    FROM disagreement_events
+    GROUP BY category
+""")
+
+# Disagreement samples: up to 50 recent events, with shadow verdicts
+_DISAGREEMENTS_SAMPLES_SQL = text("""
+    WITH recent AS (
+        SELECT event_id
+        FROM escalations
+        WHERE escalation_reason = 'model_disagreement'
+        ORDER BY created_at DESC
+        LIMIT 50
+    )
+    SELECT
+        r.event_id,
+        c.content,
+        c.model_name,
+        c.predicted_label,
+        c.confidence
+    FROM recent r
+    JOIN classifications c ON c.event_id = r.event_id AND c."group" = 'shadow'
+    ORDER BY r.event_id, c.model_name
 """)
 
 _STREAM_RATE_SQL = text("""
@@ -180,10 +229,19 @@ async def _get_seeded_counts(db: AsyncSession) -> dict[str, int]:
     return {row.model_name: int(row.cnt) for row in result.fetchall()}
 
 
+async def _get_live_counts(db: AsyncSession) -> dict[str, tuple[int, int]]:
+    result = await db.execute(_LIVE_COUNTS_SQL)
+    return {
+        row.model_name: (int(row.live_event_count), int(row.live_flagged_count))
+        for row in result.fetchall()
+    }
+
+
 def _build_model_metrics(
     rows: list[Any],
     seeded_counts: dict[str, int],
     group: str,
+    live_counts: dict[str, tuple[int, int]] | None = None,
 ) -> list[ModelMetrics]:
     settings = get_settings()
     db_data: dict[str, Any] = {row.model_name: row for row in rows}
@@ -199,6 +257,7 @@ def _build_model_metrics(
 
         has_seeded = seeded_counts.get(model_key, 0) > 0
         source = "live" if model_key in live_set else "seeded"
+        live_event_count, live_flagged_count = (live_counts or {}).get(model_key, (0, 0))
 
         if model_key in db_data:
             row = db_data[model_key]
@@ -223,6 +282,8 @@ def _build_model_metrics(
                     throughput_per_sec=float(row.throughput_per_sec),
                     source=source,
                     has_seeded_data=has_seeded,
+                    live_event_count=live_event_count,
+                    live_flagged_count=live_flagged_count,
                 )
             )
         else:
@@ -240,6 +301,8 @@ def _build_model_metrics(
                     throughput_per_sec=None,
                     source=source,
                     has_seeded_data=has_seeded,
+                    live_event_count=live_event_count,
+                    live_flagged_count=live_flagged_count,
                 )
             )
 
@@ -316,14 +379,16 @@ async def get_sparkline(
 async def get_production_metrics(db: AsyncSession = Depends(get_db)) -> list[ModelMetrics]:
     rows_result = await db.execute(_METRICS_SQL, {"group_filter": "production"})
     seeded_counts = await _get_seeded_counts(db)
-    return _build_model_metrics(rows_result.fetchall(), seeded_counts, "production")
+    live_counts = await _get_live_counts(db)
+    return _build_model_metrics(rows_result.fetchall(), seeded_counts, "production", live_counts)
 
 
 @router.get("/metrics/shadow", response_model=list[ModelMetrics])
 async def get_shadow_metrics(db: AsyncSession = Depends(get_db)) -> list[ModelMetrics]:
     rows_result = await db.execute(_METRICS_SQL, {"group_filter": "shadow"})
     seeded_counts = await _get_seeded_counts(db)
-    return _build_model_metrics(rows_result.fetchall(), seeded_counts, "shadow")
+    live_counts = await _get_live_counts(db)
+    return _build_model_metrics(rows_result.fetchall(), seeded_counts, "shadow", live_counts)
 
 
 @router.get("/metrics/all", response_model=list[ModelMetrics])
@@ -332,6 +397,7 @@ async def get_all_metrics(db: AsyncSession = Depends(get_db)) -> list[ModelMetri
     prod_result = await db.execute(_METRICS_SQL, {"group_filter": "production"})
     shadow_result = await db.execute(_METRICS_SQL, {"group_filter": "shadow"})
     seeded_counts = await _get_seeded_counts(db)
+    live_counts = await _get_live_counts(db)
 
     prod_rows = {r.model_name: r for r in prod_result.fetchall()}
     shadow_rows = {r.model_name: r for r in shadow_result.fetchall()}
@@ -344,7 +410,7 @@ async def get_all_metrics(db: AsyncSession = Depends(get_db)) -> list[ModelMetri
         if shadow_active or (not prod_active and name not in merged):
             merged[name] = row
 
-    return _build_model_metrics(list(merged.values()), seeded_counts, "production")
+    return _build_model_metrics(list(merged.values()), seeded_counts, "production", live_counts)
 
 
 @router.get("/metrics/comparison/{event_id}", response_model=EventComparison)
@@ -419,6 +485,40 @@ async def get_anomalies(db: AsyncSession = Depends(get_db)) -> list[AnomalyFlagR
         )
         for row in rows
     ]
+
+
+@router.get("/metrics/disagreements", response_model=DisagreementsResponse)
+async def get_disagreements(db: AsyncSession = Depends(get_db)) -> DisagreementsResponse:
+    cat_result = await db.execute(_DISAGREEMENTS_CATEGORY_SQL)
+    by_category = {row.category: int(row.cnt) for row in cat_result.fetchall()}
+    total_last_hour = sum(by_category.values())
+
+    sample_result = await db.execute(_DISAGREEMENTS_SAMPLES_SQL)
+    rows = sample_result.fetchall()
+
+    # Group rows by event_id, preserving insertion order; take first 10 unique events
+    events: dict[str, list[Any]] = {}
+    for row in rows:
+        events.setdefault(row.event_id, []).append(row)
+
+    samples: list[DisagreementSample] = []
+    for event_id, event_rows in list(events.items())[:10]:
+        content = event_rows[0].content[:140]
+        verdicts = [
+            DisagreementVerdict(
+                model_name=r.model_name,
+                predicted_label=int(r.predicted_label),
+                confidence=float(r.confidence),
+            )
+            for r in event_rows
+        ]
+        samples.append(DisagreementSample(event_id=event_id, content=content, verdicts=verdicts))
+
+    return DisagreementsResponse(
+        total_last_hour=total_last_hour,
+        by_category=by_category,
+        samples=samples,
+    )
 
 
 @router.get("/metrics/analytics", response_model=AnalyticsResponse)

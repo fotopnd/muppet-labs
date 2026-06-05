@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { apiFetch } from './client'
-import type { ModelMetrics } from '@/types'
+import type { DisagreementsResponse, ModelMetrics } from '@/types'
 
 const MAX_HISTORY = 30
 
@@ -29,6 +29,20 @@ export function useShadowMetrics() {
   return {
     metrics: query.data,
     history,
+    isLoading: query.isLoading,
+    isError: query.isError,
+  }
+}
+
+export function useDisagreements() {
+  const query = useQuery({
+    queryKey: ['metrics', 'disagreements'],
+    queryFn: () => apiFetch<DisagreementsResponse>('/metrics/disagreements'),
+    refetchInterval: 30_000,
+  })
+
+  return {
+    data: query.data,
     isLoading: query.isLoading,
     isError: query.isError,
   }

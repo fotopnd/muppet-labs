@@ -25,6 +25,8 @@ class ModelMetrics(BaseModel):
     throughput_per_sec: float | None
     source: str | None = None  # 'live' | 'seeded' | None
     has_seeded_data: bool = False
+    live_event_count: int = 0
+    live_flagged_count: int = 0
 
 
 class SingleModelVerdict(BaseModel):
@@ -127,6 +129,24 @@ class CaseDecisionRead(BaseModel):
     action: Literal["approved", "rejected"]
     notes: str | None
     created_at: datetime
+
+
+class DisagreementVerdict(BaseModel):
+    model_name: str
+    predicted_label: int
+    confidence: float
+
+
+class DisagreementSample(BaseModel):
+    event_id: str
+    content: str
+    verdicts: list[DisagreementVerdict]
+
+
+class DisagreementsResponse(BaseModel):
+    total_last_hour: int
+    by_category: dict[str, int]
+    samples: list[DisagreementSample]
 
 
 class IngestRequest(BaseModel):

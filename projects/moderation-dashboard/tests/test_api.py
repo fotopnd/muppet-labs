@@ -84,3 +84,33 @@ async def test_analytics_returns_empty_when_no_dbt(api_client: AsyncClient) -> N
     assert data["category_trends"] == []
     assert data["model_accuracy"] == []
     assert data["escalation_rates"] == []
+
+
+async def test_live_counts_populated_on_shadow_metrics(
+    api_client: AsyncClient,
+    seeded_classifications,
+) -> None:
+    # seeded_classifications inserts 10 shadow rows for distilbert with seeded=False (default)
+    # and predicted_label=1 for all rows → live_event_count=10, live_flagged_count=10
+    response = await api_client.get("/metrics/shadow")
+    assert response.status_code == 200
+    data = response.json()
+    distilbert = next((m for m in data if m["model_name"] == "distilbert"), None)
+    assert distilbert is not None
+    assert distilbert["live_event_count"] == 10
+    assert distilbert["live_flagged_count"] == 10
+
+
+async def test_disagreements_endpoint_shape(api_client: AsyncClient) -> None:
+    response = await api_client.get("/metrics/disagreements")
+    assert response.status_code == 200
+    data = response.json()
+    assert "total_last_hour" in data
+    assert "by_category" in data
+    assert "samples" in data
+    assert isinstance(data["total_last_hour"], int)
+    assert isinstance(data["by_category"], dict)
+    assert isinstance(data["samples"], list)
+    assert data["total_last_hour"] == 0
+    assert data["by_category"] == {}
+    assert data["samples"] == []

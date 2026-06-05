@@ -77,6 +77,16 @@ export function ModelCard({ metrics, sparklineData, baselineF1 }: ModelCardProps
                 }
               />
             </div>
+            <div className="col-span-2 border-t border-border pt-3">
+              <MetricCell
+                label="Live flag rate"
+                value={
+                  metrics.live_event_count > 0
+                    ? `${((metrics.live_flagged_count / metrics.live_event_count) * 100).toFixed(1)}%`
+                    : '—'
+                }
+              />
+            </div>
           </div>
           <MetricSparkline
             data={sparklineData}

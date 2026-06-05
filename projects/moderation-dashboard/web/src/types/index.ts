@@ -13,6 +13,8 @@ export type ModelMetrics = {
   throughput_per_sec: number | null
   source: 'live' | 'seeded' | null
   has_seeded_data: boolean
+  live_event_count: number
+  live_flagged_count: number
 }
 
 export type SingleModelVerdict = {
@@ -102,6 +104,24 @@ export type EscalationCase = {
   created_at: string
   action: 'approved' | 'rejected' | null
   notes: string | null
+}
+
+export type DisagreementVerdict = {
+  model_name: string
+  predicted_label: number
+  confidence: number
+}
+
+export type DisagreementSample = {
+  event_id: string
+  content: string
+  verdicts: DisagreementVerdict[]
+}
+
+export type DisagreementsResponse = {
+  total_last_hour: number
+  by_category: Record<string, number>
+  samples: DisagreementSample[]
 }
 
 export type CaseDecisionCreate = {

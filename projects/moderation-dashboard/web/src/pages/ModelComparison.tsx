@@ -1,6 +1,7 @@
 import { ErrorMessage } from '@/components/ErrorMessage'
 import { ModelCard } from '@/components/ModelCard'
 import { ModelCardSkeleton } from '@/components/ModelCardSkeleton'
+import { DisagreementPanel } from '@/components/DisagreementPanel'
 import { useShadowMetrics } from '@/api/shadow'
 
 export function ModelComparison() {
@@ -34,6 +35,7 @@ export function ModelComparison() {
           />
         ))}
       </div>
+      <DisagreementPanel />
     </div>
   )
 }
