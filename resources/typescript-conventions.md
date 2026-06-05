@@ -100,6 +100,7 @@
 - Use `@testing-library/react` for component tests. No snapshot tests.
 - Mock only at boundaries: API calls (via `msw`) and browser APIs that don't exist in jsdom.
 - Test behaviour, not implementation: assert what the user sees, not which function was called.
+- When adding required fields to a shared type (e.g. `ModelMetrics`), grep all test mock objects that use it and update them. vitest's esbuild transpiler silently swallows missing required field errors — the new field becomes `undefined` at runtime rather than raising a compile error, so the test won't crash but the field won't work.
 
 ---
 
