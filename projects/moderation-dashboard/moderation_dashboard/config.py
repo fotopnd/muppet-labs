@@ -17,13 +17,12 @@ class ModelSpec:
 
 MODEL_REGISTRY: dict[str, ModelSpec] = {
     "distilbert": ModelSpec("distilbert", "DistilBERT (zero-shot)", False, None),
-    "roberta": ModelSpec("roberta", "RoBERTa (zero-shot)", False, None),
     "detoxify": ModelSpec("detoxify", "Detoxify", False, None),
     "finetuned_distilbert": ModelSpec(
         "finetuned_distilbert", "DistilBERT (fine-tuned)", True, "DISTILBERT_CHECKPOINT_PATH"
     ),
-    "finetuned_roberta": ModelSpec(
-        "finetuned_roberta", "RoBERTa (fine-tuned)", True, "ROBERTA_CHECKPOINT_PATH"
+    "finetuned_detoxify": ModelSpec(
+        "finetuned_detoxify", "Detoxify (fine-tuned)", True, "DETOXIFY_CHECKPOINT_PATH"
     ),
 }
 
@@ -66,7 +65,13 @@ class Settings(BaseSettings):
 
     # Phase 2 checkpoints (None = pending_weights)
     distilbert_checkpoint_path: Path | None = None
-    roberta_checkpoint_path: Path | None = None
+    detoxify_checkpoint_path: Path | None = None
+
+    # Demo config
+    # Models with live consumers on this deployment. Used to label metrics as 'live' vs 'seeded'.
+    # On VPS deploy, set LIVE_MODELS='["distilbert","detoxify"]' in .env
+    live_models: list[str] = ["distilbert", "detoxify"]
+    sparkline_window_size: int = 50
 
 
 @lru_cache

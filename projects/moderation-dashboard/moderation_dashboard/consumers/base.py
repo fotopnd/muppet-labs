@@ -76,7 +76,11 @@ class BaseConsumer(ABC):
                     t0 = time.perf_counter()
                     predicted_label, confidence = self.classify(event.content)
                     latency_ms = (time.perf_counter() - t0) * 1000.0
-                    correct = predicted_label == event.ground_truth
+                    correct = (
+                        predicted_label == event.ground_truth
+                        if event.ground_truth is not None
+                        else None
+                    )
                     group = self._group
                     result = Classification(
                         id=str(uuid.uuid4()),

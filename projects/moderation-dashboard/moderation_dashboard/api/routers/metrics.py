@@ -3,7 +3,7 @@ from __future__ import annotations
 import logging
 from typing import Any
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -18,7 +18,10 @@ from moderation_dashboard.api.schemas import (
     ModelMetrics,
     ModelStatus,
     SingleModelVerdict,
+    SparklinePoint,
+    SparklineResponse,
     StreamMetrics,
+    StreamTimeSeriesPoint,
 )
 from moderation_dashboard.config import MODEL_REGISTRY, get_settings
 
@@ -38,6 +41,13 @@ _METRICS_SQL = text("""
         COUNT(*) FILTER (WHERE created_at >= NOW() - INTERVAL '60 seconds') / 60.0  AS throughput_per_sec
     FROM classifications
     WHERE "group" = :group_filter
+    GROUP BY model_name
+""")
+
+_SEEDED_COUNTS_SQL = text("""
+    SELECT model_name, COUNT(*) AS cnt
+    FROM classifications
+    WHERE seeded = true
     GROUP BY model_name
 """)
 
@@ -72,10 +82,112 @@ _COMPARISON_SQL = text("""
     WHERE event_id = :event_id AND "group" = 'shadow'
 """)
 
+# Sparkline: last N events for a model, bucketed into 5-minute windows over last hour
+_SPARKLINE_SQL = text("""
+    SELECT
+        date_trunc('minute', created_at)
+            - (EXTRACT(MINUTE FROM created_at)::int % 5) * INTERVAL '1 minute' AS window_start,
+        SUM(CASE WHEN predicted_label = 1 AND correct     THEN 1 ELSE 0 END)::int AS tp,
+        SUM(CASE WHEN predicted_label = 1 AND NOT correct THEN 1 ELSE 0 END)::int AS fp,
+        SUM(CASE WHEN predicted_label = 0 AND NOT correct THEN 1 ELSE 0 END)::int AS fn
+    FROM classifications
+    WHERE model_name = :model_name
+      AND "group" = 'production'
+      AND created_at >= NOW() - INTERVAL '1 hour'
+    GROUP BY 1
+    ORDER BY 1 ASC
+""")
 
-def _build_model_metrics(rows: list[Any], group: str) -> list[ModelMetrics]:
+# Stream time-series: event volume by category in 1-minute buckets, last 10 minutes
+_TIMESERIES_SQL = text("""
+    SELECT
+        date_trunc('minute', created_at) AS bucket,
+        category,
+        COUNT(DISTINCT event_id) AS cnt
+    FROM classifications
+    WHERE created_at >= NOW() - INTERVAL '10 minutes'
+    GROUP BY 1, 2
+    ORDER BY 1 ASC
+""")
+
+# Analytics: category trends (hourly, last 48h)
+_ANALYTICS_CATEGORY_SQL = text("""
+    SELECT
+        date_trunc('hour', created_at) AS event_hour,
+        category,
+        COUNT(DISTINCT event_id) AS event_count
+    FROM classifications
+    WHERE created_at >= NOW() - INTERVAL '48 hours'
+    GROUP BY 1, 2
+    ORDER BY 1 DESC
+    LIMIT 500
+""")
+
+# Analytics: per-model hourly F1 (shadow group, last 24h)
+_ANALYTICS_ACCURACY_SQL = text("""
+    SELECT
+        date_trunc('hour', created_at) AS classification_hour,
+        "group",
+        model_name,
+        SUM(CASE WHEN predicted_label = 1 AND correct     THEN 1 ELSE 0 END)::int AS tp,
+        SUM(CASE WHEN predicted_label = 1 AND NOT correct THEN 1 ELSE 0 END)::int AS fp,
+        SUM(CASE WHEN predicted_label = 0 AND NOT correct THEN 1 ELSE 0 END)::int AS fn,
+        COUNT(*) AS n
+    FROM classifications
+    WHERE created_at >= NOW() - INTERVAL '24 hours'
+      AND "group" = 'shadow'
+    GROUP BY 1, 2, 3
+    ORDER BY 1 DESC
+    LIMIT 500
+""")
+
+# Analytics: escalation rates in 5-minute windows (last 24h)
+_ANALYTICS_ESCALATION_SQL = text("""
+    WITH esc_by_window AS (
+        SELECT
+            date_trunc('minute', created_at)
+                - (EXTRACT(MINUTE FROM created_at)::int % 5) * INTERVAL '1 minute' AS window_5min,
+            COUNT(*) AS escalation_count
+        FROM escalations
+        WHERE escalation_reason != 'no_escalation'
+          AND created_at >= NOW() - INTERVAL '24 hours'
+        GROUP BY 1
+    ),
+    events_by_window AS (
+        SELECT
+            date_trunc('minute', created_at)
+                - (EXTRACT(MINUTE FROM created_at)::int % 5) * INTERVAL '1 minute' AS window_5min,
+            COUNT(DISTINCT event_id) AS total_events
+        FROM classifications
+        WHERE created_at >= NOW() - INTERVAL '24 hours'
+          AND "group" = 'production'
+        GROUP BY 1
+    )
+    SELECT
+        ev.window_5min,
+        COALESCE(esc.escalation_count, 0)                                              AS escalation_count,
+        COALESCE(ev.total_events, 1)                                                   AS total_events,
+        COALESCE(esc.escalation_count, 0)::float / GREATEST(COALESCE(ev.total_events, 1), 1) AS escalation_rate
+    FROM events_by_window ev
+    LEFT JOIN esc_by_window esc ON ev.window_5min = esc.window_5min
+    ORDER BY ev.window_5min DESC
+    LIMIT 200
+""")
+
+
+async def _get_seeded_counts(db: AsyncSession) -> dict[str, int]:
+    result = await db.execute(_SEEDED_COUNTS_SQL)
+    return {row.model_name: int(row.cnt) for row in result.fetchall()}
+
+
+def _build_model_metrics(
+    rows: list[Any],
+    seeded_counts: dict[str, int],
+    group: str,
+) -> list[ModelMetrics]:
     settings = get_settings()
     db_data: dict[str, Any] = {row.model_name: row for row in rows}
+    live_set = set(settings.live_models)
     result: list[ModelMetrics] = []
 
     for model_key, spec in MODEL_REGISTRY.items():
@@ -85,7 +197,10 @@ def _build_model_metrics(rows: list[Any], group: str) -> list[ModelMetrics]:
         else:
             status = ModelStatus.active
 
-        if model_key in db_data and status == ModelStatus.active:
+        has_seeded = seeded_counts.get(model_key, 0) > 0
+        source = "live" if model_key in live_set else "seeded"
+
+        if model_key in db_data:
             row = db_data[model_key]
             tp, fp, fn = int(row.tp), int(row.fp), int(row.fn)
             denom_f1 = 2 * tp + fp + fn
@@ -106,6 +221,8 @@ def _build_model_metrics(rows: list[Any], group: str) -> list[ModelMetrics]:
                     latency_p50=float(row.latency_p50),
                     latency_p95=float(row.latency_p95),
                     throughput_per_sec=float(row.throughput_per_sec),
+                    source=source,
+                    has_seeded_data=has_seeded,
                 )
             )
         else:
@@ -121,6 +238,8 @@ def _build_model_metrics(rows: list[Any], group: str) -> list[ModelMetrics]:
                     latency_p50=None,
                     latency_p95=None,
                     throughput_per_sec=None,
+                    source=source,
+                    has_seeded_data=has_seeded,
                 )
             )
 
@@ -150,18 +269,82 @@ async def get_stream_metrics(db: AsyncSession = Depends(get_db)) -> StreamMetric
     )
 
 
+@router.get("/metrics/stream/timeseries", response_model=list[StreamTimeSeriesPoint])
+async def get_stream_timeseries(
+    db: AsyncSession = Depends(get_db),
+) -> list[StreamTimeSeriesPoint]:
+    result = await db.execute(_TIMESERIES_SQL)
+    rows = result.fetchall()
+
+    # Pivot: bucket → {category: count}
+    buckets: dict[Any, dict[str, int]] = {}
+    for row in rows:
+        bucket_key = row.bucket
+        if bucket_key not in buckets:
+            buckets[bucket_key] = {}
+        buckets[bucket_key][row.category] = int(row.cnt)
+
+    return [
+        StreamTimeSeriesPoint(bucket=bucket, counts=counts)
+        for bucket, counts in sorted(buckets.items())
+    ]
+
+
+@router.get("/metrics/sparkline", response_model=SparklineResponse)
+async def get_sparkline(
+    model_name: str = Query(..., description="Model key from MODEL_REGISTRY"),
+    metric: str = Query("f1", description="Metric to plot (currently only f1 supported)"),
+    db: AsyncSession = Depends(get_db),
+) -> SparklineResponse:
+    if model_name not in MODEL_REGISTRY:
+        raise HTTPException(status_code=404, detail=f"Unknown model: {model_name!r}")
+
+    result = await db.execute(_SPARKLINE_SQL, {"model_name": model_name})
+    rows = result.fetchall()
+
+    points: list[SparklinePoint] = []
+    for row in rows:
+        tp, fp, fn = int(row.tp), int(row.fp), int(row.fn)
+        denom = 2 * tp + fp + fn
+        f1 = (2 * tp / denom) if denom > 0 else 0.0
+        points.append(SparklinePoint(bucket=row.window_start, value=f1))
+
+    return SparklineResponse(model_name=model_name, metric=metric, points=points)
+
+
 @router.get("/metrics/production", response_model=list[ModelMetrics])
 async def get_production_metrics(db: AsyncSession = Depends(get_db)) -> list[ModelMetrics]:
-    result = await db.execute(_METRICS_SQL, {"group_filter": "production"})
-    rows = result.fetchall()
-    return _build_model_metrics(rows, "production")
+    rows_result = await db.execute(_METRICS_SQL, {"group_filter": "production"})
+    seeded_counts = await _get_seeded_counts(db)
+    return _build_model_metrics(rows_result.fetchall(), seeded_counts, "production")
 
 
 @router.get("/metrics/shadow", response_model=list[ModelMetrics])
 async def get_shadow_metrics(db: AsyncSession = Depends(get_db)) -> list[ModelMetrics]:
-    result = await db.execute(_METRICS_SQL, {"group_filter": "shadow"})
-    rows = result.fetchall()
-    return _build_model_metrics(rows, "shadow")
+    rows_result = await db.execute(_METRICS_SQL, {"group_filter": "shadow"})
+    seeded_counts = await _get_seeded_counts(db)
+    return _build_model_metrics(rows_result.fetchall(), seeded_counts, "shadow")
+
+
+@router.get("/metrics/all", response_model=list[ModelMetrics])
+async def get_all_metrics(db: AsyncSession = Depends(get_db)) -> list[ModelMetrics]:
+    """Merged view: each model's best available data (production group first, shadow as fallback)."""
+    prod_result = await db.execute(_METRICS_SQL, {"group_filter": "production"})
+    shadow_result = await db.execute(_METRICS_SQL, {"group_filter": "shadow"})
+    seeded_counts = await _get_seeded_counts(db)
+
+    prod_rows = {r.model_name: r for r in prod_result.fetchall()}
+    shadow_rows = {r.model_name: r for r in shadow_result.fetchall()}
+    # Merge: prefer shadow when it has active throughput (live model); else use production
+    merged = {**prod_rows}
+    for name, row in shadow_rows.items():
+        prod = merged.get(name)
+        shadow_active = float(row.throughput_per_sec or 0) > 0
+        prod_active = float(prod.throughput_per_sec if prod else 0 or 0) > 0
+        if shadow_active or (not prod_active and name not in merged):
+            merged[name] = row
+
+    return _build_model_metrics(list(merged.values()), seeded_counts, "production")
 
 
 @router.get("/metrics/comparison/{event_id}", response_model=EventComparison)
@@ -179,7 +362,6 @@ async def get_comparison(event_id: str, db: AsyncSession = Depends(get_db)) -> E
     if meta is None:
         raise HTTPException(status_code=404, detail=f"Event {event_id!r} not found")
 
-    # Derive ground_truth: if predicted_label=1 and correct=True → GT=1; if pred=1 correct=False → GT=0
     gt_result = await db.execute(
         text("""
             SELECT predicted_label, correct
@@ -241,65 +423,45 @@ async def get_anomalies(db: AsyncSession = Depends(get_db)) -> list[AnomalyFlagR
 
 @router.get("/metrics/analytics", response_model=AnalyticsResponse)
 async def get_analytics(db: AsyncSession = Depends(get_db)) -> AnalyticsResponse:
-    category_trends: list[CategoryTrend] = []
+    # Category trends: computed directly from classifications table
+    cat_result = await db.execute(_ANALYTICS_CATEGORY_SQL)
+    category_trends = [
+        CategoryTrend(
+            hour=row.event_hour,
+            category=row.category,
+            event_count=int(row.event_count),
+        )
+        for row in cat_result.fetchall()
+    ]
+
+    # Model accuracy: compute F1 per hour per model from raw TP/FP/FN
+    acc_result = await db.execute(_ANALYTICS_ACCURACY_SQL)
     model_accuracy: list[ModelAccuracyPoint] = []
-    escalation_rates: list[EscalationRatePoint] = []
-
-    try:
-        cat_result = await db.execute(
-            text("""
-            SELECT event_hour, category, event_count
-            FROM dbt_moderation.fct_category_trends
-            ORDER BY event_hour DESC
-            LIMIT 500
-        """)
-        )
-        category_trends = [
-            CategoryTrend(
-                hour=row.event_hour, category=row.category, event_count=int(row.event_count)
-            )
-            for row in cat_result.fetchall()
-        ]
-
-        acc_result = await db.execute(
-            text("""
-            SELECT classification_hour, "group", model_name, f1, n
-            FROM dbt_moderation.fct_model_accuracy
-            ORDER BY classification_hour DESC
-            LIMIT 500
-        """)
-        )
-        model_accuracy = [
+    for row in acc_result.fetchall():
+        tp, fp, fn = int(row.tp), int(row.fp), int(row.fn)
+        denom = 2 * tp + fp + fn
+        f1 = (2 * tp / denom) if denom > 0 else 0.0
+        model_accuracy.append(
             ModelAccuracyPoint(
                 hour=row.classification_hour,
                 group=row.group,
                 model_name=row.model_name,
-                f1=float(row.f1),
+                f1=f1,
                 n=int(row.n),
             )
-            for row in acc_result.fetchall()
-        ]
-
-        esc_result = await db.execute(
-            text("""
-            SELECT window_5min, escalation_count, total_events, escalation_rate
-            FROM dbt_moderation.fct_escalation_rates
-            ORDER BY window_5min DESC
-            LIMIT 200
-        """)
         )
-        escalation_rates = [
-            EscalationRatePoint(
-                window_start=row.window_5min,
-                escalation_count=int(row.escalation_count),
-                total_events=int(row.total_events),
-                escalation_rate=float(row.escalation_rate),
-            )
-            for row in esc_result.fetchall()
-        ]
-    except Exception:
-        # dbt tables don't exist yet (dbt-refresh not yet run) — return empty lists
-        logger.info("dbt mart tables not available; returning empty analytics", exc_info=True)
+
+    # Escalation rates: 5-minute windows from escalations table
+    esc_result = await db.execute(_ANALYTICS_ESCALATION_SQL)
+    escalation_rates = [
+        EscalationRatePoint(
+            window_start=row.window_5min,
+            escalation_count=int(row.escalation_count),
+            total_events=int(row.total_events),
+            escalation_rate=float(row.escalation_rate),
+        )
+        for row in esc_result.fetchall()
+    ]
 
     return AnalyticsResponse(
         category_trends=category_trends,

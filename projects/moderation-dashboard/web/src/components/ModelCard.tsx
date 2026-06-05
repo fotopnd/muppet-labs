@@ -23,10 +23,13 @@ function MetricCell({ label, value }: MetricCellProps) {
 type ModelCardProps = {
   metrics: ModelMetrics
   sparklineData: number[]
+  // Zero-shot F1 baseline for fine-tuned model cards (shown as dashed reference line)
+  baselineF1?: number | null
 }
 
-export function ModelCard({ metrics, sparklineData }: ModelCardProps) {
-  const isPending = metrics.status === 'pending_weights'
+export function ModelCard({ metrics, sparklineData, baselineF1 }: ModelCardProps) {
+  const isPending = metrics.status === 'pending_weights' && !metrics.has_seeded_data
+  const sourceBadge = metrics.source === 'live' ? 'live' : 'seeded'
 
   return (
     <article
@@ -35,11 +38,16 @@ export function ModelCard({ metrics, sparklineData }: ModelCardProps) {
         isPending ? 'opacity-60' : '',
       ].join(' ')}
     >
-      <header className="flex items-center justify-between">
-        <span className="font-interface text-sm font-semibold text-text-intense">
+      <header className="flex items-center justify-between gap-2">
+        <span className="font-interface text-sm font-semibold text-text-intense truncate">
           {metrics.display_name}
         </span>
-        <StatusBadge status={metrics.status} />
+        <div className="flex items-center gap-1.5 flex-shrink-0">
+          <StatusBadge status={sourceBadge} />
+          {metrics.status === 'pending_weights' && !metrics.has_seeded_data && (
+            <StatusBadge status="pending_weights" />
+          )}
+        </div>
       </header>
 
       {isPending ? (
@@ -51,16 +59,31 @@ export function ModelCard({ metrics, sparklineData }: ModelCardProps) {
           <div className="grid grid-cols-2 gap-x-6 gap-y-3">
             <MetricCell label="F1" value={fmt(metrics.f1)} />
             <MetricCell label="Precision" value={fmt(metrics.precision)} />
-            <MetricCell label="Latency p50" value={metrics.latency_p50 !== null ? `${metrics.latency_p50.toFixed(1)}ms` : '—'} />
-            <MetricCell label="Latency p95" value={metrics.latency_p95 !== null ? `${metrics.latency_p95.toFixed(1)}ms` : '—'} />
+            <MetricCell
+              label="Latency p50"
+              value={metrics.latency_p50 !== null ? `${metrics.latency_p50.toFixed(1)}ms` : '—'}
+            />
+            <MetricCell
+              label="Latency p95"
+              value={metrics.latency_p95 !== null ? `${metrics.latency_p95.toFixed(1)}ms` : '—'}
+            />
             <div className="col-span-2">
               <MetricCell
                 label="Throughput"
-                value={metrics.throughput_per_sec !== null ? `${metrics.throughput_per_sec.toFixed(1)}/s` : '—'}
+                value={
+                  metrics.throughput_per_sec !== null
+                    ? `${metrics.throughput_per_sec.toFixed(1)}/s`
+                    : '—'
+                }
               />
             </div>
           </div>
-          <MetricSparkline data={sparklineData} />
+          <MetricSparkline
+            data={sparklineData}
+            label="F1 trend"
+            currentValue={metrics.f1}
+            baselineValue={baselineF1}
+          />
         </>
       )}
     </article>

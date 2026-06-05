@@ -14,8 +14,14 @@ services:
       KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT
       KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
       KAFKA_AUTO_CREATE_TOPICS_ENABLE: "true"
-      KAFKA_LOG_DIRS: /tmp/kraft-combined-logs
+      # Default partition count for auto-created topics — ensures round-robin across consumers
+      KAFKA_NUM_PARTITIONS: 5
+      # Named volume so Kafka data survives container restarts
+      KAFKA_LOG_DIRS: /var/lib/kafka/data
       CLUSTER_ID: MkU3OEVBNTcwNTJENDM2Qk
+
+    volumes:
+      - kafka_logs:/var/lib/kafka/data
 
   postgres:
     image: postgres:16
@@ -29,4 +35,5 @@ services:
       - moderation_dashboard_postgres:/var/lib/postgresql/data
 
 volumes:
+  kafka_logs:
   moderation_dashboard_postgres:

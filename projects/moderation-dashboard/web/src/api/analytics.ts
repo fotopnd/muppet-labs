@@ -1,8 +1,6 @@
-import { useQuery } from '@tanstack/react-query'
-import { apiFetch, externalFetch } from './client'
-import type { AnalyticsResponse, CasePage } from '@/types'
-
-const CASE_QUEUE_URL = import.meta.env.VITE_CASE_QUEUE_URL ?? 'http://localhost:8000'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { apiFetch, apiPost } from './client'
+import type { AnalyticsResponse } from '@/types'
 
 export function useAnalytics() {
   return useQuery({
@@ -12,13 +10,12 @@ export function useAnalytics() {
   })
 }
 
-export function useDashboardCases() {
-  return useQuery({
-    queryKey: ['case-queue', 'dashboard-cases'],
-    queryFn: () =>
-      externalFetch<CasePage>(
-        `${CASE_QUEUE_URL}/cases?source=moderation-dashboard&status=pending&page_size=50`,
-      ),
-    refetchInterval: 15000,
+export function useRestart() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: () => apiPost<void>('/admin/restart'),
+    onSuccess: () => {
+      queryClient.invalidateQueries()
+    },
   })
 }

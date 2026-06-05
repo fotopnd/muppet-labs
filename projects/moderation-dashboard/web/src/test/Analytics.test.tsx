@@ -47,10 +47,10 @@ describe('Analytics', () => {
     expect(msg).toBeInTheDocument()
   })
 
-  it('renders dbt-refresh hint', async () => {
+  it('renders no-data hint about event processing', async () => {
     renderWithQuery(<Analytics />)
     await screen.findByText('No analytics data yet')
-    const hint = screen.getByText(/make dbt-refresh/)
+    const hint = screen.getByText(/Data will populate/)
     expect(hint).toBeInTheDocument()
   })
 

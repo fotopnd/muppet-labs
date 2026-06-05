@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from datetime import datetime
 from enum import StrEnum
+from typing import Literal
 
 from pydantic import BaseModel
 
@@ -22,6 +23,8 @@ class ModelMetrics(BaseModel):
     latency_p50: float | None
     latency_p95: float | None
     throughput_per_sec: float | None
+    source: str | None = None  # 'live' | 'seeded' | None
+    has_seeded_data: bool = False
 
 
 class SingleModelVerdict(BaseModel):
@@ -58,6 +61,22 @@ class StreamMetrics(BaseModel):
     total_events: int
 
 
+class StreamTimeSeriesPoint(BaseModel):
+    bucket: datetime
+    counts: dict[str, int]
+
+
+class SparklinePoint(BaseModel):
+    bucket: datetime
+    value: float
+
+
+class SparklineResponse(BaseModel):
+    model_name: str
+    metric: str
+    points: list[SparklinePoint]
+
+
 class CategoryTrend(BaseModel):
     hour: datetime
     category: str
@@ -83,3 +102,36 @@ class AnalyticsResponse(BaseModel):
     category_trends: list[CategoryTrend]
     model_accuracy: list[ModelAccuracyPoint]
     escalation_rates: list[EscalationRatePoint]
+
+
+class EscalationCaseRead(BaseModel):
+    id: str
+    event_id: str
+    content: str
+    category: str
+    escalation_reason: str
+    confidence_max: float | None
+    created_at: datetime
+    action: Literal["approved", "rejected"] | None
+    notes: str | None
+
+
+class CaseDecisionCreate(BaseModel):
+    action: Literal["approved", "rejected"]
+    notes: str | None = None
+
+
+class CaseDecisionRead(BaseModel):
+    id: str
+    escalation_id: str
+    action: Literal["approved", "rejected"]
+    notes: str | None
+    created_at: datetime
+
+
+class IngestRequest(BaseModel):
+    text: str
+
+
+class IngestResponse(BaseModel):
+    event_id: str

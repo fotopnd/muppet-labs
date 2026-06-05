@@ -47,7 +47,7 @@ export function Analytics() {
       <div className="bg-surface rounded-lg border border-border p-8 text-center">
         <p className="font-interface text-sm font-medium text-text-default">No analytics data yet</p>
         <p className="font-interface text-xs text-text-muted mt-1">
-          Run <code className="font-data">make dbt-refresh</code> to materialise mart tables.
+          Data will populate as events are processed by the stream.
         </p>
       </div>
     )

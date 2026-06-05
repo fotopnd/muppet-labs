@@ -39,8 +39,10 @@ def train_cmd(
         from toxicity_classifier.train_distilbert import train
     elif model == "roberta":
         from toxicity_classifier.train_roberta import train
+    elif model == "detoxify":
+        from toxicity_classifier.train_detoxify import train
     else:
-        typer.echo(f"Unknown model: {model!r}. Choose 'distilbert' or 'roberta'.", err=True)
+        typer.echo(f"Unknown model: {model!r}. Choose 'distilbert', 'roberta', or 'detoxify'.", err=True)
         raise typer.Exit(code=1)
 
     checkpoint = train(
@@ -63,18 +65,25 @@ def evaluate_cmd(
 ) -> None:
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
 
-    if model not in ("distilbert", "roberta"):
-        typer.echo(f"Unknown model: {model!r}. Choose 'distilbert' or 'roberta'.", err=True)
+    if model not in ("distilbert", "roberta", "detoxify"):
+        typer.echo(f"Unknown model: {model!r}. Choose 'distilbert', 'roberta', or 'detoxify'.", err=True)
         raise typer.Exit(code=1)
 
-    from toxicity_classifier.evaluate import evaluate
-
-    evaluate(
-        checkpoint_dir=checkpoint_dir,
-        model_key=model,  # type: ignore[arg-type]
-        data_dir=_jigsaw_dir(),
-        output_dir=output_dir,
-    )
+    if model == "detoxify":
+        from toxicity_classifier.evaluate_detoxify import evaluate_detoxify
+        evaluate_detoxify(
+            checkpoint_dir=checkpoint_dir,
+            data_dir=_jigsaw_dir(),
+            output_dir=output_dir,
+        )
+    else:
+        from toxicity_classifier.evaluate import evaluate
+        evaluate(
+            checkpoint_dir=checkpoint_dir,
+            model_key=model,  # type: ignore[arg-type]
+            data_dir=_jigsaw_dir(),
+            output_dir=output_dir,
+        )
 
 
 def _jigsaw_dir() -> Path:

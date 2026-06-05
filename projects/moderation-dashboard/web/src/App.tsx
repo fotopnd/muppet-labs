@@ -5,6 +5,7 @@ import { HumanReview } from '@/pages/HumanReview'
 import { ModelComparison } from '@/pages/ModelComparison'
 import { ModelPerformance } from '@/pages/ModelPerformance'
 import { StreamMonitor } from '@/pages/StreamMonitor'
+import { useRestart } from '@/api/analytics'
 
 type TabId = 'stream-monitor' | 'model-performance' | 'model-comparison' | 'human-review' | 'analytics'
 
@@ -20,13 +21,21 @@ function renderPanel(tab: TabId) {
 
 export default function App() {
   const [activeTab, setActiveTab] = useState<TabId>('stream-monitor')
+  const { mutate: restart, isPending: restarting } = useRestart()
 
   return (
     <div className="min-h-screen bg-background font-interface">
-      <header className="h-14 bg-surface border-b border-border flex items-center px-6">
+      <header className="h-14 bg-surface border-b border-border flex items-center justify-between px-6">
         <span className="text-base font-semibold text-text-intense font-interface">
           Moderation Dashboard
         </span>
+        <button
+          onClick={() => restart()}
+          disabled={restarting}
+          className="font-interface text-xs px-3 py-1.5 rounded border border-border text-text-muted hover:text-danger hover:border-danger disabled:opacity-40 transition-colors"
+        >
+          {restarting ? 'Restarting…' : 'Restart Stream'}
+        </button>
       </header>
 
       <PanelTabBar activeTab={activeTab} onTabChange={tab => setActiveTab(tab as TabId)} />

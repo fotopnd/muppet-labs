@@ -9,8 +9,8 @@ export function useProductionMetrics() {
   const [history, setHistory] = useState<Record<string, number[]>>({})
 
   const query = useQuery({
-    queryKey: ['metrics', 'production'],
-    queryFn: () => apiFetch<ModelMetrics[]>('/metrics/production'),
+    queryKey: ['metrics', 'all'],
+    queryFn: () => apiFetch<ModelMetrics[]>('/metrics/all'),
     refetchInterval: 3000,
   })
 

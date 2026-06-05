@@ -27,6 +27,8 @@ md-consumer   = "moderation_dashboard.consumers.runner:main"
 md-anomaly    = "moderation_dashboard.anomaly.detector:main"
 md-escalation = "moderation_dashboard.escalation.service:main"
 md-api        = "moderation_dashboard.api.main:run"
+seed-sim      = "moderation_dashboard.seed_sim:main"
+demo-stream   = "scripts.demo_stream:main"
 
 [build-system]
 requires = ["hatchling"]

@@ -55,11 +55,11 @@ def main() -> None:
         from moderation_dashboard.consumers.detoxify_consumer import DetoxifyConsumer
 
         consumer = DetoxifyConsumer(**common)
-    elif args.model in ("finetuned_distilbert", "finetuned_roberta"):
+    elif args.model in ("finetuned_distilbert", "finetuned_detoxify"):
         checkpoint_attr = (
             "distilbert_checkpoint_path"
             if args.model == "finetuned_distilbert"
-            else "roberta_checkpoint_path"
+            else "detoxify_checkpoint_path"
         )
         checkpoint_path = getattr(settings, checkpoint_attr)
         if checkpoint_path is None:
@@ -74,9 +74,9 @@ def main() -> None:
 
             consumer = FinetunedDistilBertConsumer(checkpoint_path=checkpoint_path, **common)
         else:
-            from moderation_dashboard.consumers.finetuned import FinetunedRobertaConsumer
+            from moderation_dashboard.consumers.finetuned import FinetunedDetoxifyConsumer
 
-            consumer = FinetunedRobertaConsumer(checkpoint_path=checkpoint_path, **common)
+            consumer = FinetunedDetoxifyConsumer(checkpoint_path=checkpoint_path, **common)
     else:
         logger.error("Unknown model: %s", args.model)
         sys.exit(1)

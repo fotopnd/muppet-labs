@@ -11,6 +11,8 @@ export type ModelMetrics = {
   latency_p50: number | null
   latency_p95: number | null
   throughput_per_sec: number | null
+  source: 'live' | 'seeded' | null
+  has_seeded_data: boolean
 }
 
 export type SingleModelVerdict = {
@@ -47,6 +49,22 @@ export type StreamMetrics = {
   total_events: number
 }
 
+export type StreamTimeSeriesPoint = {
+  bucket: string
+  counts: Record<string, number>
+}
+
+export type SparklinePoint = {
+  bucket: string
+  value: number
+}
+
+export type SparklineResponse = {
+  model_name: string
+  metric: string
+  points: SparklinePoint[]
+}
+
 export type CategoryTrend = {
   hour: string
   category: string
@@ -74,20 +92,27 @@ export type AnalyticsResponse = {
   escalation_rates: EscalationRatePoint[]
 }
 
-// From case-queue API
-export type CaseListItem = {
+export type EscalationCase = {
   id: string
+  event_id: string
   content: string
   category: string
-  severity: string
-  status: string
-  source: string
+  escalation_reason: string
+  confidence_max: number | null
   created_at: string
+  action: 'approved' | 'rejected' | null
+  notes: string | null
 }
 
-export type CasePage = {
-  items: CaseListItem[]
-  total: number
-  page: number
-  page_size: number
+export type CaseDecisionCreate = {
+  action: 'approved' | 'rejected'
+  notes?: string
+}
+
+export type CaseDecisionRead = {
+  id: string
+  escalation_id: string
+  action: 'approved' | 'rejected'
+  notes: string | null
+  created_at: string
 }

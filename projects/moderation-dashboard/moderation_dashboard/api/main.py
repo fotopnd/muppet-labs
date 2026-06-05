@@ -11,6 +11,9 @@ from moderation_dashboard.api.database import (
     get_session_factory,
     init_db,
 )
+from moderation_dashboard.api.routers.admin import router as admin_router
+from moderation_dashboard.api.routers.cases import router as cases_router
+from moderation_dashboard.api.routers.ingest import router as ingest_router
 from moderation_dashboard.api.routers.metrics import router as metrics_router
 from moderation_dashboard.config import get_settings
 
@@ -31,11 +34,14 @@ settings = get_settings()
 app.add_middleware(
     CORSMiddleware,
     allow_origins=settings.cors_origins,
-    allow_methods=["GET"],
+    allow_methods=["GET", "POST"],
     allow_headers=["*"],
 )
 
 app.include_router(metrics_router)
+app.include_router(admin_router)
+app.include_router(cases_router)
+app.include_router(ingest_router)
 
 
 def run() -> None:

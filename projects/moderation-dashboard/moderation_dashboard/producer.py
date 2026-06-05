@@ -124,6 +124,11 @@ def main() -> None:
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
     parser = argparse.ArgumentParser(description="Jigsaw Kafka producer for moderation-dashboard")
     parser.add_argument("--limit", type=int, default=1000, help="Max messages (0 = all rows)")
+    parser.add_argument(
+        "--loop",
+        action="store_true",
+        help="Loop continuously after exhausting events (restarts from event 0 each pass)",
+    )
     args = parser.parse_args()
 
     settings = get_settings()
@@ -145,13 +150,24 @@ def main() -> None:
     logger.info("Loading events from %s (limit=%s)...", settings.jigsaw_csv_path, limit or "all")
     events = load_jigsaw_csv(settings.jigsaw_csv_path, limit)
     logger.info(
-        "Loaded %d events. Publishing at %.1f msg/sec...",
+        "Loaded %d events. Publishing at %.1f msg/sec... (loop=%s)",
         len(events),
         settings.producer_rate_per_sec,
+        args.loop,
     )
-    publish_events(
-        events,
-        settings.kafka_bootstrap_servers,
-        settings.kafka_topic,
-        settings.producer_rate_per_sec,
-    )
+
+    pass_num = 0
+    while True:
+        pass_num += 1
+        if args.loop:
+            logger.info("Starting loop pass %d", pass_num)
+        publish_events(
+            events,
+            settings.kafka_bootstrap_servers,
+            settings.kafka_topic,
+            settings.producer_rate_per_sec,
+        )
+        if not args.loop:
+            break
+        logger.info("Pass %d complete — restarting from event 0 in 1s", pass_num)
+        time.sleep(1)

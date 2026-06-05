@@ -1,171 +1,85 @@
-# Reviewer Output — moderation-dashboard
+# Reviewer Output — moderation-dashboard-demo (implementer-fixes-2)
 
 **Role:** reviewer
-**Sequence:** `new-project-full` (step 7)
-**Date:** 2026-06-03
+**Sequence:** implementer-fixes-2 → reviewer
+**Date:** 2026-06-04
 
 ---
 
 ## Summary
 
-The implementation is solid: architecture spec is followed faithfully, Python passes ruff and TypeScript passes strict-mode tsc with zero errors, and all major system components are present and logically correct. The implementer's four self-flagged concerns are resolved — the ground-truth reconstruction in the comparison endpoint is correct, and the escalation dedup strategy works — but two produce test coverage gaps and structural debt that should be addressed before deployment. No blocking correctness issues found. Recommended next action: address the weak stream metrics assertion (warning) and the hardcoded group-ID string (warning), then proceed to a live integration test.
+All four targeted findings (C1, C2, T1, T2) from the previous reviewer pass are correctly resolved: the idempotency guard, timestamp backdating, and both test files are present and all 41 tests pass. One warning needs attention before the seeded-DB snapshot is taken for VPS deploy: the idempotency DELETE fires before the checkpoint-presence check, so running seed-sim with an unconfigured fine-tuned model silently purges previously seeded rows for that model and writes nothing back. One ruff import-sort violation should be fixed (auto-fixable). Remaining gaps are minor and can be deferred post-deploy.
 
 ---
 
 ## Correctness
 
-### W1 — Hardcoded `"moderation-production"` string determines `group` column value
-**File:** `moderation_dashboard/consumers/base.py:78`
-**Severity:** warning
+**C1 — Finetuned early-return: idempotency DELETE fires before checkpoint check** · `seed_sim.py:65–129` · **Warning**
+
+The DELETE at line 65–70 runs unconditionally at the top of `seed_model()`. For finetuned models, the checkpoint presence check is at line 123 (`if checkpoint_path is None: return 0`). Execution path for an unconfigured finetuned model:
+
+1. DELETE all seeded rows for `model_name = 'finetuned_distilbert'` → rows gone
+2. Log `"skipping finetuned_distilbert (no seeded data for this model)"` → returns 0
+
+If the operator runs `seed-sim --confirm` (or `--models finetuned_distilbert`) without `DISTILBERT_CHECKPOINT_PATH` set after a previous successful seed, the existing finetuned seeded rows are silently destroyed. The only log output says "skipping" — it does not say "deleted N rows." This is the most likely operator mistake before a VPS deploy.
+
+**Fix:** either (a) move the DELETE inside a branch that only executes when the classifier is going to be built (i.e. after line 129, inside the else path), or (b) log the deleted row count before returning:
 
 ```python
-group = "production" if self._group_id == "moderation-production" else "shadow"
+# option (b) — minimal change
+result = session.execute(
+    text("DELETE FROM classifications WHERE seeded = true AND model_name = :mk RETURNING id"),
+    {"mk": model_key},
+)
+deleted_count = len(result.fetchall())
+if deleted_count:
+    logger.info("[%s] Deleted %d previously seeded rows", model_key, deleted_count)
+session.commit()
 ```
 
-The group column written to every `classifications` row is determined by string-comparing `self._group_id` to the literal `"moderation-production"`. If the runner ever uses a different group ID convention, all production classifications will silently land in the `shadow` bucket (the else branch) with no error or warning. The runner.py currently constructs `"moderation-production"` correctly, so this works today — but it is fragile.
+Then at the early return: `logger.warning("... skipping %s — %d previously seeded rows were already deleted", model_key, deleted_count)`.
 
-**Fix:** Accept `mode: Literal["production", "shadow"]` as a second constructor param (or derive it from group_id with an explicit validation), and set `self._group = mode`. Remove the string comparison from `run()`.
+**C2 — Timestamp computation: `seed_base_time` anchored per model, not per session** · `seed_sim.py:153` · **Minor**
 
----
-
-### W2 — Escalation poll cycle has no internal shutdown check
-**File:** `moderation_dashboard/escalation/service.py:70–103`
-**Severity:** warning
-
-`_poll_cycle()` processes up to 100 events, each requiring a Postgres query plus an HTTP POST to case-queue. If case-queue is slow (e.g., cold start, overloaded), 100 sequential HTTP calls could take minutes. During this time, `self._running = False` set by SIGINT is not checked. The process can't be shut down cleanly mid-cycle.
-
-**Fix:** Check `self._running` at the top of the inner `for event_id in event_ids:` loop:
-```python
-for event_id in event_ids:
-    if not self._running:
-        break
-```
-
----
-
-### M1 — `_COMPARISON_META_SQL` and `_GROUND_TRUTH_SQL` are defined but never used
-**File:** `moderation_dashboard/api/routers/metrics.py:75–88`
-**Severity:** minor
-
-Two module-level `text()` constants are defined and then replaced by inline `text(...)` calls inside `get_comparison()`. Dead code that will confuse readers.
-
-**Fix:** Remove `_COMPARISON_META_SQL` and `_GROUND_TRUTH_SQL`.
-
----
-
-### M2 — `FinetunedConsumer.classify()` null-checks `self._pipe is None` which can never be true
-**File:** `moderation_dashboard/consumers/finetuned.py:44–46`
-**Severity:** minor
-
-The `FinetunedConsumer.__init__` always assigns `self._pipe` — it either loads successfully or raises an exception. `runner.py` exits before constructing the consumer when no checkpoint path is set. The `if self._pipe is None: raise RuntimeError(...)` guard is dead code.
-
-**Fix:** Remove the null-check, or document why it exists (e.g., subclass override scenario).
-
----
-
-### M3 — Ground-truth reconstruction in `GET /metrics/comparison/{event_id}` is documented but sound
-**File:** `moderation_dashboard/api/routers/metrics.py:197–214`
-**Severity:** minor (resolved — no action required)
-
-The implementer flagged this as potentially lossy. After analysis: the reconstruction is correct for binary labels. `correct = (predicted_label == ground_truth)` means `ground_truth = predicted_label` when `correct=True`, and `ground_truth = 1 - predicted_label` when `correct=False`. This is lossless for all four combinations of `predicted_label` × `correct`. The LIMIT 1 is consistent because ground_truth is a property of the event, not the model — any row for this event produces the same reconstruction. No fix needed; consider adding a comment to explain the logic.
+`seed_base_time = datetime.now(UTC) - timedelta(hours=24)` is computed inside `seed_model()`. When seeding 5 models in sequence over several hours, each model's 24h window is independently anchored. Model 1 (anchored at T+0h), model 5 (anchored at T+3h) — rows overlap in the analytics window but don't share a common epoch. This is acceptable (each model's own trend is visible), but means the inter-model timestamp alignment is off by the wall-clock time of the seed run. Not a problem at demo scale. Noted in case the operator interprets category-trend charts as cross-model synchronized events.
 
 ---
 
 ## Style
 
-### S1 — `VITE_CASE_QUEUE_URL` default URL duplicated in two files
-**File:** `web/src/api/analytics.ts:5`, `web/src/pages/HumanReview.tsx:6`
+**S1 — `test_admin.py:8`: ruff I001 import sort violation** · **Minor**
 
-```typescript
-const CASE_QUEUE_URL = import.meta.env.VITE_CASE_QUEUE_URL ?? 'http://localhost:8000'
+`from sqlalchemy import delete as sa_delete, select` triggers I001 (un-sorted import block). This should have been caught by `ruff check` before handoff. Auto-fixable:
+
+```
+uv run ruff check --fix tests/test_admin.py
 ```
 
-The same env var read with the same default appears in two separate modules. Convention: environment-variable access should be centralised (e.g., a `web/src/config.ts` module).
-
----
-
-### S2 — `query.data!` non-null assertion in accumulation hooks
-**File:** `web/src/api/production.ts:22`, `web/src/api/shadow.ts:22`
-
-The `!` on `query.data` inside the `setHistory` closure is required because TypeScript can't narrow through the closure boundary. However, a cleaner pattern captures the value before the closure:
-```typescript
-const data = query.data
-if (!data) return
-setHistory(prev => {
-  for (const m of data) { ... }
-})
-```
-This removes the need for `!` and makes the nullability intent explicit.
+All other files (`seed_sim.py`, `test_cases.py`) pass ruff clean.
 
 ---
 
 ## Tests
 
-### T1 — `test_stream_metrics_returns_event_rate` assertion is always true
-**File:** `tests/test_api.py:29`
-**Severity:** warning
+**T1 — `GET /cases` action-populated path not covered** · `test_cases.py` · **Minor gap**
 
-```python
-assert data["total_events"] >= 0
-```
+`test_list_cases_returns_content` checks `case["action"] is None`. The `LEFT JOIN case_decisions` path where a decision already exists (and `action` should be `"approved"` or `"rejected"`) is not verified via a subsequent `GET /cases` call. The POST endpoint is tested, but the JOIN result back through GET is not.
 
-This assertion never fails. The test uses `seeded_classifications` which inserts 15 rows. The correct assertion is `assert data["total_events"] == 15`. The comment acknowledges "rate may be 0" for `event_rate_per_sec` due to timing, but `total_events` counts all-time events and is not time-sensitive.
+**T2 — `no_escalation` filter not covered** · `test_cases.py` · **Minor gap**
 
-**Fix:** Change to `assert data["total_events"] == 15`.
-
----
-
-### T2 — `ModelComparison.test.tsx` not written
-**File:** `web/src/test/` (missing)
-**Severity:** warning
-
-Acknowledged by implementer. `ModelComparison` uses `useShadowMetrics` (different hook from `ModelPerformance`) and renders the same component tree. Without a test, the shadow-group error path and the 3-column grid layout are untested at the component level.
-
-**Fix:** Add `ModelComparison.test.tsx` mirroring `ModelPerformance.test.tsx` but with `GET /metrics/shadow` as the mocked endpoint.
-
----
-
-### T3 — No unit tests for `anomaly/detector.py`
-**File:** `tests/` (missing)
-**Severity:** warning
-
-`_compute_zscore`, `_window_boundary`, and `_check_signal` are pure functions testable without Kafka or Postgres. The Z-score logic in particular is critical to system correctness (determines whether anomaly flags are written) and has no test coverage.
-
-**Fix:** Add `tests/test_anomaly.py` with unit tests for `_compute_zscore` (< 2 history → 0.0, std=0 → 0.0, normal case) and `_window_boundary` (correct epoch math).
-
----
-
-### T4 — `test_write_result_calls_session` tests implementation, not behaviour
-**File:** `tests/test_consumers.py:38–50`
-**Severity:** minor
-
-The test asserts that `session.add()` and `session.commit()` are called — this is testing internal method calls, not observable behaviour. Per `python-conventions.md`: "Prefer real objects over mocks." The test should instead verify a row exists in the DB after calling `_write_result`.
+`_CASES_SQL` includes `WHERE e.escalation_reason != 'no_escalation'`. No test inserts a `no_escalation` escalation and verifies it's absent from `GET /cases`. The filter is correct by inspection, but the branch is unexercised.
 
 ---
 
 ## Refactor Candidates
 
-### R1 — Skip records in `escalations` table pollute the escalation domain
-**File:** `moderation_dashboard/escalation/service.py:87–94`
+**R1 — Delete-then-early-return ordering in `seed_model()`** · `seed_sim.py:65–129`
 
-Writing `escalation_reason="no_escalation"` to the `escalations` table is functional but architecturally messy. The table is supposed to contain escalations; skip records exist only for deduplication. This causes `fct_escalation_rates.sql` to need a filter against the literal string `"no_escalation"` — tight coupling between service logic and dbt SQL.
+This is the structural root of C1. Long-term fix: separate the concerns — have a `clear_seeded(model_key, session_factory)` helper that the caller invokes only after confirming the model is runnable. The early-return guard could then live before any data mutation.
 
-**Recommendation:** Replace with a separate `evaluated_events(event_id TEXT PRIMARY KEY, evaluated_at TIMESTAMPTZ)` table. The escalation service writes to this table for all evaluated events, and to `escalations` only when escalating. The dbt model joins `events` with `escalations` directly, with no filtering needed.
+**R2 — `n_rows = max(len(rows) - 1, 1)` single-row edge case** · `seed_sim.py:154`
 
----
-
-### R2 — `CASE_QUEUE_URL` should be centralised
-**See S1.** Extract to `web/src/config.ts`:
-```typescript
-export const CASE_QUEUE_URL = import.meta.env.VITE_CASE_QUEUE_URL ?? 'http://localhost:8000'
-export const API_URL = import.meta.env.VITE_API_URL ?? 'http://localhost:8002'
-```
-(`API_URL` is already in `client.ts` — centralise both.)
-
----
-
-### R3 — `consumers/base.py` group derivation should be explicit
-**See W1.** The fix is straightforward and prevents a silent data corruption scenario. Should be treated as the next implementer fix rather than deferred.
+With `len(rows) == 1`, the single row gets `created_at = seed_base_time` (24h ago, never at `now`). Harmless in production (10 000 rows) but would confuse a unit test of the timestamp logic. Not worth fixing now.
 
 ---
 
@@ -173,24 +87,21 @@ export const API_URL = import.meta.env.VITE_API_URL ?? 'http://localhost:8002'
 
 **PASS WITH NOTES**
 
-No blocking correctness issues. Two warnings should be addressed in a follow-up implementer pass before the system goes into a live demo run:
-- **W1** (hardcoded group string) — data corruption risk if group ID convention ever changes
-- **T1** (weak stream metrics assertion) — currently a non-assertion that hides test infrastructure issues
-- **T2** (missing ModelComparison test) — straightforward to add
-
-The skip-record pattern (R1) and ground-truth comment (M3) are technical debt worth logging but do not block the system from running correctly.
+C1 (finetuned delete-without-warning) should be resolved before taking the seeded-DB pg_dump snapshot for VPS restore — if a fine-tuned checkpoint isn't configured at snapshot time, the operator might not notice the rows were silently deleted. S1 (ruff import sort) is a one-command fix. T1 and T2 are acceptable post-deploy gaps.
 
 ---
 
 ## Handoff
 
-**PASS WITH NOTES** — no next role required unless human initiates one.
+**Recommended next action:** apply two targeted fixes, then proceed to deploy:
 
-**Recommended implementer follow-up (priority order):**
-1. Fix W1 — replace hardcoded group string with explicit `mode` param in `BaseConsumer`
-2. Fix T1 — change `>= 0` to `== 15` in `test_stream_metrics_returns_event_rate`
-3. Add T2 — `ModelComparison.test.tsx`
-4. Add T3 — `tests/test_anomaly.py` unit tests for pure functions
-5. Fix W2 — add `if not self._running: break` to escalation inner loop
-6. Fix M1 — remove dead SQL constants
-7. Consider R1 — evaluated_events table (architectural, defer if timeline is tight)
+1. **C1** — add a RETURNING-based log to the idempotency DELETE in `seed_sim.py` so the operator can see if rows were purged before a skip
+2. **S1** — run `uv run ruff check --fix tests/test_admin.py` (one-liner)
+
+These can be done as a micro implementer pass or inline before committing. The deploy sequence should then proceed:
+- Push moderation-dashboard to public GitHub repo
+- SSH to Hostinger VPS, deploy via Docker Compose
+- Run `seed-sim --confirm` on VPS to populate the DB
+- `pg_dump` the seeded state for a restore snapshot
+- Configure nginx reverse proxy
+- Confirm live URL end-to-end

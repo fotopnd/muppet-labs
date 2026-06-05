@@ -28,8 +28,11 @@ class Classification(Base):
     predicted_label: Mapped[int] = mapped_column(Integer, nullable=False)
     confidence: Mapped[float] = mapped_column(Double, nullable=False)
     latency_ms: Mapped[float] = mapped_column(Double, nullable=False)
-    correct: Mapped[bool] = mapped_column(Boolean, nullable=False)
+    correct: Mapped[bool | None] = mapped_column(Boolean, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    seeded: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, default=False, server_default="false"
+    )
 
 
 class AnomalyFlag(Base):
@@ -56,4 +59,15 @@ class Escalation(Base):
     case_queue_case_id: Mapped[str] = mapped_column(String, nullable=False)
     escalation_reason: Mapped[str] = mapped_column(String, nullable=False)
     confidence_max: Mapped[float | None] = mapped_column(Double, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+
+
+class CaseDecision(Base):
+    __tablename__ = "case_decisions"
+    __table_args__ = (Index("ix_case_decisions_escalation_id", "escalation_id"),)
+
+    id: Mapped[str] = mapped_column(String, primary_key=True)
+    escalation_id: Mapped[str] = mapped_column(String, nullable=False, unique=True)
+    action: Mapped[str] = mapped_column(String, nullable=False)  # 'approved' | 'rejected'
+    notes: Mapped[str | None] = mapped_column(Text, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)

@@ -1,7 +1,27 @@
+import {
+  CartesianGrid,
+  Legend,
+  Line,
+  LineChart,
+  ResponsiveContainer,
+  Tooltip,
+  XAxis,
+  YAxis,
+} from 'recharts'
 import { AnomalyFeedItem } from '@/components/AnomalyFeedItem'
 import { ErrorMessage } from '@/components/ErrorMessage'
 import { FeedItemSkeleton } from '@/components/FeedItemSkeleton'
-import { useAnomalyFlags, useStreamMetrics } from '@/api/stream'
+import { useAnomalyFlags, useStreamMetrics, useStreamTimeSeries } from '@/api/stream'
+
+const CATEGORY_COLOURS: Record<string, string> = {
+  severe_toxic:  '#dc2626',
+  threat:        '#ea580c',
+  identity_hate: '#7c3aed',
+  obscene:       '#d97706',
+  insult:        '#2563eb',
+  toxic:         '#059669',
+  clean:         '#94a3b8',
+}
 
 function StatCard({ label, value }: { label: string; value: string }) {
   return (
@@ -12,13 +32,26 @@ function StatCard({ label, value }: { label: string; value: string }) {
   )
 }
 
+function formatMinute(isoString: string): string {
+  const d = new Date(isoString)
+  return `${d.getHours().toString().padStart(2, '0')}:${d.getMinutes().toString().padStart(2, '0')}`
+}
+
 export function StreamMonitor() {
   const stream = useStreamMetrics()
   const anomalies = useAnomalyFlags()
+  const timeseries = useStreamTimeSeries()
 
   const totalCategories = stream.data
     ? Object.values(stream.data.category_counts).reduce((a, b) => a + b, 0)
     : 0
+
+  // Pivot timeseries into recharts format: [{bucket, severe_toxic: n, clean: n, ...}]
+  const allCategories = new Set<string>()
+  const timeseriesData = (timeseries.data ?? []).map(pt => {
+    Object.keys(pt.counts).forEach(c => allCategories.add(c))
+    return { bucket: formatMinute(pt.bucket), ...pt.counts }
+  })
 
   return (
     <div className="space-y-6">
@@ -36,6 +69,38 @@ export function StreamMonitor() {
           label="Categories (5 min)"
           value={stream.data ? String(Object.keys(stream.data.category_counts).length) : '—'}
         />
+      </div>
+
+      {/* Event volume time-series (last 10 min) */}
+      <div className="bg-surface rounded-lg border border-border p-5">
+        <h2 className="font-interface text-sm font-semibold text-text-intense mb-4">
+          Event volume by category (last 10 min, 1-min buckets)
+        </h2>
+        {timeseriesData.length === 0 ? (
+          <p className="font-interface text-sm text-text-muted">No events in last 10 minutes</p>
+        ) : (
+          <div className="h-48">
+            <ResponsiveContainer width="100%" height="100%">
+              <LineChart data={timeseriesData}>
+                <CartesianGrid stroke="#e2e8f0" strokeDasharray="3 3" />
+                <XAxis dataKey="bucket" tick={{ fontSize: 11 }} />
+                <YAxis tick={{ fontSize: 11 }} allowDecimals={false} />
+                <Tooltip />
+                <Legend />
+                {Array.from(allCategories).map(cat => (
+                  <Line
+                    key={cat}
+                    type="monotone"
+                    dataKey={cat}
+                    stroke={CATEGORY_COLOURS[cat] ?? '#94a3b8'}
+                    dot={false}
+                    strokeWidth={1.5}
+                  />
+                ))}
+              </LineChart>
+            </ResponsiveContainer>
+          </div>
+        )}
       </div>
 
       {/* Category breakdown */}

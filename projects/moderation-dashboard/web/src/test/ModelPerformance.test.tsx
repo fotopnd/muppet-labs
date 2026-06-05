@@ -18,6 +18,8 @@ const PRODUCTION_DATA: ModelMetrics[] = [
     latency_p50: 45.2,
     latency_p95: 120.5,
     throughput_per_sec: 3.1,
+    source: 'live',
+    has_seeded_data: false,
   },
   {
     model_name: 'finetuned_distilbert',
@@ -30,6 +32,8 @@ const PRODUCTION_DATA: ModelMetrics[] = [
     latency_p50: null,
     latency_p95: null,
     throughput_per_sec: null,
+    source: 'seeded',
+    has_seeded_data: false,
   },
 ]
 
@@ -53,15 +57,15 @@ describe('ModelPerformance', () => {
     expect(name).toBeInTheDocument()
   })
 
-  it('shows active badge for active models', async () => {
+  it('shows LIVE badge for active models', async () => {
     renderWithQuery(<ModelPerformance />)
-    const badge = await screen.findByText('active')
+    const badge = await screen.findByText('LIVE')
     expect(badge).toBeInTheDocument()
   })
 
-  it('shows pending badge for pending_weights models', async () => {
+  it('shows Pending weights badge for pending_weights models', async () => {
     renderWithQuery(<ModelPerformance />)
-    const badge = await screen.findByText('pending')
+    const badge = await screen.findByText('Pending weights')
     expect(badge).toBeInTheDocument()
   })
 
