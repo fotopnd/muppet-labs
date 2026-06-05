@@ -1,150 +1,100 @@
-# Brief Output — moderation-dashboard live-stream + detoxify-finetuned
+# Brief Output — moderation-dashboard safety-signal additions
 
 **Date:** 2026-06-05
-**Sequence:** moderation-dashboard additions (vibe mode)
+**Sequence:** moderation-dashboard safety-signal additions (vibe mode)
 **Role executing:** brief
 
 ---
 
 ## Project Name
 
-moderation-dashboard-v2-additions
+moderation-dashboard-safety-signals
 
 ## Description
 
-Two parallel additions to the existing moderation-dashboard: (1) a live inbound webhook
-API so real content can be streamed through the pipeline in real time, making the
-StreamMonitor animate with genuine events rather than replayed CSV rows; (2) a fine-tuned
-Detoxify model (multi-label BERT classifier on Jigsaw) to fill the fourth model slot
-and complete the zero-shot vs fine-tuned comparison narrative.
+Add two UI additions to the moderation-dashboard that surface safety-relevant signals currently hidden in the database: live flag rate per model card, and a model disagreement analysis panel.
 
 ## Language(s)
 
-Python (webhook endpoint, training script), TypeScript (no frontend changes required for webhook v1)
+TypeScript (React frontend) + Python (one new API endpoint)
 
----
+## Context
 
-## Workstream A — Live Webhook API
+This is an additive pass on an existing, fully-running project. The moderation dashboard is live at localhost:5174, classifying real Bluesky posts through three models (DistilBERT zero-shot, Detoxify, DistilBERT fine-tuned) via Kafka. The backend exposes metrics via FastAPI at localhost:8002.
 
-### What it does
-A `POST /ingest` endpoint on the existing FastAPI app (port 8002) that accepts
-`{"text": "..."}`, publishes a `ModerationEvent` to the Kafka topic, and returns
-`{"event_id": "<uuid>"}` in < 100ms. All existing consumers pick it up automatically.
-The StreamMonitor event rate counter updates visibly within the next poll cycle (3s).
+The motivation is a Safeguards SWE portfolio adversarial review that surfaced two gaps:
 
-A companion `scripts/demo_stream.py` POSTs synthetic events at a configurable rate
-so the dashboard can demo without any external client.
+1. The model cards show F1 from seeded in-distribution data. On live Bluesky, DistilBERT zero-shot flags **38.6%** of posts as toxic vs **11.3%** (fine-tuned) and **13.2%** (Detoxify). This distribution-shift signal — the most safety-relevant finding in the project — is invisible in the UI.
+2. **274 escalations/hour** come from model disagreement. The dashboard surfaces them as a queue to drain. The content patterns where models systematically disagree are not shown anywhere.
 
-### Success Criteria
-- `POST /ingest {"text": "some content"}` returns 200 + event_id in < 100ms
-- Event is classified by all active consumers within ~5s of ingest
-- StreamMonitor event rate increments on next poll
-- CORS-enabled (same allowed origins as `/metrics/*`)
-- `demo_stream.py --rate 5` runs cleanly and produces visible dashboard activity
+## Success Criteria
 
-### Constraints
-- Must reuse the existing FastAPI app — no new service, no new port
-- Webhook Kafka producer must be independent of the consumer-side producer (no shared instance)
-- `correct` field: live webhook events have no ground truth — store `correct=None`; API and
-  frontend must already handle nullable `correct` (confirm before implementing)
-- Rate ceiling: 100 req/s is fine for demo; no auth required
+**Addition 1 — Live flag rate on model cards**
 
-### Out of Scope
-- Authentication / API keys
-- Batch ingest
-- Frontend changes (StreamMonitor already polls)
-- Persisting raw webhook payloads beyond Kafka
+Each of the three `ModelCard` components shows a "Live: X.X% flagged" stat. The contrast between 38.6% / 11.3% / 13.2% must be visible side-by-side without clicking anywhere.
 
----
+The backend `ModelMetrics` schema needs two new fields: `live_event_count: int` and `live_flagged_count: int`. The SQL in `_METRICS_SQL` (and the merged `/metrics/all` endpoint) must populate these using `FILTER (WHERE seeded=false)` conditional aggregates. Frontend computes `live_flag_rate = live_flagged_count / live_event_count` and renders it on the card.
 
-## Workstream B — Detoxify (fine-tuned) Model
+**Addition 2 — Disagreement analysis panel**
 
-### What it does
-Fine-tune `bert-base-uncased` with a 6-label multi-label sigmoid head on Jigsaw, save
-the checkpoint to `resources/models/toxicity-classifier-finetuned/detoxify-finetuned-best/`,
-and wire it into the existing `finetuned_detoxify` consumer + seed-sim slot.
+A new section on the ModelComparison tab (or a dedicated tab if planner decides it warrants one) showing:
+- Total model disagreements in the last hour
+- Breakdown by predicted category: which content types most commonly cause splits
+- 5–10 sampled real posts where models gave opposite verdicts, showing truncated text (140 chars) and each model's label + confidence score
 
-### The narrative unlock
-The four-model lineup now tells two orthogonal stories:
-
-| | Zero-shot | Fine-tuned |
-|---|---|---|
-| **Binary** | DistilBERT (F1 0.405) | DistilBERT (F1 0.882) |
-| **Multi-label** | Detoxify (F1 0.904) | Detoxify fine-tuned (TBD) |
-
-Detoxify zero-shot already leads at F1 0.904. The fine-tuned version trains on all 6
-Jigsaw labels simultaneously — the hypothesis is that multi-label co-training improves
-toxic recall while keeping precision high.
-
-### Architecture
+Requires a new `/metrics/disagreements` endpoint returning:
+```json
+{
+  "total_last_hour": 274,
+  "by_category": {"clean": 180, "toxic": 60, "...": "..."},
+  "samples": [
+    {
+      "event_id": "...",
+      "content": "...",
+      "verdicts": [{"model": "distilbert", "label": 1, "confidence": 0.71}, ...]
+    }
+  ]
+}
 ```
-bert-base-uncased
-  → Linear(768, 6)           # one logit per Jigsaw label
-  → BCEWithLogitsLoss         # per-label binary cross-entropy
-  → sigmoid + threshold 0.5  # multi-hot prediction per label
-```
-`correct` column uses binary toxic label (index 0) to stay consistent with other models.
-`confidence` stores sigmoid(logit[0]) — the toxic probability.
 
-### Training spec
-| Param | Value |
-|---|---|
-| Base model | `bert-base-uncased` |
-| Dataset | Jigsaw `train.csv` (159k rows, 80/20 split) |
-| Labels | toxic, severe_toxic, obscene, threat, insult, identity_hate |
-| Loss | `BCEWithLogitsLoss` |
-| Epochs | 3 |
-| Batch size | 32 (MPS-safe on M4 24GB) |
-| LR | 2e-5, linear warmup ratio 0.1 |
-| Device | MPS (`torch.device("mps")`) |
-| Checkpoint | `resources/models/toxicity-classifier-finetuned/detoxify-finetuned-best/` |
-| Eval JSON | `resources/evals/toxicity-classifier-finetuned/detoxify-finetuned-<timestamp>.json` |
+## Constraints
 
-Follow python-conventions.md HuggingFace Trainer section exactly:
-- `torch.mps.synchronize()` in `on_save` callback (MPS checkpoint save bug)
-- Save via `AutoModelForSequenceClassification` with `num_labels=6`
+- No changes to Kafka, consumers, or DB schema
+- Flag rate must use live (non-seeded) event counts only — seeded rows have `seeded=true`
+- Disagreement sample text truncated to 140 chars
+- Must not break existing tests or introduce TS type errors
 
-### Consumer + seed-sim integration
-- `finetuned_detoxify` key already in `MODEL_REGISTRY` (added this session)
-- `DETOXIFY_CHECKPOINT_PATH` env var already declared in `Settings`
-- Consumer loads checkpoint with `AutoModelForSequenceClassification.from_pretrained(checkpoint, num_labels=6)`
-- Inference: `sigmoid(logit[0]) >= 0.5` → predicted_label; `confidence = sigmoid(logit[0])`
-- seed-sim already handles `finetuned_detoxify` via the generic fine-tuned branch in `seed_model()`
+## Out of Scope
 
-### Success Criteria
-- 3 epochs complete without OOM on M4 MPS
-- Eval JSON written: F1, precision, recall on Jigsaw test set (binary toxic label)
-- `finetuned_detoxify` card on Model Performance tab shows active + F1 >= 0.85
-- `seed-sim --models finetuned_detoxify --confirm` runs in < 5 min
+- Model retraining based on flag rate findings
+- Feedback loop from human review decisions to model
+- Calibration curves or reliability diagrams
+- Annotation bias audit
 
-### Out of Scope
-- Multi-label scores surfaced in the frontend (v1: binary toxic label only)
-- Fine-tuning RoBERTa (removed from model lineup)
-- Hyperparameter search
+## Assumptions
 
----
+- `_METRICS_SQL` can be extended with `COUNT(*) FILTER (WHERE seeded=false)` and `SUM(predicted_label) FILTER (WHERE seeded=false)` without restructuring the GROUP BY — planner to confirm.
+- Disagreement SQL: join `escalations` to `classifications` on `event_id`, filter `escalation_reason='model_disagreement'` and `"group"='shadow'`, last hour for totals/breakdown, last 50 for sample selection.
+- Planner decides: disagreement panel inside existing ModelComparison tab, or new tab?
+- Fixed 10-sample window is sufficient (no pagination needed for v1).
 
-## Open Questions for Planner
+## Key data already in DB (confirmed 2026-06-05)
 
-1. **Nullable `correct`**: does the `classifications` ORM model already have `correct`
-   as `Boolean` (nullable)? Check `api/models.py`. If `NOT NULL`, a migration is needed
-   before the webhook can write rows.
-2. **Multi-label confidence storage**: for the finetuned_detoxify consumer, store only
-   `confidence = sigmoid(logit[0])` in the existing float column — or add a JSON sidecar
-   column for all 6 label scores? Recommend float only for v1 (no schema change needed).
+| Model | Live events | Flagged | Flag rate |
+|---|---|---|---|
+| distilbert (zero-shot) | 16,092 | 6,208 | **38.6%** |
+| finetuned_distilbert | 14,893 | 1,675 | **11.3%** |
+| detoxify | 15,492 | 2,050 | **13.2%** |
 
----
+Disagreements: 274/hour. Top disagreement category is "clean" (models split on posts neither confidently flags).
 
 ## Handoff
 
-**Next role:** planner
+Next role: planner
 
-Planner should:
-1. Scope Workstream A (webhook) as a single-session implementer task — 2–3 new files
-   within the existing FastAPI app + one script
-2. Scope Workstream B (Detoxify fine-tuning) as a model-trainer sequence running in
-   `projects/toxicity-classifier-finetuned/` alongside project 8 scripts
-3. Resolve the two open questions above before issuing implementer instructions
-4. Confirm seed-sim `finetuned_detoxify` branch handles `num_labels=6` correctly
-   (the generic branch calls `pipeline("text-classification", ...)` which expects a
-   single-label head — multi-label inference needs a direct model call instead)
+Reads this file plus `_config/project-state.md` for full system context (DB schema, model registry, API structure, running services).
+
+Key questions for planner to resolve before handing to implementer:
+1. Extend `_METRICS_SQL` with `FILTER` aggregates vs a separate SQL query for live counts?
+2. Disagreement panel: inside ModelComparison tab, or new tab?
+3. Does `/metrics/disagreements` need pagination, or is a fixed recent-window sufficient?
