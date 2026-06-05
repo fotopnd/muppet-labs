@@ -82,12 +82,17 @@ class BaseConsumer(ABC):
                         else None
                     )
                     group = self._group
+                    category = (
+                        "toxic" if predicted_label == 1 else "clean"
+                        if event.category == "unknown"
+                        else event.category
+                    )
                     result = Classification(
                         id=str(uuid.uuid4()),
                         event_id=event.event_id,
                         group=group,
                         model_name=self.model_name,
-                        category=event.category,
+                        category=category,
                         content=event.content,
                         predicted_label=predicted_label,
                         confidence=confidence,

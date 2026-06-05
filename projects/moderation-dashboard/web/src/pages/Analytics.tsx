@@ -11,13 +11,10 @@ import {
 import { ErrorMessage } from '@/components/ErrorMessage'
 import { useAnalytics } from '@/api/analytics'
 
-// Fixed palette — one colour per model. Update if MODEL_REGISTRY changes.
 const MODEL_COLOURS: Record<string, string> = {
-  distilbert: '#2563eb',       // blue-600
-  roberta: '#059669',          // emerald-600
-  detoxify: '#f59e0b',         // amber-500
-  finetuned_distilbert: '#7c3aed', // violet-600
-  finetuned_roberta: '#e11d48',    // rose-600
+  distilbert: '#2563eb',
+  detoxify: '#f59e0b',
+  finetuned_distilbert: '#7c3aed',
 }
 
 function formatHour(isoString: string): string {

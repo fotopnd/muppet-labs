@@ -169,9 +169,11 @@ class EscalationService:
         verdicts: dict[str, int],
     ) -> str:
         severity = _infer_severity(category, reason, confidence_max)
+        # case-queue enum does not include "unknown"; live webhook events default to "toxic"
+        case_category = category if category != "unknown" else "toxic"
         payload = {
             "content": content,
-            "category": category,
+            "category": case_category,
             "severity": severity,
             "source": "moderation-dashboard",
             "meta": {
