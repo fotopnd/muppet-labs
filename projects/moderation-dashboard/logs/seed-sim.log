@@ -1,0 +1,103 @@
+2026-06-05 14:04:51,961 INFO Loading 10000 rows from /Users/fotopnd/Documents/muppet-labs/resources/datasets/jigsaw-toxic-comments/train.csv...
+2026-06-05 14:04:51,989 INFO Loaded 10000 rows.
+2026-06-05 14:04:53,891 INFO Loading DistilBERT zero-shot...
+2026-06-05 14:04:54,033 INFO HTTP Request: HEAD https://huggingface.co/typeform/distilbert-base-uncased-mnli/resolve/main/config.json "HTTP/1.1 307 Temporary Redirect"
+2026-06-05 14:04:54,044 INFO HTTP Request: HEAD https://huggingface.co/api/resolve-cache/models/typeform/distilbert-base-uncased-mnli/cfa538a0fddbbd978fefe8966c1aeff7ad409c90/config.json "HTTP/1.1 200 OK"
+Loading weights:   0%|          | 0/104 [00:00<?, ?it/s]Loading weights: 100%|██████████| 104/104 [00:00<00:00, 20730.33it/s]
+2026-06-05 14:04:54,199 INFO HTTP Request: GET https://huggingface.co/api/models/typeform/distilbert-base-uncased-mnli/tree/main/additional_chat_templates?recursive=false&expand=false "HTTP/1.1 404 Not Found"
+2026-06-05 14:04:54,301 INFO HTTP Request: GET https://huggingface.co/api/models/typeform/distilbert-base-uncased-mnli/tree/main?recursive=true&expand=false "HTTP/1.1 200 OK"
+2026-06-05 14:04:54,309 INFO Seeding 10000 rows for model=distilbert...
+2026-06-05 14:05:05,310 INFO [distilbert] 500/10000 written (11.0s elapsed)
+2026-06-05 14:05:16,506 INFO [distilbert] 1000/10000 written (22.2s elapsed)
+2026-06-05 14:05:26,876 INFO [distilbert] 1500/10000 written (32.6s elapsed)
+2026-06-05 14:05:37,169 INFO [distilbert] 2000/10000 written (42.9s elapsed)
+2026-06-05 14:05:47,417 INFO [distilbert] 2500/10000 written (53.1s elapsed)
+2026-06-05 14:05:58,283 INFO [distilbert] 3000/10000 written (64.0s elapsed)
+2026-06-05 14:06:09,325 INFO [distilbert] 3500/10000 written (75.0s elapsed)
+2026-06-05 14:06:20,261 INFO [distilbert] 4000/10000 written (86.0s elapsed)
+2026-06-05 14:06:31,123 INFO [distilbert] 4500/10000 written (96.8s elapsed)
+2026-06-05 14:06:41,989 INFO [distilbert] 5000/10000 written (107.7s elapsed)
+2026-06-05 14:06:52,956 INFO [distilbert] 5500/10000 written (118.6s elapsed)
+2026-06-05 14:07:03,745 INFO [distilbert] 6000/10000 written (129.4s elapsed)
+2026-06-05 14:07:14,578 INFO [distilbert] 6500/10000 written (140.3s elapsed)
+2026-06-05 14:07:25,399 INFO [distilbert] 7000/10000 written (151.1s elapsed)
+2026-06-05 14:07:36,588 INFO [distilbert] 7500/10000 written (162.3s elapsed)
+2026-06-05 14:07:47,223 INFO [distilbert] 8000/10000 written (172.9s elapsed)
+2026-06-05 14:07:58,221 INFO [distilbert] 8500/10000 written (183.9s elapsed)
+2026-06-05 14:08:08,883 INFO [distilbert] 9000/10000 written (194.6s elapsed)
+2026-06-05 14:08:19,807 INFO [distilbert] 9500/10000 written (205.5s elapsed)
+2026-06-05 14:08:30,506 INFO [distilbert] 10000/10000 written (216.2s elapsed)
+2026-06-05 14:08:30,506 INFO [distilbert] Done. 10000 rows written in 216.2s.
+2026-06-05 14:08:30,512 INFO Loading RoBERTa zero-shot...
+2026-06-05 14:08:30,639 INFO HTTP Request: HEAD https://huggingface.co/roberta-large-mnli/resolve/main/config.json "HTTP/1.1 200 OK"
+Loading weights:   0%|          | 0/393 [00:00<?, ?it/s]Loading weights: 100%|██████████| 393/393 [00:00<00:00, 28954.18it/s]
+[transformers] [1mRobertaForSequenceClassification LOAD REPORT[0m from: roberta-large-mnli
+Key                         | Status     |  | 
+----------------------------+------------+--+-
+roberta.pooler.dense.bias   | UNEXPECTED |  | 
+roberta.pooler.dense.weight | UNEXPECTED |  | 
+
+Notes:
+- UNEXPECTED:	can be ignored when loading from different task/architecture; not ok if you expect identical arch.
+2026-06-05 14:08:30,812 INFO HTTP Request: GET https://huggingface.co/api/models/roberta-large-mnli/tree/main/additional_chat_templates?recursive=false&expand=false "HTTP/1.1 307 Temporary Redirect"
+2026-06-05 14:08:30,912 INFO HTTP Request: GET https://huggingface.co/api/models/FacebookAI/roberta-large-mnli/tree/main/additional_chat_templates?recursive=false&expand=false "HTTP/1.1 404 Not Found"
+2026-06-05 14:08:31,012 INFO HTTP Request: GET https://huggingface.co/api/models/roberta-large-mnli/tree/main?recursive=true&expand=false "HTTP/1.1 307 Temporary Redirect"
+2026-06-05 14:08:31,116 INFO HTTP Request: GET https://huggingface.co/api/models/FacebookAI/roberta-large-mnli/tree/main?recursive=true&expand=false "HTTP/1.1 200 OK"
+2026-06-05 14:08:31,225 INFO Seeding 10000 rows for model=roberta...
+2026-06-05 14:09:43,360 INFO [roberta] 500/10000 written (72.1s elapsed)
+2026-06-05 14:10:56,679 INFO [roberta] 1000/10000 written (145.5s elapsed)
+2026-06-05 14:12:06,720 INFO [roberta] 1500/10000 written (215.5s elapsed)
+2026-06-05 14:13:17,623 INFO [roberta] 2000/10000 written (286.4s elapsed)
+2026-06-05 14:14:27,812 INFO [roberta] 2500/10000 written (356.6s elapsed)
+2026-06-05 14:15:37,739 INFO [roberta] 3000/10000 written (426.5s elapsed)
+2026-06-05 14:22:43,540 INFO [roberta] 3500/10000 written (497.4s elapsed)
+2026-06-05 14:23:51,812 INFO [roberta] 4000/10000 written (565.6s elapsed)
+2026-06-05 14:28:31,244 INFO [roberta] 4500/10000 written (634.0s elapsed)
+2026-06-05 14:31:57,416 INFO [roberta] 5000/10000 written (711.2s elapsed)
+2026-06-05 14:33:06,289 INFO [roberta] 5500/10000 written (780.0s elapsed)
+2026-06-05 14:43:27,700 INFO [roberta] 6000/10000 written (852.3s elapsed)
+2026-06-05 14:44:35,523 INFO [roberta] 6500/10000 written (920.2s elapsed)
+2026-06-05 14:46:06,980 INFO [roberta] 7000/10000 written (988.7s elapsed)
+2026-06-05 14:47:17,806 INFO [roberta] 7500/10000 written (1059.5s elapsed)
+2026-06-05 14:54:38,739 INFO [roberta] 8000/10000 written (1128.2s elapsed)
+2026-06-05 14:55:47,651 INFO [roberta] 8500/10000 written (1197.1s elapsed)
+2026-06-05 15:04:16,000 INFO [roberta] 9000/10000 written (1269.7s elapsed)
+2026-06-05 15:05:25,194 INFO [roberta] 9500/10000 written (1338.9s elapsed)
+2026-06-05 15:06:55,763 INFO [roberta] 10000/10000 written (1407.3s elapsed)
+2026-06-05 15:06:55,763 INFO [roberta] Done. 10000 rows written in 1407.3s.
+2026-06-05 15:06:55,776 INFO Loading Detoxify...
+2026-06-05 15:06:56,054 INFO HTTP Request: HEAD https://huggingface.co/bert-base-uncased/resolve/main/config.json "HTTP/1.1 200 OK"
+Loading weights:   0%|          | 0/201 [00:00<?, ?it/s]Loading weights: 100%|██████████| 201/201 [00:00<00:00, 48700.54it/s]
+2026-06-05 15:06:56,196 INFO HTTP Request: HEAD https://huggingface.co/bert-base-uncased/resolve/main/tokenizer_config.json "HTTP/1.1 200 OK"
+2026-06-05 15:06:56,456 INFO HTTP Request: GET https://huggingface.co/api/models/bert-base-uncased/tree/main/additional_chat_templates?recursive=false&expand=false "HTTP/1.1 307 Temporary Redirect"
+2026-06-05 15:06:56,573 INFO HTTP Request: GET https://huggingface.co/api/models/google-bert/bert-base-uncased/tree/main/additional_chat_templates?recursive=false&expand=false "HTTP/1.1 404 Not Found"
+2026-06-05 15:06:56,683 INFO HTTP Request: GET https://huggingface.co/api/models/bert-base-uncased/tree/main?recursive=true&expand=false "HTTP/1.1 307 Temporary Redirect"
+2026-06-05 15:06:56,806 INFO HTTP Request: GET https://huggingface.co/api/models/google-bert/bert-base-uncased/tree/main?recursive=true&expand=false "HTTP/1.1 200 OK"
+2026-06-05 15:06:56,858 INFO Seeding 10000 rows for model=detoxify...
+2026-06-05 15:07:06,283 INFO [detoxify] 500/10000 written (9.4s elapsed)
+2026-06-05 15:07:16,595 INFO [detoxify] 1000/10000 written (19.7s elapsed)
+2026-06-05 15:07:26,572 INFO [detoxify] 1500/10000 written (29.7s elapsed)
+2026-06-05 15:07:36,622 INFO [detoxify] 2000/10000 written (39.8s elapsed)
+2026-06-05 15:07:46,394 INFO [detoxify] 2500/10000 written (49.5s elapsed)
+2026-06-05 15:07:56,401 INFO [detoxify] 3000/10000 written (59.5s elapsed)
+2026-06-05 15:08:06,525 INFO [detoxify] 3500/10000 written (69.7s elapsed)
+2026-06-05 15:08:16,562 INFO [detoxify] 4000/10000 written (79.7s elapsed)
+2026-06-05 15:08:26,523 INFO [detoxify] 4500/10000 written (89.7s elapsed)
+2026-06-05 15:08:36,517 INFO [detoxify] 5000/10000 written (99.7s elapsed)
+2026-06-05 15:08:46,647 INFO [detoxify] 5500/10000 written (109.8s elapsed)
+2026-06-05 15:08:56,559 INFO [detoxify] 6000/10000 written (119.7s elapsed)
+2026-06-05 15:09:06,377 INFO [detoxify] 6500/10000 written (129.5s elapsed)
+2026-06-05 15:09:16,050 INFO [detoxify] 7000/10000 written (139.2s elapsed)
+2026-06-05 15:09:25,888 INFO [detoxify] 7500/10000 written (149.0s elapsed)
+2026-06-05 15:09:34,983 INFO [detoxify] 8000/10000 written (158.1s elapsed)
+2026-06-05 15:09:44,364 INFO [detoxify] 8500/10000 written (167.5s elapsed)
+2026-06-05 15:09:53,518 INFO [detoxify] 9000/10000 written (176.7s elapsed)
+2026-06-05 15:13:29,796 INFO [detoxify] 9500/10000 written (189.5s elapsed)
+2026-06-05 15:13:39,780 INFO [detoxify] 10000/10000 written (199.5s elapsed)
+2026-06-05 15:13:39,780 INFO [detoxify] Done. 10000 rows written in 199.5s.
+2026-06-05 15:13:39,783 INFO Seed complete. Total rows written: 30000
+2026-06-05 15:13:39,783 INFO 
+To export the seeded DB for VPS restore, run:
+  pg_dump -h localhost -p 5434 -U postgres moderation_dashboard > moderation_dashboard_seeded.sql
+Then on the VPS:
+  psql -h localhost -U postgres moderation_dashboard < moderation_dashboard_seeded.sql

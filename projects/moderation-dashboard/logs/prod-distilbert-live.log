@@ -1,0 +1,285 @@
+2026-06-04 21:53:44,586 INFO Loading DistilBERT zero-shot model...
+2026-06-04 21:53:44,737 INFO HTTP Request: HEAD https://huggingface.co/typeform/distilbert-base-uncased-mnli/resolve/main/config.json "HTTP/1.1 307 Temporary Redirect"
+2026-06-04 21:53:44,748 INFO HTTP Request: HEAD https://huggingface.co/api/resolve-cache/models/typeform/distilbert-base-uncased-mnli/cfa538a0fddbbd978fefe8966c1aeff7ad409c90/config.json "HTTP/1.1 200 OK"
+Loading weights:   0%|          | 0/104 [00:00<?, ?it/s]Loading weights: 100%|██████████| 104/104 [00:00<00:00, 10067.57it/s]
+2026-06-04 21:53:44,930 INFO HTTP Request: GET https://huggingface.co/api/models/typeform/distilbert-base-uncased-mnli/tree/main/additional_chat_templates?recursive=false&expand=false "HTTP/1.1 404 Not Found"
+2026-06-04 21:53:45,034 INFO HTTP Request: GET https://huggingface.co/api/models/typeform/distilbert-base-uncased-mnli/tree/main?recursive=true&expand=false "HTTP/1.1 200 OK"
+2026-06-04 21:53:45,051 INFO DistilBERT zero-shot ready.
+2026-06-04 21:53:45,051 INFO Starting distilbert consumer in group 'moderation-production'
+%4|1780610299.401|SESSTMOUT|rdkafka#consumer-1| [thrd:main]: Consumer group session timed out (in join-state steady) after 171325 ms without a successful response from the group coordinator (broker 1, last error was Success): revoking assignment and rejoining group
+%4|1780613404.772|SESSTMOUT|rdkafka#consumer-1| [thrd:main]: Consumer group session timed out (in join-state steady) after 964758 ms without a successful response from the group coordinator (broker 1, last error was Success): revoking assignment and rejoining group
+%5|1780613404.791|REQTMOUT|rdkafka#consumer-1| [thrd:localhost:9093/1]: localhost:9093/1: Timed out FetchRequest in flight (after 963221ms, timeout #0)
+%4|1780613404.791|REQTMOUT|rdkafka#consumer-1| [thrd:localhost:9093/1]: localhost:9093/1: Timed out 1 in-flight, 0 retry-queued, 0 out-queue, 0 partially-sent requests
+%4|1780614470.749|SESSTMOUT|rdkafka#consumer-1| [thrd:main]: Consumer group session timed out (in join-state steady) after 1019949 ms without a successful response from the group coordinator (broker 1, last error was Success): revoking assignment and rejoining group
+%5|1780614470.750|REQTMOUT|rdkafka#consumer-1| [thrd:localhost:9093/1]: localhost:9093/1: Timed out FetchRequest in flight (after 1019963ms, timeout #0)
+%4|1780614470.750|REQTMOUT|rdkafka#consumer-1| [thrd:localhost:9093/1]: localhost:9093/1: Timed out 1 in-flight, 0 retry-queued, 0 out-queue, 0 partially-sent requests
+%4|1780615466.748|SESSTMOUT|rdkafka#consumer-1| [thrd:main]: Consumer group session timed out (in join-state steady) after 933131 ms without a successful response from the group coordinator (broker 1, last error was Success): revoking assignment and rejoining group
+%5|1780615466.748|REQTMOUT|rdkafka#consumer-1| [thrd:localhost:9093/1]: localhost:9093/1: Timed out FetchRequest in flight (after 930735ms, timeout #0)
+%4|1780615466.748|REQTMOUT|rdkafka#consumer-1| [thrd:localhost:9093/1]: localhost:9093/1: Timed out 1 in-flight, 0 retry-queued, 0 out-queue, 0 partially-sent requests
+%4|1780616497.735|SESSTMOUT|rdkafka#consumer-1| [thrd:main]: Consumer group session timed out (in join-state steady) after 973384 ms without a successful response from the group coordinator (broker 1, last error was Success): revoking assignment and rejoining group
+%5|1780616497.735|REQTMOUT|rdkafka#consumer-1| [thrd:localhost:9093/1]: localhost:9093/1: Timed out FetchRequest in flight (after 970958ms, timeout #0)
+%4|1780616497.735|REQTMOUT|rdkafka#consumer-1| [thrd:localhost:9093/1]: localhost:9093/1: Timed out 1 in-flight, 0 retry-queued, 0 out-queue, 0 partially-sent requests
+%4|1780616797.925|SESSTMOUT|rdkafka#consumer-1| [thrd:main]: Consumer group session timed out (in join-state steady) after 254723 ms without a successful response from the group coordinator (broker 1, last error was Success): revoking assignment and rejoining group
+%5|1780616797.925|REQTMOUT|rdkafka#consumer-1| [thrd:localhost:9093/1]: localhost:9093/1: Timed out FetchRequest in flight (after 253211ms, timeout #0)
+%4|1780616797.925|REQTMOUT|rdkafka#consumer-1| [thrd:localhost:9093/1]: localhost:9093/1: Timed out 1 in-flight, 0 retry-queued, 0 out-queue, 0 partially-sent requests
+%4|1780617751.736|SESSTMOUT|rdkafka#consumer-1| [thrd:main]: Consumer group session timed out (in join-state steady) after 907636 ms without a successful response from the group coordinator (broker 1, last error was Success): revoking assignment and rejoining group
+%5|1780617751.737|REQTMOUT|rdkafka#consumer-1| [thrd:localhost:9093/1]: localhost:9093/1: Timed out FetchRequest in flight (after 907651ms, timeout #0)
+%4|1780617751.737|REQTMOUT|rdkafka#consumer-1| [thrd:localhost:9093/1]: localhost:9093/1: Timed out 1 in-flight, 0 retry-queued, 0 out-queue, 0 partially-sent requests
+%4|1780618095.520|SESSTMOUT|rdkafka#consumer-1| [thrd:main]: Consumer group session timed out (in join-state steady) after 284117 ms without a successful response from the group coordinator (broker 1, last error was Success): revoking assignment and rejoining group
+%5|1780618095.520|REQTMOUT|rdkafka#consumer-1| [thrd:localhost:9093/1]: localhost:9093/1: Timed out FetchRequest in flight (after 282184ms, timeout #0)
+%4|1780618095.520|REQTMOUT|rdkafka#consumer-1| [thrd:localhost:9093/1]: localhost:9093/1: Timed out 1 in-flight, 0 retry-queued, 0 out-queue, 0 partially-sent requests
+%4|1780619084.774|SESSTMOUT|rdkafka#consumer-1| [thrd:main]: Consumer group session timed out (in join-state steady) after 943742 ms without a successful response from the group coordinator (broker 1, last error was Success): revoking assignment and rejoining group
+%5|1780619084.775|REQTMOUT|rdkafka#consumer-1| [thrd:localhost:9093/1]: localhost:9093/1: Timed out FetchRequest in flight (after 942249ms, timeout #0)
+%4|1780619084.775|REQTMOUT|rdkafka#consumer-1| [thrd:localhost:9093/1]: localhost:9093/1: Timed out 1 in-flight, 0 retry-queued, 0 out-queue, 0 partially-sent requests
+%4|1780619590.727|SESSTMOUT|rdkafka#consumer-1| [thrd:main]: Consumer group session timed out (in join-state steady) after 459777 ms without a successful response from the group coordinator (broker 1, last error was Success): revoking assignment and rejoining group
+%5|1780619590.727|REQTMOUT|rdkafka#consumer-1| [thrd:localhost:9093/1]: localhost:9093/1: Timed out FetchRequest in flight (after 459273ms, timeout #0)
+%4|1780619590.727|REQTMOUT|rdkafka#consumer-1| [thrd:localhost:9093/1]: localhost:9093/1: Timed out 1 in-flight, 0 retry-queued, 0 out-queue, 0 partially-sent requests
+%4|1780619910.270|SESSTMOUT|rdkafka#consumer-1| [thrd:main]: Consumer group session timed out (in join-state steady) after 275572 ms without a successful response from the group coordinator (broker 1, last error was Success): revoking assignment and rejoining group
+%5|1780619910.270|REQTMOUT|rdkafka#consumer-1| [thrd:localhost:9093/1]: localhost:9093/1: Timed out FetchRequest in flight (after 273559ms, timeout #0)
+%4|1780619910.270|REQTMOUT|rdkafka#consumer-1| [thrd:localhost:9093/1]: localhost:9093/1: Timed out 1 in-flight, 0 retry-queued, 0 out-queue, 0 partially-sent requests
+%4|1780620885.733|SESSTMOUT|rdkafka#consumer-1| [thrd:main]: Consumer group session timed out (in join-state steady) after 929834 ms without a successful response from the group coordinator (broker 1, last error was Success): revoking assignment and rejoining group
+%5|1780620885.733|REQTMOUT|rdkafka#consumer-1| [thrd:localhost:9093/1]: localhost:9093/1: Timed out FetchRequest in flight (after 928320ms, timeout #0)
+%4|1780620885.733|REQTMOUT|rdkafka#consumer-1| [thrd:localhost:9093/1]: localhost:9093/1: Timed out 1 in-flight, 0 retry-queued, 0 out-queue, 0 partially-sent requests
+%4|1780621739.746|SESSTMOUT|rdkafka#consumer-1| [thrd:main]: Consumer group session timed out (in join-state steady) after 807706 ms without a successful response from the group coordinator (broker 1, last error was Success): revoking assignment and rejoining group
+%5|1780621739.747|REQTMOUT|rdkafka#consumer-1| [thrd:localhost:9093/1]: localhost:9093/1: Timed out FetchRequest in flight (after 806703ms, timeout #0)
+%4|1780621739.747|REQTMOUT|rdkafka#consumer-1| [thrd:localhost:9093/1]: localhost:9093/1: Timed out 1 in-flight, 0 retry-queued, 0 out-queue, 0 partially-sent requests
+%4|1780622744.751|SESSTMOUT|rdkafka#consumer-1| [thrd:main]: Consumer group session timed out (in join-state steady) after 961158 ms without a successful response from the group coordinator (broker 1, last error was Success): revoking assignment and rejoining group
+%5|1780622744.751|REQTMOUT|rdkafka#consumer-1| [thrd:localhost:9093/1]: localhost:9093/1: Timed out FetchRequest in flight (after 958640ms, timeout #0)
+%4|1780622744.752|REQTMOUT|rdkafka#consumer-1| [thrd:localhost:9093/1]: localhost:9093/1: Timed out 1 in-flight, 0 retry-queued, 0 out-queue, 0 partially-sent requests
+%4|1780623718.744|SESSTMOUT|rdkafka#consumer-1| [thrd:main]: Consumer group session timed out (in join-state steady) after 929048 ms without a successful response from the group coordinator (broker 1, last error was Success): revoking assignment and rejoining group
+%5|1780623718.744|REQTMOUT|rdkafka#consumer-1| [thrd:localhost:9093/1]: localhost:9093/1: Timed out FetchRequest in flight (after 928042ms, timeout #0)
+%4|1780623718.744|REQTMOUT|rdkafka#consumer-1| [thrd:localhost:9093/1]: localhost:9093/1: Timed out 1 in-flight, 0 retry-queued, 0 out-queue, 0 partially-sent requests
+%4|1780624674.722|SESSTMOUT|rdkafka#consumer-1| [thrd:main]: Consumer group session timed out (in join-state steady) after 909323 ms without a successful response from the group coordinator (broker 1, last error was Success): revoking assignment and rejoining group
+%5|1780624674.722|REQTMOUT|rdkafka#consumer-1| [thrd:localhost:9093/1]: localhost:9093/1: Timed out FetchRequest in flight (after 908826ms, timeout #0)
+%4|1780624674.722|REQTMOUT|rdkafka#consumer-1| [thrd:localhost:9093/1]: localhost:9093/1: Timed out 1 in-flight, 0 retry-queued, 0 out-queue, 0 partially-sent requests
+%4|1780625689.727|SESSTMOUT|rdkafka#consumer-1| [thrd:main]: Consumer group session timed out (in join-state steady) after 955922 ms without a successful response from the group coordinator (broker 1, last error was Success): revoking assignment and rejoining group
+%5|1780625689.728|REQTMOUT|rdkafka#consumer-1| [thrd:localhost:9093/1]: localhost:9093/1: Timed out FetchRequest in flight (after 952985ms, timeout #0)
+%4|1780625689.728|REQTMOUT|rdkafka#consumer-1| [thrd:localhost:9093/1]: localhost:9093/1: Timed out 1 in-flight, 0 retry-queued, 0 out-queue, 0 partially-sent requests
+%4|1780626736.747|SESSTMOUT|rdkafka#consumer-1| [thrd:main]: Consumer group session timed out (in join-state steady) after 1002063 ms without a successful response from the group coordinator (broker 1, last error was Success): revoking assignment and rejoining group
+%5|1780626736.747|REQTMOUT|rdkafka#consumer-1| [thrd:localhost:9093/1]: localhost:9093/1: Timed out FetchRequest in flight (after 1000060ms, timeout #0)
+%4|1780626736.747|REQTMOUT|rdkafka#consumer-1| [thrd:localhost:9093/1]: localhost:9093/1: Timed out 1 in-flight, 0 retry-queued, 0 out-queue, 0 partially-sent requests
+%4|1780627724.795|SESSTMOUT|rdkafka#consumer-1| [thrd:main]: Consumer group session timed out (in join-state steady) after 942480 ms without a successful response from the group coordinator (broker 1, last error was Success): revoking assignment and rejoining group
+%5|1780627724.795|REQTMOUT|rdkafka#consumer-1| [thrd:localhost:9093/1]: localhost:9093/1: Timed out FetchRequest in flight (after 940975ms, timeout #0)
+%4|1780627724.795|REQTMOUT|rdkafka#consumer-1| [thrd:localhost:9093/1]: localhost:9093/1: Timed out 1 in-flight, 0 retry-queued, 0 out-queue, 0 partially-sent requests
+%4|1780628693.039|SESSTMOUT|rdkafka#consumer-1| [thrd:main]: Consumer group session timed out (in join-state steady) after 921983 ms without a successful response from the group coordinator (broker 1, last error was Success): revoking assignment and rejoining group
+%4|1780629786.760|SESSTMOUT|rdkafka#consumer-1| [thrd:main]: Consumer group session timed out (in join-state steady) after 1049223 ms without a successful response from the group coordinator (broker 1, last error was Success): revoking assignment and rejoining group
+%5|1780629786.760|REQTMOUT|rdkafka#consumer-1| [thrd:localhost:9093/1]: localhost:9093/1: Timed out FetchRequest in flight (after 1047208ms, timeout #0)
+%4|1780629786.760|REQTMOUT|rdkafka#consumer-1| [thrd:localhost:9093/1]: localhost:9093/1: Timed out 1 in-flight, 0 retry-queued, 0 out-queue, 0 partially-sent requests
+%4|1780630748.767|SESSTMOUT|rdkafka#consumer-1| [thrd:main]: Consumer group session timed out (in join-state steady) after 916527 ms without a successful response from the group coordinator (broker 1, last error was Success): revoking assignment and rejoining group
+%5|1780630748.767|REQTMOUT|rdkafka#consumer-1| [thrd:localhost:9093/1]: localhost:9093/1: Timed out FetchRequest in flight (after 916031ms, timeout #0)
+%4|1780630748.767|REQTMOUT|rdkafka#consumer-1| [thrd:localhost:9093/1]: localhost:9093/1: Timed out 1 in-flight, 0 retry-queued, 0 out-queue, 0 partially-sent requests
+%4|1780631809.796|SESSTMOUT|rdkafka#consumer-1| [thrd:main]: Consumer group session timed out (in join-state steady) after 1013929 ms without a successful response from the group coordinator (broker 1, last error was Success): revoking assignment and rejoining group
+%5|1780631809.797|REQTMOUT|rdkafka#consumer-1| [thrd:localhost:9093/1]: localhost:9093/1: Timed out FetchRequest in flight (after 1013951ms, timeout #0)
+%4|1780631809.797|REQTMOUT|rdkafka#consumer-1| [thrd:localhost:9093/1]: localhost:9093/1: Timed out 1 in-flight, 0 retry-queued, 0 out-queue, 0 partially-sent requests
+%5|1780632907.018|REQTMOUT|rdkafka#consumer-1| [thrd:localhost:9093/1]: localhost:9093/1: Timed out FetchRequest in flight (after 1047934ms, timeout #0)
+%4|1780632907.018|REQTMOUT|rdkafka#consumer-1| [thrd:localhost:9093/1]: localhost:9093/1: Timed out 1 in-flight, 0 retry-queued, 0 out-queue, 0 partially-sent requests
+%4|1780632907.018|SESSTMOUT|rdkafka#consumer-1| [thrd:main]: Consumer group session timed out (in join-state steady) after 1049450 ms without a successful response from the group coordinator (broker 1, last error was Success): revoking assignment and rejoining group
+%5|1780633786.951|REQTMOUT|rdkafka#consumer-1| [thrd:localhost:9093/1]: localhost:9093/1: Timed out FetchRequest in flight (after 829347ms, timeout #0)
+%4|1780633786.951|REQTMOUT|rdkafka#consumer-1| [thrd:localhost:9093/1]: localhost:9093/1: Timed out 1 in-flight, 0 retry-queued, 0 out-queue, 0 partially-sent requests
+%4|1780633786.951|SESSTMOUT|rdkafka#consumer-1| [thrd:main]: Consumer group session timed out (in join-state steady) after 830817 ms without a successful response from the group coordinator (broker 1, last error was Success): revoking assignment and rejoining group
+%5|1780635237.722|REQTMOUT|rdkafka#consumer-1| [thrd:localhost:9093/1]: localhost:9093/1: Timed out FetchRequest in flight (after 940660ms, timeout #0)
+%4|1780635237.722|REQTMOUT|rdkafka#consumer-1| [thrd:localhost:9093/1]: localhost:9093/1: Timed out 1 in-flight, 0 retry-queued, 0 out-queue, 0 partially-sent requests
+%4|1780635237.722|SESSTMOUT|rdkafka#consumer-1| [thrd:main]: Consumer group session timed out (in join-state steady) after 941733 ms without a successful response from the group coordinator (broker 1, last error was Success): revoking assignment and rejoining group
+%5|1780636228.717|REQTMOUT|rdkafka#consumer-1| [thrd:localhost:9093/1]: localhost:9093/1: Timed out FetchRequest in flight (after 928861ms, timeout #0)
+%4|1780636228.717|REQTMOUT|rdkafka#consumer-1| [thrd:localhost:9093/1]: localhost:9093/1: Timed out 1 in-flight, 0 retry-queued, 0 out-queue, 0 partially-sent requests
+%4|1780636228.717|SESSTMOUT|rdkafka#consumer-1| [thrd:main]: Consumer group session timed out (in join-state steady) after 929271 ms without a successful response from the group coordinator (broker 1, last error was Success): revoking assignment and rejoining group
+%4|1780637204.705|SESSTMOUT|rdkafka#consumer-1| [thrd:main]: Consumer group session timed out (in join-state steady) after 931790 ms without a successful response from the group coordinator (broker 1, last error was Success): revoking assignment and rejoining group
+%5|1780637204.705|REQTMOUT|rdkafka#consumer-1| [thrd:localhost:9093/1]: localhost:9093/1: Timed out FetchRequest in flight (after 930277ms, timeout #0)
+%4|1780637204.705|REQTMOUT|rdkafka#consumer-1| [thrd:localhost:9093/1]: localhost:9093/1: Timed out 1 in-flight, 0 retry-queued, 0 out-queue, 0 partially-sent requests
+%4|1780638174.759|SESSTMOUT|rdkafka#consumer-1| [thrd:main]: Consumer group session timed out (in join-state steady) after 924055 ms without a successful response from the group coordinator (broker 1, last error was Success): revoking assignment and rejoining group
+%5|1780638174.759|REQTMOUT|rdkafka#consumer-1| [thrd:localhost:9093/1]: localhost:9093/1: Timed out FetchRequest in flight (after 923080ms, timeout #0)
+%4|1780638174.759|REQTMOUT|rdkafka#consumer-1| [thrd:localhost:9093/1]: localhost:9093/1: Timed out 1 in-flight, 0 retry-queued, 0 out-queue, 0 partially-sent requests
+%5|1780638300.923|REQTMOUT|rdkafka#consumer-1| [thrd:localhost:9093/1]: localhost:9093/1: Timed out FetchRequest in flight (after 80059ms, timeout #0)
+%4|1780638300.923|REQTMOUT|rdkafka#consumer-1| [thrd:localhost:9093/1]: localhost:9093/1: Timed out 1 in-flight, 0 retry-queued, 0 out-queue, 0 partially-sent requests
+%4|1780638300.923|SESSTMOUT|rdkafka#consumer-1| [thrd:main]: Consumer group session timed out (in join-state steady) after 82576 ms without a successful response from the group coordinator (broker 1, last error was Success): revoking assignment and rejoining group
+%5|1780639313.055|REQTMOUT|rdkafka#consumer-1| [thrd:localhost:9093/1]: localhost:9093/1: Timed out FetchRequest in flight (after 964580ms, timeout #0)
+%4|1780639313.055|REQTMOUT|rdkafka#consumer-1| [thrd:localhost:9093/1]: localhost:9093/1: Timed out 1 in-flight, 0 retry-queued, 0 out-queue, 0 partially-sent requests
+%4|1780639313.055|SESSTMOUT|rdkafka#consumer-1| [thrd:main]: Consumer group session timed out (in join-state steady) after 967104 ms without a successful response from the group coordinator (broker 1, last error was Success): revoking assignment and rejoining group
+%5|1780640288.734|REQTMOUT|rdkafka#consumer-1| [thrd:localhost:9093/1]: localhost:9093/1: Timed out FetchRequest in flight (after 914039ms, timeout #0)
+%4|1780640288.734|REQTMOUT|rdkafka#consumer-1| [thrd:localhost:9093/1]: localhost:9093/1: Timed out 1 in-flight, 0 retry-queued, 0 out-queue, 0 partially-sent requests
+%4|1780640288.734|SESSTMOUT|rdkafka#consumer-1| [thrd:main]: Consumer group session timed out (in join-state steady) after 915441 ms without a successful response from the group coordinator (broker 1, last error was Success): revoking assignment and rejoining group
+%4|1780641046.917|SESSTMOUT|rdkafka#consumer-1| [thrd:main]: Consumer group session timed out (in join-state steady) after 711934 ms without a successful response from the group coordinator (broker 1, last error was Success): revoking assignment and rejoining group
+%4|1780641393.744|SESSTMOUT|rdkafka#consumer-1| [thrd:main]: Consumer group session timed out (in join-state steady) after 300312 ms without a successful response from the group coordinator (broker 1, last error was Success): revoking assignment and rejoining group
+%4|1780641737.131|SESSTMOUT|rdkafka#consumer-1| [thrd:main]: Consumer group session timed out (in join-state steady) after 298866 ms without a successful response from the group coordinator (broker 1, last error was Success): revoking assignment and rejoining group
+%5|1780641737.131|REQTMOUT|rdkafka#consumer-1| [thrd:localhost:9093/1]: localhost:9093/1: Timed out FetchRequest in flight (after 296350ms, timeout #0)
+%4|1780641737.131|REQTMOUT|rdkafka#consumer-1| [thrd:localhost:9093/1]: localhost:9093/1: Timed out 1 in-flight, 0 retry-queued, 0 out-queue, 0 partially-sent requests
+%4|1780642785.772|SESSTMOUT|rdkafka#consumer-1| [thrd:main]: Consumer group session timed out (in join-state steady) after 1003466 ms without a successful response from the group coordinator (broker 1, last error was Success): revoking assignment and rejoining group
+%5|1780642785.772|REQTMOUT|rdkafka#consumer-1| [thrd:localhost:9093/1]: localhost:9093/1: Timed out FetchRequest in flight (after 1001458ms, timeout #0)
+%4|1780642785.772|REQTMOUT|rdkafka#consumer-1| [thrd:localhost:9093/1]: localhost:9093/1: Timed out 1 in-flight, 0 retry-queued, 0 out-queue, 0 partially-sent requests
+%4|1780643361.297|SESSTMOUT|rdkafka#consumer-1| [thrd:main]: Consumer group session timed out (in join-state steady) after 514432 ms without a successful response from the group coordinator (broker 1, last error was Success): revoking assignment and rejoining group
+%5|1780643361.298|REQTMOUT|rdkafka#consumer-1| [thrd:localhost:9093/1]: localhost:9093/1: Timed out FetchRequest in flight (after 513536ms, timeout #0)
+%4|1780643361.298|REQTMOUT|rdkafka#consumer-1| [thrd:localhost:9093/1]: localhost:9093/1: Timed out 1 in-flight, 0 retry-queued, 0 out-queue, 0 partially-sent requests
+%4|1780644453.756|SESSTMOUT|rdkafka#consumer-1| [thrd:main]: Consumer group session timed out (in join-state steady) after 965244 ms without a successful response from the group coordinator (broker 1, last error was Success): revoking assignment and rejoining group
+%4|1780645671.771|SESSTMOUT|rdkafka#consumer-1| [thrd:main]: Consumer group session timed out (in join-state steady) after 996403 ms without a successful response from the group coordinator (broker 1, last error was Success): revoking assignment and rejoining group
+%4|1780646640.794|SESSTMOUT|rdkafka#consumer-1| [thrd:main]: Consumer group session timed out (in join-state steady) after 923560 ms without a successful response from the group coordinator (broker 1, last error was Success): revoking assignment and rejoining group
+%4|1780646925.665|SESSTMOUT|rdkafka#consumer-1| [thrd:main]: Consumer group session timed out (in join-state steady) after 224114 ms without a successful response from the group coordinator (broker 1, last error was Success): revoking assignment and rejoining group
+%4|1780647877.952|SESSTMOUT|rdkafka#consumer-1| [thrd:main]: Consumer group session timed out (in join-state steady) after 905761 ms without a successful response from the group coordinator (broker 1, last error was Success): revoking assignment and rejoining group
+%5|1780647877.952|REQTMOUT|rdkafka#consumer-1| [thrd:localhost:9093/1]: localhost:9093/1: Timed out FetchRequest in flight (after 905278ms, timeout #0)
+%4|1780647877.952|REQTMOUT|rdkafka#consumer-1| [thrd:localhost:9093/1]: localhost:9093/1: Timed out 1 in-flight, 0 retry-queued, 0 out-queue, 0 partially-sent requests
+%4|1780648306.765|SESSTMOUT|rdkafka#consumer-1| [thrd:main]: Consumer group session timed out (in join-state steady) after 384639 ms without a successful response from the group coordinator (broker 1, last error was Success): revoking assignment and rejoining group
+%5|1780648306.765|REQTMOUT|rdkafka#consumer-1| [thrd:localhost:9093/1]: localhost:9093/1: Timed out FetchRequest in flight (after 382115ms, timeout #0)
+%4|1780648306.765|REQTMOUT|rdkafka#consumer-1| [thrd:localhost:9093/1]: localhost:9093/1: Timed out 1 in-flight, 0 retry-queued, 0 out-queue, 0 partially-sent requests
+%4|1780649283.770|SESSTMOUT|rdkafka#consumer-1| [thrd:main]: Consumer group session timed out (in join-state steady) after 929039 ms without a successful response from the group coordinator (broker 1, last error was Success): revoking assignment and rejoining group
+%4|1780650236.776|SESSTMOUT|rdkafka#consumer-1| [thrd:main]: Consumer group session timed out (in join-state steady) after 907070 ms without a successful response from the group coordinator (broker 1, last error was Success): revoking assignment and rejoining group
+%4|1780651310.797|SESSTMOUT|rdkafka#consumer-1| [thrd:main]: Consumer group session timed out (in join-state steady) after 1027503 ms without a successful response from the group coordinator (broker 1, last error was Success): revoking assignment and rejoining group
+%5|1780651310.835|REQTMOUT|rdkafka#consumer-1| [thrd:localhost:9093/1]: localhost:9093/1: Timed out FetchRequest in flight (after 1027032ms, timeout #0)
+%4|1780651310.835|REQTMOUT|rdkafka#consumer-1| [thrd:localhost:9093/1]: localhost:9093/1: Timed out 1 in-flight, 0 retry-queued, 0 out-queue, 0 partially-sent requests
+%5|1780651446.185|REQTMOUT|rdkafka#consumer-1| [thrd:localhost:9093/1]: localhost:9093/1: Timed out FetchRequest in flight (after 88758ms, timeout #0)
+%4|1780651446.185|REQTMOUT|rdkafka#consumer-1| [thrd:localhost:9093/1]: localhost:9093/1: Timed out 1 in-flight, 0 retry-queued, 0 out-queue, 0 partially-sent requests
+%4|1780651446.185|SESSTMOUT|rdkafka#consumer-1| [thrd:main]: Consumer group session timed out (in join-state steady) after 91277 ms without a successful response from the group coordinator (broker 1, last error was Success): revoking assignment and rejoining group
+%4|1780651677.706|SESSTMOUT|rdkafka#consumer-1| [thrd:main]: Consumer group session timed out (in join-state steady) after 186498 ms without a successful response from the group coordinator (broker 1, last error was Success): revoking assignment and rejoining group
+%5|1780651677.741|REQTMOUT|rdkafka#consumer-1| [thrd:localhost:9093/1]: localhost:9093/1: Timed out FetchRequest in flight (after 185521ms, timeout #0)
+%4|1780651677.741|REQTMOUT|rdkafka#consumer-1| [thrd:localhost:9093/1]: localhost:9093/1: Timed out 1 in-flight, 0 retry-queued, 0 out-queue, 0 partially-sent requests
+%4|1780651966.714|SESSTMOUT|rdkafka#consumer-1| [thrd:main]: Consumer group session timed out (in join-state steady) after 153052 ms without a successful response from the group coordinator (broker 1, last error was Success): revoking assignment and rejoining group
+%5|1780651966.714|REQTMOUT|rdkafka#consumer-1| [thrd:localhost:9093/1]: localhost:9093/1: Timed out FetchRequest in flight (after 152707ms, timeout #0)
+%4|1780651966.714|REQTMOUT|rdkafka#consumer-1| [thrd:localhost:9093/1]: localhost:9093/1: Timed out 1 in-flight, 0 retry-queued, 0 out-queue, 0 partially-sent requests
+%4|1780653068.700|SESSTMOUT|rdkafka#consumer-1| [thrd:main]: Consumer group session timed out (in join-state steady) after 968979 ms without a successful response from the group coordinator (broker 1, last error was Success): revoking assignment and rejoining group
+%5|1780653068.700|REQTMOUT|rdkafka#consumer-1| [thrd:localhost:9093/1]: localhost:9093/1: Timed out FetchRequest in flight (after 968545ms, timeout #0)
+%4|1780653068.700|REQTMOUT|rdkafka#consumer-1| [thrd:localhost:9093/1]: localhost:9093/1: Timed out 1 in-flight, 0 retry-queued, 0 out-queue, 0 partially-sent requests
+%4|1780653808.848|SESSTMOUT|rdkafka#consumer-1| [thrd:main]: Consumer group session timed out (in join-state steady) after 680871 ms without a successful response from the group coordinator (broker 1, last error was Success): revoking assignment and rejoining group
+%4|1780653958.449|SESSTMOUT|rdkafka#consumer-1| [thrd:main]: Consumer group session timed out (in join-state steady) after 104617 ms without a successful response from the group coordinator (broker 1, last error was Success): revoking assignment and rejoining group
+%4|1780654226.052|SESSTMOUT|rdkafka#consumer-1| [thrd:main]: Consumer group session timed out (in join-state steady) after 61995 ms without a successful response from the group coordinator (broker 1, last error was Success): revoking assignment and rejoining group
+%4|1780654328.216|SESSTMOUT|rdkafka#consumer-1| [thrd:main]: Consumer group session timed out (in join-state steady) after 56375 ms without a successful response from the group coordinator (broker 1, last error was Success): revoking assignment and rejoining group
+%4|1780654504.015|SESSTMOUT|rdkafka#consumer-1| [thrd:main]: Consumer group session timed out (in join-state steady) after 57481 ms without a successful response from the group coordinator (broker 1, last error was Success): revoking assignment and rejoining group
+%4|1780655082.747|SESSTMOUT|rdkafka#consumer-1| [thrd:main]: Consumer group session timed out (in join-state steady) after 535562 ms without a successful response from the group coordinator (broker 1, last error was Success): revoking assignment and rejoining group
+%4|1780655251.189|SESSTMOUT|rdkafka#consumer-1| [thrd:main]: Consumer group session timed out (in join-state steady) after 123524 ms without a successful response from the group coordinator (broker 1, last error was Success): revoking assignment and rejoining group
+%4|1780655468.707|SESSTMOUT|rdkafka#consumer-1| [thrd:main]: Consumer group session timed out (in join-state steady) after 171956 ms without a successful response from the group coordinator (broker 1, last error was Success): revoking assignment and rejoining group
+%5|1780655468.707|REQTMOUT|rdkafka#consumer-1| [thrd:localhost:9093/1]: localhost:9093/1: Timed out FetchRequest in flight (after 170447ms, timeout #0)
+%4|1780655468.707|REQTMOUT|rdkafka#consumer-1| [thrd:localhost:9093/1]: localhost:9093/1: Timed out 1 in-flight, 0 retry-queued, 0 out-queue, 0 partially-sent requests
+%4|1780655562.912|SESSTMOUT|rdkafka#consumer-1| [thrd:main]: Consumer group session timed out (in join-state steady) after 47968 ms without a successful response from the group coordinator (broker 1, last error was Success): revoking assignment and rejoining group
+%4|1780656647.942|SESSTMOUT|rdkafka#consumer-1| [thrd:main]: Consumer group session timed out (in join-state steady) after 711361 ms without a successful response from the group coordinator (broker 1, last error was Success): revoking assignment and rejoining group
+%4|1780656987.704|SESSTMOUT|rdkafka#consumer-1| [thrd:main]: Consumer group session timed out (in join-state steady) after 176139 ms without a successful response from the group coordinator (broker 1, last error was Success): revoking assignment and rejoining group
+%5|1780656987.705|REQTMOUT|rdkafka#consumer-1| [thrd:localhost:9093/1]: localhost:9093/1: Timed out FetchRequest in flight (after 175592ms, timeout #0)
+%4|1780656987.705|REQTMOUT|rdkafka#consumer-1| [thrd:localhost:9093/1]: localhost:9093/1: Timed out 1 in-flight, 0 retry-queued, 0 out-queue, 0 partially-sent requests
+%4|1780658053.459|SESSTMOUT|rdkafka#consumer-1| [thrd:main]: Consumer group session timed out (in join-state steady) after 930774 ms without a successful response from the group coordinator (broker 1, last error was Success): revoking assignment and rejoining group
+%4|1780658182.332|SESSTMOUT|rdkafka#consumer-1| [thrd:main]: Consumer group session timed out (in join-state steady) after 82102 ms without a successful response from the group coordinator (broker 1, last error was Success): revoking assignment and rejoining group
+%4|1780658709.482|SESSTMOUT|rdkafka#consumer-1| [thrd:main]: Consumer group session timed out (in join-state steady) after 348925 ms without a successful response from the group coordinator (broker 1, last error was Success): revoking assignment and rejoining group
+%5|1780658709.482|REQTMOUT|rdkafka#consumer-1| [thrd:localhost:9093/1]: localhost:9093/1: Timed out FetchRequest in flight (after 347264ms, timeout #0)
+%4|1780658709.484|REQTMOUT|rdkafka#consumer-1| [thrd:localhost:9093/1]: localhost:9093/1: Timed out 1 in-flight, 0 retry-queued, 0 out-queue, 0 partially-sent requests
+%4|1780658971.015|SESSTMOUT|rdkafka#consumer-1| [thrd:main]: Consumer group session timed out (in join-state steady) after 92598 ms without a successful response from the group coordinator (broker 1, last error was Success): revoking assignment and rejoining group
+%4|1780659133.214|SESSTMOUT|rdkafka#consumer-1| [thrd:main]: Consumer group session timed out (in join-state steady) after 116237 ms without a successful response from the group coordinator (broker 1, last error was Success): revoking assignment and rejoining group
+%4|1780660245.817|SESSTMOUT|rdkafka#consumer-1| [thrd:main]: Consumer group session timed out (in join-state steady) after 934887 ms without a successful response from the group coordinator (broker 1, last error was Success): revoking assignment and rejoining group
+%5|1780660245.817|REQTMOUT|rdkafka#consumer-1| [thrd:localhost:9093/1]: localhost:9093/1: Timed out FetchRequest in flight (after 933043ms, timeout #0)
+%4|1780660245.817|REQTMOUT|rdkafka#consumer-1| [thrd:localhost:9093/1]: localhost:9093/1: Timed out 1 in-flight, 0 retry-queued, 0 out-queue, 0 partially-sent requests
+%4|1780660434.920|SESSTMOUT|rdkafka#consumer-1| [thrd:main]: Consumer group session timed out (in join-state steady) after 78186 ms without a successful response from the group coordinator (broker 1, last error was Success): revoking assignment and rejoining group
+%4|1780660538.856|SESSTMOUT|rdkafka#consumer-1| [thrd:main]: Consumer group session timed out (in join-state steady) after 57917 ms without a successful response from the group coordinator (broker 1, last error was Success): revoking assignment and rejoining group
+%4|1780661504.826|SESSTMOUT|rdkafka#consumer-1| [thrd:main]: Consumer group session timed out (in join-state steady) after 922296 ms without a successful response from the group coordinator (broker 1, last error was Success): revoking assignment and rejoining group
+%5|1780661504.827|REQTMOUT|rdkafka#consumer-1| [thrd:localhost:9093/1]: localhost:9093/1: Timed out FetchRequest in flight (after 919779ms, timeout #0)
+%4|1780661504.827|REQTMOUT|rdkafka#consumer-1| [thrd:localhost:9093/1]: localhost:9093/1: Timed out 1 in-flight, 0 retry-queued, 0 out-queue, 0 partially-sent requests
+%5|1780661783.620|REQTMOUT|rdkafka#consumer-1| [thrd:localhost:9093/1]: localhost:9093/1: Timed out FetchRequest in flight (after 231944ms, timeout #0)
+%4|1780661783.637|SESSTMOUT|rdkafka#consumer-1| [thrd:main]: Consumer group session timed out (in join-state steady) after 233470 ms without a successful response from the group coordinator (broker 1, last error was Success): revoking assignment and rejoining group
+%4|1780661783.666|REQTMOUT|rdkafka#consumer-1| [thrd:localhost:9093/1]: localhost:9093/1: Timed out 1 in-flight, 0 retry-queued, 0 out-queue, 0 partially-sent requests
+%4|1780662000.609|SESSTMOUT|rdkafka#consumer-1| [thrd:main]: Consumer group session timed out (in join-state steady) after 124849 ms without a successful response from the group coordinator (broker 1, last error was Success): revoking assignment and rejoining group
+%5|1780663918.797|REQTMOUT|rdkafka#consumer-1| [thrd:localhost:9093/1]: localhost:9093/1: Timed out FetchRequest in flight (after 973984ms, timeout #0)
+%4|1780663918.855|REQTMOUT|rdkafka#consumer-1| [thrd:localhost:9093/1]: localhost:9093/1: Timed out 1 in-flight, 0 retry-queued, 0 out-queue, 0 partially-sent requests
+%4|1780663918.855|SESSTMOUT|rdkafka#consumer-1| [thrd:main]: Consumer group session timed out (in join-state steady) after 974759 ms without a successful response from the group coordinator (broker 1, last error was Success): revoking assignment and rejoining group
+%4|1780664411.299|SESSTMOUT|rdkafka#consumer-1| [thrd:main]: Consumer group session timed out (in join-state steady) after 218673 ms without a successful response from the group coordinator (broker 1, last error was Success): revoking assignment and rejoining group
+%5|1780665698.378|REQTMOUT|rdkafka#consumer-1| [thrd:localhost:9093/1]: localhost:9093/1: Timed out FetchRequest in flight (after 355136ms, timeout #0)
+%4|1780665698.417|REQTMOUT|rdkafka#consumer-1| [thrd:localhost:9093/1]: localhost:9093/1: Timed out 1 in-flight, 0 retry-queued, 0 out-queue, 0 partially-sent requests
+%4|1780665698.417|SESSTMOUT|rdkafka#consumer-1| [thrd:main]: Consumer group session timed out (in join-state steady) after 355901 ms without a successful response from the group coordinator (broker 1, last error was Success): revoking assignment and rejoining group
+%4|1780666110.405|SESSTMOUT|rdkafka#consumer-1| [thrd:main]: Consumer group session timed out (in join-state steady) after 214124 ms without a successful response from the group coordinator (broker 1, last error was Success): revoking assignment and rejoining group
+%5|1780666465.496|REQTMOUT|rdkafka#consumer-1| [thrd:localhost:9093/1]: localhost:9093/1: Timed out FetchRequest in flight (after 61455ms, timeout #0)
+%4|1780666465.496|REQTMOUT|rdkafka#consumer-1| [thrd:localhost:9093/1]: localhost:9093/1: Timed out 1 in-flight, 0 retry-queued, 0 out-queue, 0 partially-sent requests
+%4|1780666465.496|SESSTMOUT|rdkafka#consumer-1| [thrd:main]: Consumer group session timed out (in join-state steady) after 63142 ms without a successful response from the group coordinator (broker 1, last error was Success): revoking assignment and rejoining group
+%5|1780666961.486|REQTMOUT|rdkafka#consumer-1| [thrd:GroupCoordinator]: GroupCoordinator/1: Timed out JoinGroupRequest in flight (after 495988ms, timeout #0)
+%4|1780666961.486|REQTMOUT|rdkafka#consumer-1| [thrd:GroupCoordinator]: GroupCoordinator/1: Timed out 1 in-flight, 0 retry-queued, 0 out-queue, 0 partially-sent requests
+%4|1780667644.222|SESSTMOUT|rdkafka#consumer-1| [thrd:main]: Consumer group session timed out (in join-state steady) after 375285 ms without a successful response from the group coordinator (broker 1, last error was Success): revoking assignment and rejoining group
+%5|1780667644.222|REQTMOUT|rdkafka#consumer-1| [thrd:localhost:9093/1]: localhost:9093/1: Timed out FetchRequest in flight (after 372584ms, timeout #0)
+%4|1780667644.222|REQTMOUT|rdkafka#consumer-1| [thrd:localhost:9093/1]: localhost:9093/1: Timed out 1 in-flight, 0 retry-queued, 0 out-queue, 0 partially-sent requests
+%4|1780668083.258|SESSTMOUT|rdkafka#consumer-1| [thrd:main]: Consumer group session timed out (in join-state steady) after 294403 ms without a successful response from the group coordinator (broker 1, last error was Success): revoking assignment and rejoining group
+%5|1780668083.258|REQTMOUT|rdkafka#consumer-1| [thrd:localhost:9093/1]: localhost:9093/1: Timed out FetchRequest in flight (after 293997ms, timeout #0)
+%4|1780668083.258|REQTMOUT|rdkafka#consumer-1| [thrd:localhost:9093/1]: localhost:9093/1: Timed out 1 in-flight, 0 retry-queued, 0 out-queue, 0 partially-sent requests
+%4|1780668680.504|SESSTMOUT|rdkafka#consumer-1| [thrd:main]: Consumer group session timed out (in join-state steady) after 84127 ms without a successful response from the group coordinator (broker 1, last error was Success): revoking assignment and rejoining group
+%5|1780669795.250|REQTMOUT|rdkafka#consumer-1| [thrd:localhost:9093/1]: localhost:9093/1: Timed out FetchRequest in flight (after 721144ms, timeout #0)
+%4|1780669795.304|REQTMOUT|rdkafka#consumer-1| [thrd:localhost:9093/1]: localhost:9093/1: Timed out 1 in-flight, 0 retry-queued, 0 out-queue, 0 partially-sent requests
+%4|1780669795.304|SESSTMOUT|rdkafka#consumer-1| [thrd:main]: Consumer group session timed out (in join-state steady) after 721246 ms without a successful response from the group coordinator (broker 1, last error was Success): revoking assignment and rejoining group
+%4|1780670228.413|SESSTMOUT|rdkafka#consumer-1| [thrd:main]: Consumer group session timed out (in join-state steady) after 95834 ms without a successful response from the group coordinator (broker 1, last error was Success): revoking assignment and rejoining group
+%4|1780670644.589|SESSTMOUT|rdkafka#consumer-1| [thrd:main]: Consumer group session timed out (in join-state steady) after 171239 ms without a successful response from the group coordinator (broker 1, last error was Success): revoking assignment and rejoining group
+%4|1780671505.736|SESSTMOUT|rdkafka#consumer-1| [thrd:main]: Consumer group session timed out (in join-state steady) after 491599 ms without a successful response from the group coordinator (broker 1, last error was Success): revoking assignment and rejoining group
+%4|1780672208.412|SESSTMOUT|rdkafka#consumer-1| [thrd:main]: Consumer group session timed out (in join-state steady) after 508732 ms without a successful response from the group coordinator (broker 1, last error was Success): revoking assignment and rejoining group
+%5|1780672208.478|REQTMOUT|rdkafka#consumer-1| [thrd:localhost:9093/1]: localhost:9093/1: Timed out FetchRequest in flight (after 507898ms, timeout #0)
+%4|1780672208.478|REQTMOUT|rdkafka#consumer-1| [thrd:localhost:9093/1]: localhost:9093/1: Timed out 1 in-flight, 0 retry-queued, 0 out-queue, 0 partially-sent requests
+%4|1780672667.665|SESSTMOUT|rdkafka#consumer-1| [thrd:main]: Consumer group session timed out (in join-state steady) after 212937 ms without a successful response from the group coordinator (broker 1, last error was Success): revoking assignment and rejoining group
+%5|1780672667.665|REQTMOUT|rdkafka#consumer-1| [thrd:localhost:9093/1]: localhost:9093/1: Timed out FetchRequest in flight (after 210859ms, timeout #0)
+%4|1780672667.665|REQTMOUT|rdkafka#consumer-1| [thrd:localhost:9093/1]: localhost:9093/1: Timed out 1 in-flight, 0 retry-queued, 0 out-queue, 0 partially-sent requests
+%5|1780673174.872|REQTMOUT|rdkafka#consumer-1| [thrd:GroupCoordinator]: GroupCoordinator/1: Timed out JoinGroupRequest in flight (after 507202ms, timeout #0)
+%4|1780673174.873|REQTMOUT|rdkafka#consumer-1| [thrd:GroupCoordinator]: GroupCoordinator/1: Timed out 1 in-flight, 0 retry-queued, 0 out-queue, 0 partially-sent requests
+%4|1780674228.712|SESSTMOUT|rdkafka#consumer-1| [thrd:main]: Consumer group session timed out (in join-state steady) after 637105 ms without a successful response from the group coordinator (broker 1, last error was Success): revoking assignment and rejoining group
+%5|1780674541.625|REQTMOUT|rdkafka#consumer-1| [thrd:GroupCoordinator]: GroupCoordinator/1: Timed out JoinGroupRequest in flight (after 312912ms, timeout #0)
+%4|1780674541.625|REQTMOUT|rdkafka#consumer-1| [thrd:GroupCoordinator]: GroupCoordinator/1: Timed out 1 in-flight, 0 retry-queued, 0 out-queue, 0 partially-sent requests
+%5|1780675404.953|REQTMOUT|rdkafka#consumer-1| [thrd:GroupCoordinator]: GroupCoordinator/1: Timed out JoinGroupRequest in flight (after 863319ms, timeout #0)
+%4|1780675404.953|REQTMOUT|rdkafka#consumer-1| [thrd:GroupCoordinator]: GroupCoordinator/1: Timed out 1 in-flight, 0 retry-queued, 0 out-queue, 0 partially-sent requests
+%4|1780675875.402|SESSTMOUT|rdkafka#consumer-1| [thrd:main]: Consumer group session timed out (in join-state steady) after 452958 ms without a successful response from the group coordinator (broker 1, last error was Success): revoking assignment and rejoining group
+%5|1780676310.863|REQTMOUT|rdkafka#consumer-1| [thrd:GroupCoordinator]: GroupCoordinator/1: Timed out JoinGroupRequest in flight (after 435458ms, timeout #0)
+%4|1780676310.863|REQTMOUT|rdkafka#consumer-1| [thrd:GroupCoordinator]: GroupCoordinator/1: Timed out 1 in-flight, 0 retry-queued, 0 out-queue, 0 partially-sent requests
+%4|1780676439.306|SESSTMOUT|rdkafka#consumer-1| [thrd:main]: Consumer group session timed out (in join-state steady) after 94346 ms without a successful response from the group coordinator (broker 1, last error was Success): revoking assignment and rejoining group
+%5|1780677512.432|REQTMOUT|rdkafka#consumer-1| [thrd:GroupCoordinator]: GroupCoordinator/1: Timed out JoinGroupRequest in flight (after 1073123ms, timeout #0)
+%4|1780677512.432|REQTMOUT|rdkafka#consumer-1| [thrd:GroupCoordinator]: GroupCoordinator/1: Timed out 1 in-flight, 0 retry-queued, 0 out-queue, 0 partially-sent requests
+%4|1780678452.943|SESSTMOUT|rdkafka#consumer-1| [thrd:main]: Consumer group session timed out (in join-state steady) after 936181 ms without a successful response from the group coordinator (broker 1, last error was Success): revoking assignment and rejoining group
+%5|1780679468.182|REQTMOUT|rdkafka#consumer-1| [thrd:GroupCoordinator]: GroupCoordinator/1: Timed out JoinGroupRequest in flight (after 1014748ms, timeout #0)
+%4|1780679468.182|REQTMOUT|rdkafka#consumer-1| [thrd:GroupCoordinator]: GroupCoordinator/1: Timed out 1 in-flight, 0 retry-queued, 0 out-queue, 0 partially-sent requests
+%5|1780680545.867|REQTMOUT|rdkafka#consumer-1| [thrd:GroupCoordinator]: GroupCoordinator/1: Timed out JoinGroupRequest in flight (after 1077681ms, timeout #0)
+%4|1780680545.867|REQTMOUT|rdkafka#consumer-1| [thrd:GroupCoordinator]: GroupCoordinator/1: Timed out 1 in-flight, 0 retry-queued, 0 out-queue, 0 partially-sent requests
+%5|1780680902.224|REQTMOUT|rdkafka#consumer-1| [thrd:GroupCoordinator]: GroupCoordinator/1: Timed out JoinGroupRequest in flight (after 356355ms, timeout #0)
+%4|1780680902.225|REQTMOUT|rdkafka#consumer-1| [thrd:GroupCoordinator]: GroupCoordinator/1: Timed out 1 in-flight, 0 retry-queued, 0 out-queue, 0 partially-sent requests
+%5|1780681786.058|REQTMOUT|rdkafka#consumer-1| [thrd:GroupCoordinator]: GroupCoordinator/1: Timed out JoinGroupRequest in flight (after 883826ms, timeout #0)
+%4|1780681786.058|REQTMOUT|rdkafka#consumer-1| [thrd:GroupCoordinator]: GroupCoordinator/1: Timed out 1 in-flight, 0 retry-queued, 0 out-queue, 0 partially-sent requests
+%4|1780681915.860|SESSTMOUT|rdkafka#consumer-1| [thrd:main]: Consumer group session timed out (in join-state steady) after 123874 ms without a successful response from the group coordinator (broker 1, last error was Success): revoking assignment and rejoining group
+%5|1780681916.002|REQTMOUT|rdkafka#consumer-1| [thrd:localhost:9093/1]: localhost:9093/1: Timed out FetchRequest in flight (after 123515ms, timeout #0)
+%4|1780681916.003|REQTMOUT|rdkafka#consumer-1| [thrd:localhost:9093/1]: localhost:9093/1: Timed out 1 in-flight, 0 retry-queued, 0 out-queue, 0 partially-sent requests
+%5|1780683088.797|REQTMOUT|rdkafka#consumer-1| [thrd:GroupCoordinator]: GroupCoordinator/1: Timed out JoinGroupRequest in flight (after 1172934ms, timeout #0)
+%4|1780683088.797|REQTMOUT|rdkafka#consumer-1| [thrd:GroupCoordinator]: GroupCoordinator/1: Timed out 1 in-flight, 0 retry-queued, 0 out-queue, 0 partially-sent requests
+%5|1780683523.360|REQTMOUT|rdkafka#consumer-1| [thrd:GroupCoordinator]: GroupCoordinator/1: Timed out JoinGroupRequest in flight (after 434555ms, timeout #0)
+%4|1780683523.362|REQTMOUT|rdkafka#consumer-1| [thrd:GroupCoordinator]: GroupCoordinator/1: Timed out 1 in-flight, 0 retry-queued, 0 out-queue, 0 partially-sent requests
+%4|1780684462.151|SESSTMOUT|rdkafka#consumer-1| [thrd:main]: Consumer group session timed out (in join-state steady) after 927740 ms without a successful response from the group coordinator (broker 1, last error was Success): revoking assignment and rejoining group
+%5|1780685039.284|REQTMOUT|rdkafka#consumer-1| [thrd:GroupCoordinator]: GroupCoordinator/1: Timed out JoinGroupRequest in flight (after 576685ms, timeout #0)
+%4|1780685039.284|REQTMOUT|rdkafka#consumer-1| [thrd:GroupCoordinator]: GroupCoordinator/1: Timed out 1 in-flight, 0 retry-queued, 0 out-queue, 0 partially-sent requests
+%5|1780685517.176|REQTMOUT|rdkafka#consumer-1| [thrd:localhost:9093/1]: localhost:9093/1: Timed out FetchRequest in flight (after 311269ms, timeout #0)
+%4|1780685517.176|REQTMOUT|rdkafka#consumer-1| [thrd:localhost:9093/1]: localhost:9093/1: Timed out 1 in-flight, 0 retry-queued, 0 out-queue, 0 partially-sent requests
+%4|1780685517.176|SESSTMOUT|rdkafka#consumer-1| [thrd:main]: Consumer group session timed out (in join-state steady) after 312781 ms without a successful response from the group coordinator (broker 1, last error was Success): revoking assignment and rejoining group
+%5|1780685892.615|REQTMOUT|rdkafka#consumer-1| [thrd:GroupCoordinator]: GroupCoordinator/1: Timed out JoinGroupRequest in flight (after 375435ms, timeout #0)
+%4|1780685892.615|REQTMOUT|rdkafka#consumer-1| [thrd:GroupCoordinator]: GroupCoordinator/1: Timed out 1 in-flight, 0 retry-queued, 0 out-queue, 0 partially-sent requests
+%5|1780686926.454|REQTMOUT|rdkafka#consumer-1| [thrd:GroupCoordinator]: GroupCoordinator/1: Timed out JoinGroupRequest in flight (after 1033833ms, timeout #0)
+%4|1780686926.454|REQTMOUT|rdkafka#consumer-1| [thrd:GroupCoordinator]: GroupCoordinator/1: Timed out 1 in-flight, 0 retry-queued, 0 out-queue, 0 partially-sent requests
+%4|1780687397.623|SESSTMOUT|rdkafka#consumer-1| [thrd:main]: Consumer group session timed out (in join-state steady) after 323101 ms without a successful response from the group coordinator (broker 1, last error was Success): revoking assignment and rejoining group
+%5|1780687397.624|REQTMOUT|rdkafka#consumer-1| [thrd:localhost:9093/1]: localhost:9093/1: Timed out FetchRequest in flight (after 321554ms, timeout #0)
+%4|1780687397.624|REQTMOUT|rdkafka#consumer-1| [thrd:localhost:9093/1]: localhost:9093/1: Timed out 1 in-flight, 0 retry-queued, 0 out-queue, 0 partially-sent requests
+%5|1780687931.193|REQTMOUT|rdkafka#consumer-1| [thrd:GroupCoordinator]: GroupCoordinator/1: Timed out JoinGroupRequest in flight (after 533567ms, timeout #0)
+%4|1780687931.193|REQTMOUT|rdkafka#consumer-1| [thrd:GroupCoordinator]: GroupCoordinator/1: Timed out 1 in-flight, 0 retry-queued, 0 out-queue, 0 partially-sent requests
+%5|1780688489.395|REQTMOUT|rdkafka#consumer-1| [thrd:GroupCoordinator]: GroupCoordinator/1: Timed out JoinGroupRequest in flight (after 558197ms, timeout #0)
+%4|1780688489.395|REQTMOUT|rdkafka#consumer-1| [thrd:GroupCoordinator]: GroupCoordinator/1: Timed out 1 in-flight, 0 retry-queued, 0 out-queue, 0 partially-sent requests
+%4|1780689671.989|SESSTMOUT|rdkafka#consumer-1| [thrd:main]: Consumer group session timed out (in join-state steady) after 948152 ms without a successful response from the group coordinator (broker 1, last error was Success): revoking assignment and rejoining group
+%5|1780689671.989|REQTMOUT|rdkafka#consumer-1| [thrd:localhost:9093/1]: localhost:9093/1: Timed out FetchRequest in flight (after 946474ms, timeout #0)
+%4|1780689671.989|REQTMOUT|rdkafka#consumer-1| [thrd:localhost:9093/1]: localhost:9093/1: Timed out 1 in-flight, 0 retry-queued, 0 out-queue, 0 partially-sent requests
+%5|1780690651.177|REQTMOUT|rdkafka#consumer-1| [thrd:GroupCoordinator]: GroupCoordinator/1: Timed out JoinGroupRequest in flight (after 978668ms, timeout #0)
+%4|1780690651.177|REQTMOUT|rdkafka#consumer-1| [thrd:GroupCoordinator]: GroupCoordinator/1: Timed out 1 in-flight, 0 retry-queued, 0 out-queue, 0 partially-sent requests
+2026-06-05 21:20:02,484 WARNING [distilbert/moderation-production] Failed to process message
+Traceback (most recent call last):
+  File "/Users/fotopnd/Documents/muppet-labs/projects/moderation-dashboard/moderation_dashboard/consumers/base.py", line 75, in run
+    event = ModerationEvent.model_validate_json(msg.value())
+  File "/Users/fotopnd/Documents/muppet-labs/projects/moderation-dashboard/.venv/lib/python3.14/site-packages/pydantic/main.py", line 782, in model_validate_json
+    return cls.__pydantic_validator__.validate_json(
+           ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^
+        json_data, strict=strict, extra=extra, context=context, by_alias=by_alias, by_name=by_name
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    )
+    ^
+pydantic_core._pydantic_core.ValidationError: 1 validation error for ModerationEvent
+ground_truth
+  Input should be a valid integer [type=int_type, input_value=None, input_type=NoneType]
+    For further information visit https://errors.pydantic.dev/2.13/v/int_type
+/opt/homebrew/Cellar/python@3.14/3.14.5/Frameworks/Python.framework/Versions/3.14/lib/python3.14/multiprocessing/resource_tracker.py:475: UserWarning: resource_tracker: There appear to be 1 leaked semaphore objects to clean up at shutdown: {'/mp-cpote15x'}
+  warnings.warn(
+2026-06-05 21:20:51,445 INFO Loading DistilBERT zero-shot model...
+2026-06-05 21:20:51,592 INFO HTTP Request: HEAD https://huggingface.co/typeform/distilbert-base-uncased-mnli/resolve/main/config.json "HTTP/1.1 307 Temporary Redirect"
+2026-06-05 21:20:51,603 INFO HTTP Request: HEAD https://huggingface.co/api/resolve-cache/models/typeform/distilbert-base-uncased-mnli/cfa538a0fddbbd978fefe8966c1aeff7ad409c90/config.json "HTTP/1.1 200 OK"
+Loading weights:   0%|          | 0/104 [00:00<?, ?it/s]Loading weights: 100%|██████████| 104/104 [00:00<00:00, 14196.23it/s]
+2026-06-05 21:20:51,760 INFO HTTP Request: GET https://huggingface.co/api/models/typeform/distilbert-base-uncased-mnli/tree/main/additional_chat_templates?recursive=false&expand=false "HTTP/1.1 404 Not Found"
+2026-06-05 21:20:51,864 INFO HTTP Request: GET https://huggingface.co/api/models/typeform/distilbert-base-uncased-mnli/tree/main?recursive=true&expand=false "HTTP/1.1 200 OK"
+2026-06-05 21:20:51,879 INFO DistilBERT zero-shot ready.
+2026-06-05 21:20:51,879 INFO Starting distilbert consumer in group 'moderation-production'
+%5|1780694319.571|REQTMOUT|rdkafka#consumer-1| [thrd:localhost:9093/1]: localhost:9093/1: Timed out FetchRequest in flight (after 413599ms, timeout #0)
+%4|1780694319.572|REQTMOUT|rdkafka#consumer-1| [thrd:localhost:9093/1]: localhost:9093/1: Timed out 1 in-flight, 0 retry-queued, 0 out-queue, 0 partially-sent requests
+%4|1780694319.572|SESSTMOUT|rdkafka#consumer-1| [thrd:main]: Consumer group session timed out (in join-state steady) after 414981 ms without a successful response from the group coordinator (broker 1, last error was Success): revoking assignment and rejoining group
+%5|1780695206.471|REQTMOUT|rdkafka#consumer-1| [thrd:GroupCoordinator]: GroupCoordinator/1: Timed out JoinGroupRequest in flight (after 886896ms, timeout #0)
+%4|1780695206.471|REQTMOUT|rdkafka#consumer-1| [thrd:GroupCoordinator]: GroupCoordinator/1: Timed out 1 in-flight, 0 retry-queued, 0 out-queue, 0 partially-sent requests

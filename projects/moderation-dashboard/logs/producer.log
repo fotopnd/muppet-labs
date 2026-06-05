@@ -1,0 +1,38 @@
+2026-06-03 23:32:57,036 INFO Ensuring topic 'moderation-events' exists (5 partitions)...
+%6|1780525977.051|FAIL|rdkafka#producer-1| [thrd:localhost:9093/bootstrap]: localhost:9093/bootstrap: Disconnected: connection reset by peer (after 1ms in state APIVERSION_QUERY)
+%6|1780525977.305|FAIL|rdkafka#producer-1| [thrd:localhost:9093/bootstrap]: localhost:9093/bootstrap: Disconnected: connection reset by peer (after 1ms in state APIVERSION_QUERY, 1 identical error(s) suppressed)
+2026-06-03 23:33:02,054 INFO Waiting for Kafka metadata (attempt 1/6)...
+2026-06-03 23:33:10,058 INFO Waiting for Kafka metadata (attempt 2/6)...
+2026-06-03 23:33:18,062 INFO Waiting for Kafka metadata (attempt 3/6)...
+2026-06-03 23:33:26,066 INFO Waiting for Kafka metadata (attempt 4/6)...
+%6|1780526010.387|FAIL|rdkafka#producer-1| [thrd:localhost:9093/bootstrap]: localhost:9093/bootstrap: Disconnected: connection reset by peer (after 1ms in state APIVERSION_QUERY, 6 identical error(s) suppressed)
+2026-06-03 23:33:34,072 INFO Waiting for Kafka metadata (attempt 5/6)...
+2026-06-03 23:33:42,083 INFO Waiting for Kafka metadata (attempt 6/6)...
+2026-06-03 23:33:45,084 WARNING ensure_topic failed — proceeding anyway
+Traceback (most recent call last):
+  File "/Users/fotopnd/Documents/muppet-labs/projects/moderation-dashboard/moderation_dashboard/producer.py", line 138, in main
+    ensure_topic(
+    ~~~~~~~~~~~~^
+        settings.kafka_bootstrap_servers, settings.kafka_topic, settings.kafka_num_partitions
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    )
+    ^
+  File "/Users/fotopnd/Documents/muppet-labs/projects/moderation-dashboard/moderation_dashboard/producer.py", line 66, in ensure_topic
+    raise RuntimeError(f"Could not connect to Kafka at {bootstrap_servers} after 6 attempts")
+RuntimeError: Could not connect to Kafka at localhost:9093 after 6 attempts
+2026-06-03 23:33:45,087 INFO Loading events from /Users/fotopnd/Documents/muppet-labs/resources/datasets/jigsaw-toxic-comments/train.csv (limit=500)...
+2026-06-03 23:33:45,091 INFO Loaded 500 events. Publishing at 10.0 msg/sec...
+%6|1780526025.093|FAIL|rdkafka#producer-2| [thrd:localhost:9093/bootstrap]: localhost:9093/bootstrap: Disconnected: connection reset by peer (after 1ms in state APIVERSION_QUERY)
+%6|1780526025.387|FAIL|rdkafka#producer-2| [thrd:localhost:9093/bootstrap]: localhost:9093/bootstrap: Disconnected: connection reset by peer (after 1ms in state APIVERSION_QUERY, 1 identical error(s) suppressed)
+%6|1780526060.863|FAIL|rdkafka#producer-2| [thrd:localhost:9093/bootstrap]: localhost:9093/bootstrap: Disconnected: connection reset by peer (after 1ms in state APIVERSION_QUERY, 6 identical error(s) suppressed)
+2026-06-03 23:34:34,996 INFO Published 500 events
+%6|1780526098.593|FAIL|rdkafka#producer-2| [thrd:localhost:9093/bootstrap]: localhost:9093/bootstrap: Disconnected: connection reset by peer (after 1ms in state APIVERSION_QUERY, 4 identical error(s) suppressed)
+%6|1780526135.889|FAIL|rdkafka#producer-2| [thrd:localhost:9093/bootstrap]: localhost:9093/bootstrap: Disconnected: connection reset by peer (after 0ms in state APIVERSION_QUERY, 4 identical error(s) suppressed)
+%6|1780526175.004|FAIL|rdkafka#producer-2| [thrd:localhost:9093/bootstrap]: localhost:9093/bootstrap: Disconnected: connection reset by peer (after 0ms in state APIVERSION_QUERY, 4 identical error(s) suppressed)
+%6|1780526212.572|FAIL|rdkafka#producer-2| [thrd:localhost:9093/bootstrap]: localhost:9093/bootstrap: Disconnected: connection reset by peer (after 1ms in state APIVERSION_QUERY, 4 identical error(s) suppressed)
+%6|1780526251.601|FAIL|rdkafka#producer-2| [thrd:localhost:9093/bootstrap]: localhost:9093/bootstrap: Disconnected: connection reset by peer (after 1ms in state APIVERSION_QUERY, 4 identical error(s) suppressed)
+%6|1780526281.613|FAIL|rdkafka#producer-2| [thrd:localhost:9093/bootstrap]: localhost:9093/bootstrap: Disconnected: connection reset by peer (after 1ms in state APIVERSION_QUERY, 3 identical error(s) suppressed)
+%6|1780526311.627|FAIL|rdkafka#producer-2| [thrd:localhost:9093/bootstrap]: localhost:9093/bootstrap: Disconnected: connection reset by peer (after 1ms in state APIVERSION_QUERY, 3 identical error(s) suppressed)
+%6|1780526349.307|FAIL|rdkafka#producer-2| [thrd:localhost:9093/bootstrap]: localhost:9093/bootstrap: Disconnected: connection reset by peer (after 1ms in state APIVERSION_QUERY, 4 identical error(s) suppressed)
+2026-06-03 23:39:35,737 INFO Done. Published 500 events.
+

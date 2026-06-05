@@ -1,0 +1,32 @@
+2026-06-05 16:26:44,010 INFO Loading 10000 rows from /Users/fotopnd/Documents/muppet-labs/resources/datasets/jigsaw-toxic-comments/train.csv...
+2026-06-05 16:26:44,039 INFO Loaded 10000 rows.
+2026-06-05 16:26:45,764 INFO Loading fine-tuned model from /Users/fotopnd/Documents/muppet-labs/resources/models/toxicity-classifier-finetuned/distilbert-best...
+Loading weights:   0%|          | 0/104 [00:00<?, ?it/s]Loading weights: 100%|██████████| 104/104 [00:00<00:00, 13076.94it/s]
+2026-06-05 16:26:45,826 INFO Seeding 10000 rows for model=finetuned_distilbert...
+2026-06-05 16:26:51,446 INFO [finetuned_distilbert] 500/10000 written (5.6s elapsed)
+2026-06-05 16:26:56,939 INFO [finetuned_distilbert] 1000/10000 written (11.1s elapsed)
+2026-06-05 16:27:02,242 INFO [finetuned_distilbert] 1500/10000 written (16.4s elapsed)
+2026-06-05 16:27:07,583 INFO [finetuned_distilbert] 2000/10000 written (21.8s elapsed)
+2026-06-05 16:27:12,801 INFO [finetuned_distilbert] 2500/10000 written (27.0s elapsed)
+2026-06-05 16:27:18,098 INFO [finetuned_distilbert] 3000/10000 written (32.3s elapsed)
+2026-06-05 16:27:23,424 INFO [finetuned_distilbert] 3500/10000 written (37.6s elapsed)
+2026-06-05 16:27:28,744 INFO [finetuned_distilbert] 4000/10000 written (42.9s elapsed)
+2026-06-05 16:27:33,973 INFO [finetuned_distilbert] 4500/10000 written (48.1s elapsed)
+2026-06-05 16:27:39,249 INFO [finetuned_distilbert] 5000/10000 written (53.4s elapsed)
+2026-06-05 16:27:44,592 INFO [finetuned_distilbert] 5500/10000 written (58.8s elapsed)
+2026-06-05 16:27:49,794 INFO [finetuned_distilbert] 6000/10000 written (64.0s elapsed)
+2026-06-05 16:27:55,055 INFO [finetuned_distilbert] 6500/10000 written (69.2s elapsed)
+2026-06-05 16:28:00,311 INFO [finetuned_distilbert] 7000/10000 written (74.5s elapsed)
+2026-06-05 16:28:05,748 INFO [finetuned_distilbert] 7500/10000 written (79.9s elapsed)
+2026-06-05 16:28:10,879 INFO [finetuned_distilbert] 8000/10000 written (85.1s elapsed)
+2026-06-05 16:28:16,152 INFO [finetuned_distilbert] 8500/10000 written (90.3s elapsed)
+2026-06-05 16:28:21,341 INFO [finetuned_distilbert] 9000/10000 written (95.5s elapsed)
+2026-06-05 16:28:26,650 INFO [finetuned_distilbert] 9500/10000 written (100.8s elapsed)
+2026-06-05 16:28:31,841 INFO [finetuned_distilbert] 10000/10000 written (106.0s elapsed)
+2026-06-05 16:28:31,841 INFO [finetuned_distilbert] Done. 10000 rows written in 106.0s.
+2026-06-05 16:28:31,843 INFO Seed complete. Total rows written: 10000
+2026-06-05 16:28:31,843 INFO 
+To export the seeded DB for VPS restore, run:
+  pg_dump -h localhost -p 5434 -U postgres moderation_dashboard > moderation_dashboard_seeded.sql
+Then on the VPS:
+  psql -h localhost -U postgres moderation_dashboard < moderation_dashboard_seeded.sql
