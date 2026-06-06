@@ -30,7 +30,7 @@ def train(
     train_texts, train_labels, eval_texts, eval_labels = build_prompt_detector_dataset(seed=seed)
     logger.info("Train: %d examples, Eval: %d examples", len(train_texts), len(eval_texts))
 
-    model_name = "distilbert-base-uncased"
+    model_name = "microsoft/deberta-v3-small"
     tokenizer = AutoTokenizer.from_pretrained(model_name)
     model = AutoModelForSequenceClassification.from_pretrained(model_name, num_labels=2)
 
@@ -65,7 +65,7 @@ def train(
     trainer.train()
     trainer.save_model(str(output_dir))
     tokenizer.save_pretrained(str(output_dir))
-    logger.info("Prompt detector saved to %s", output_dir)
+    logger.info("Prompt detector (deberta-v3-small) saved to %s", output_dir)
 
 
 def main() -> None:

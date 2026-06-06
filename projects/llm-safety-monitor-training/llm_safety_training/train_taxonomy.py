@@ -34,7 +34,7 @@ def train(
         len(wg_splits.taxonomy_eval_texts),
     )
 
-    model_name = "distilbert-base-uncased"
+    model_name = "microsoft/deberta-v3-base"
     tokenizer = AutoTokenizer.from_pretrained(model_name)
     model = AutoModelForSequenceClassification.from_pretrained(
         model_name, num_labels=NUM_HARM_CATEGORIES
@@ -75,7 +75,7 @@ def train(
     trainer.train()
     trainer.save_model(str(output_dir))
     tokenizer.save_pretrained(str(output_dir))
-    logger.info("Taxonomy classifier saved to %s", output_dir)
+    logger.info("Taxonomy classifier (deberta-v3-base) saved to %s", output_dir)
 
 
 def main() -> None:

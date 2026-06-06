@@ -37,7 +37,7 @@ def train(
 
     logger.info("Train: %d examples, Eval: %d examples", len(train_texts), len(eval_texts))
 
-    model_name = "distilbert-base-uncased"
+    model_name = "microsoft/deberta-v3-small"
     tokenizer = AutoTokenizer.from_pretrained(model_name)
     model = AutoModelForSequenceClassification.from_pretrained(model_name, num_labels=2)
 
@@ -72,7 +72,7 @@ def train(
     trainer.train()
     trainer.save_model(str(output_dir))
     tokenizer.save_pretrained(str(output_dir))
-    logger.info("Pair classifier saved to %s", output_dir)
+    logger.info("Pair classifier (deberta-v3-small) saved to %s", output_dir)
 
 
 def main() -> None:
