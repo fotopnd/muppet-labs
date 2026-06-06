@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import itertools
-import json
 import logging
 import random
 import signal
@@ -17,77 +16,84 @@ TICK_SECONDS = 3.0
 
 
 def _load_datasets() -> dict[SourceDataset, list[dict]]:
-    """Load all four replay datasets into memory. Deferred imports for slow HF loads."""
+    """Load replay datasets. Skips gated/unavailable datasets with a warning."""
     from datasets import load_dataset  # deferred
 
+    result: dict[SourceDataset, list[dict]] = {}
+
     logger.info("Loading HH-RLHF...")
-    hh_ds = load_dataset("Anthropic/hh-rlhf", split="train")
-    hh_rows = [
-        {
-            "prompt": _extract_final_human(row["chosen"]),
-            "response": _extract_final_assistant(row["chosen"]),
-            "ground_truth_safe": True,
-            "ground_truth_categories": None,
-        }
-        for row in hh_ds
-        if _extract_final_human(row["chosen"])
-    ][:50000]  # cap at 50k for memory
+    try:
+        hh_ds = load_dataset("Anthropic/hh-rlhf", split="train")
+        result[SourceDataset.HH_RLHF] = [
+            {
+                "prompt": _extract_final_human(row["chosen"]),
+                "response": _extract_final_assistant(row["chosen"]),
+                "ground_truth_safe": True,
+                "ground_truth_categories": None,
+            }
+            for row in hh_ds
+            if _extract_final_human(row["chosen"])
+        ][:50000]
+    except Exception as exc:
+        logger.warning("HH-RLHF unavailable, skipping: %s", exc)
 
     logger.info("Loading WildGuard...")
-    wg_ds = load_dataset("allenai/wildguard", split="train")
-    wg_rows = [
-        {
-            "prompt": (row.get("prompt") or "").strip(),
-            "response": (row.get("response") or "").strip() or None,
-            "ground_truth_safe": row.get("response_harm_label") != "harmful",
-            "ground_truth_categories": (
-                [row["subcategory"]] if row.get("subcategory") and row.get("response_harm_label") == "harmful" else None
-            ),
-        }
-        for row in wg_ds
-        if (row.get("prompt") or "").strip()
-    ]
+    try:
+        wg_ds = load_dataset("allenai/wildguardmix", "wildguardtrain", split="train")
+        result[SourceDataset.WILDGUARD] = [
+            {
+                "prompt": (row.get("prompt") or "").strip(),
+                "response": (row.get("response") or "").strip() or None,
+                "ground_truth_safe": row.get("response_harm_label") != "harmful",
+                "ground_truth_categories": (
+                    [row["subcategory"]]
+                    if row.get("subcategory") and row.get("response_harm_label") == "harmful"
+                    else None
+                ),
+            }
+            for row in wg_ds
+            if (row.get("prompt") or "").strip()
+        ]
+    except Exception as exc:
+        logger.warning("WildGuard unavailable, skipping: %s", exc)
 
     logger.info("Loading AdvBench...")
-    adv_ds = load_dataset("llm-attacks/AdvBench", split="train")
-    adv_rows = [
-        {
-            "prompt": row["goal"].strip(),
-            "response": None,
-            "ground_truth_safe": False,
-            "ground_truth_categories": None,
-        }
-        for row in adv_ds
-        if row.get("goal")
-    ]
+    try:
+        adv_ds = load_dataset("walledai/AdvBench", split="train")
+        result[SourceDataset.ADVBENCH] = [
+            {
+                "prompt": row["prompt"].strip(),
+                "response": None,
+                "ground_truth_safe": False,
+                "ground_truth_categories": None,
+            }
+            for row in adv_ds
+            if row.get("prompt")
+        ]
+    except Exception as exc:
+        logger.warning("AdvBench unavailable, skipping: %s", exc)
 
     logger.info("Loading JailbreakBench...")
-    jbb_ds = load_dataset("JailbreakBench/JailbreakBench-artifacts", split="train")
-    jbb_rows = [
-        {
-            "prompt": row["prompt"].strip(),
-            "response": None,
-            "ground_truth_safe": False,
-            "ground_truth_categories": None,
-        }
-        for row in jbb_ds
-        if row.get("prompt")
-    ]
+    try:
+        jbb_ds = load_dataset("JailbreakBench/JBB-Behaviors", "behaviors", split="harmful")
+        result[SourceDataset.JAILBREAKBENCH] = [
+            {
+                "prompt": row["Goal"].strip(),
+                "response": None,
+                "ground_truth_safe": False,
+                "ground_truth_categories": None,
+            }
+            for row in jbb_ds
+            if row.get("Goal")
+        ]
+    except Exception as exc:
+        logger.warning("JailbreakBench unavailable, skipping: %s", exc)
 
-    logger.info(
-        "Datasets loaded: HH-RLHF=%d WildGuard=%d AdvBench=%d JailbreakBench=%d",
-        len(hh_rows),
-        len(wg_rows),
-        len(adv_rows),
-        len(jbb_rows),
-    )
+    if not result:
+        raise RuntimeError("No datasets loaded — check HuggingFace access and network connectivity")
 
-    return {
-        SourceDataset.HH_RLHF: hh_rows,
-        SourceDataset.WILDGUARD: wg_rows,
-        SourceDataset.ADVBENCH: adv_rows,
-        SourceDataset.JAILBREAKBENCH: jbb_rows,
-    }
+    logger.info("Datasets loaded: %s", {k.value: len(v) for k, v in result.items()})
+    return result
 
 
 def _extract_final_human(field: str) -> str:
@@ -107,10 +113,13 @@ def _extract_final_assistant(field: str) -> str:
 
 class ReplayProducer:
     def __init__(self, settings: Settings) -> None:
+        from sqlalchemy import create_engine
+
         from confluent_kafka import Producer  # deferred
 
         self._settings = settings
         self._running = False
+        self._engine = create_engine(settings.SYNC_DATABASE_URL)
         self._producer = Producer({"bootstrap.servers": settings.KAFKA_BOOTSTRAP_SERVERS})
 
         datasets = _load_datasets()
@@ -118,27 +127,25 @@ class ReplayProducer:
             random.shuffle(rows)
 
         self._cycles = {source: itertools.cycle(rows) for source, rows in datasets.items()}
-        self._weights = [
-            settings.REPLAY_MIX_HHRLHF,
-            settings.REPLAY_MIX_WILDGUARD,
-            settings.REPLAY_MIX_ADVBENCH,
-            settings.REPLAY_MIX_JAILBREAKBENCH,
-        ]
-        self._sources = [
-            SourceDataset.HH_RLHF,
-            SourceDataset.WILDGUARD,
-            SourceDataset.ADVBENCH,
-            SourceDataset.JAILBREAKBENCH,
-        ]
+
+        # Build weights only for loaded datasets
+        weight_map = {
+            SourceDataset.HH_RLHF: settings.REPLAY_MIX_HHRLHF,
+            SourceDataset.WILDGUARD: settings.REPLAY_MIX_WILDGUARD,
+            SourceDataset.ADVBENCH: settings.REPLAY_MIX_ADVBENCH,
+            SourceDataset.JAILBREAKBENCH: settings.REPLAY_MIX_JAILBREAKBENCH,
+        }
+        self._sources = list(datasets.keys())
+        raw_weights = [weight_map[s] for s in self._sources]
+        total = sum(raw_weights)
+        self._weights = [w / total for w in raw_weights]
 
     def _write_interaction(self, event: LLMInteractionEvent) -> None:
-        from sqlalchemy import create_engine
         from sqlalchemy.orm import Session
 
         from llm_safety_monitor.api.models import Interaction
 
-        engine = create_engine(self._settings.SYNC_DATABASE_URL)
-        with Session(engine) as session:
+        with Session(self._engine) as session:
             interaction = Interaction(
                 id=event.event_id,
                 prompt_text=event.prompt,
