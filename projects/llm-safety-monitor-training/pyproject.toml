@@ -14,6 +14,7 @@ dependencies = [
 ]
 
 [project.scripts]
+train = "llm_safety_training.train:main"
 train-pair = "llm_safety_training.train_pair:main"
 train-prompt = "llm_safety_training.train_prompt:main"
 train-taxonomy = "llm_safety_training.train_taxonomy:main"

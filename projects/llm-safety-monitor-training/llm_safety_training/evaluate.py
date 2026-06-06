@@ -215,9 +215,11 @@ def main() -> None:
     parser = argparse.ArgumentParser(description="Evaluate a trained LLM safety classifier")
     parser.add_argument("--model", required=True, choices=["pair", "prompt", "taxonomy"])
     parser.add_argument(
+        "--checkpoint-dir",
         "--checkpoint",
+        dest="checkpoint_dir",
         type=Path,
-        help="Path to model checkpoint (defaults to env var per model type)",
+        help="Path to model checkpoint directory (defaults to env var per model type)",
     )
     parser.add_argument(
         "--output-dir",
@@ -227,7 +229,7 @@ def main() -> None:
     args = parser.parse_args()
 
     env_key = {"pair": "PAIR_CLASSIFIER_OUT", "prompt": "PROMPT_DETECTOR_OUT", "taxonomy": "TAXONOMY_CLASSIFIER_OUT"}
-    checkpoint = args.checkpoint or Path(os.getenv(env_key[args.model], f"checkpoints/{args.model}"))
+    checkpoint = args.checkpoint_dir or Path(os.getenv(env_key[args.model], f"checkpoints/{args.model}"))
 
     if not checkpoint.exists():
         raise RuntimeError(f"Checkpoint not found: {checkpoint}")
