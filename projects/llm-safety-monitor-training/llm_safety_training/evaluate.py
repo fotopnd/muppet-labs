@@ -71,7 +71,7 @@ def evaluate_binary(
     from sklearn.metrics import f1_score, precision_score, recall_score  # deferred
     from transformers import AutoModelForSequenceClassification, AutoTokenizer  # deferred
 
-    tokenizer = AutoTokenizer.from_pretrained(str(checkpoint_path))
+    tokenizer = AutoTokenizer.from_pretrained(str(checkpoint_path), use_fast=False)
     model = AutoModelForSequenceClassification.from_pretrained(str(checkpoint_path))
     model.eval()
 
@@ -117,7 +117,7 @@ def evaluate_taxonomy(
     from sklearn.metrics import f1_score  # deferred
     from transformers import AutoModelForSequenceClassification, AutoTokenizer  # deferred
 
-    tokenizer = AutoTokenizer.from_pretrained(str(checkpoint_path))
+    tokenizer = AutoTokenizer.from_pretrained(str(checkpoint_path), use_fast=False)
     model = AutoModelForSequenceClassification.from_pretrained(str(checkpoint_path))
     model.eval()
 

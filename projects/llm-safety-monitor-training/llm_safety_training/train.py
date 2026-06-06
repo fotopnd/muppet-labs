@@ -15,7 +15,7 @@ from pathlib import Path
 
 logger = logging.getLogger(__name__)
 
-_DEFAULT_BATCH = {"pair": 128, "prompt": 128, "taxonomy": 64}
+_DEFAULT_BATCH = {"pair": 64, "prompt": 64, "taxonomy": 32}
 
 
 def main() -> None:

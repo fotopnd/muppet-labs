@@ -12,7 +12,7 @@ logger = logging.getLogger(__name__)
 def train(
     output_dir: Path,
     epochs: int = 4,
-    batch_size: int = 128,
+    batch_size: int = 64,
     seed: int = 42,
     max_train_samples: int | None = None,
 ) -> None:
@@ -47,7 +47,7 @@ def train(
     logger.info("Train: %d examples, Eval: %d examples", len(train_texts), len(eval_texts))
 
     model_name = "microsoft/deberta-v3-small"
-    tokenizer = AutoTokenizer.from_pretrained(model_name)
+    tokenizer = AutoTokenizer.from_pretrained(model_name, use_fast=False)
     model = AutoModelForSequenceClassification.from_pretrained(model_name, num_labels=2)
 
     def tokenize(texts: list[str], labels: list[int]) -> Dataset:
@@ -114,7 +114,7 @@ def main() -> None:
         ),
     )
     parser.add_argument("--epochs", type=int, default=4)
-    parser.add_argument("--batch-size", type=int, default=128)
+    parser.add_argument("--batch-size", type=int, default=64)
     parser.add_argument("--seed", type=int, default=42)
     parser.add_argument("--max-train-samples", type=int, default=None)
     args = parser.parse_args()
