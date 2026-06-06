@@ -841,7 +841,7 @@ Every `import.meta.env.VITE_*` reference must have a matching entry in `.env.exa
 
 ## Handoff
 
-Next role: implementer
+**Next role:** implementer
 
 The implementer reads this file and the planner output to produce working code for all three sub-projects: `injection-detector-training/`, `injection-detector/`, and `injection-detector-dashboard/`. All five open questions are resolved. No design decisions remain.
 

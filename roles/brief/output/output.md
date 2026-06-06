@@ -1,210 +1,87 @@
-# Brief Output — llm-safety-monitor
+# Brief Output — system-prompt-injection-detector
 
+**Role:** brief
+**Sequence:** `new-project-full` (step 1)
 **Date:** 2026-06-06
-**Sequence:** new-project-full (v3 of moderation-dashboard — substantial rework, existing Kafka/FastAPI/React infrastructure carries over)
-**Role executing:** brief
 
 ---
 
 ## Project Name
 
-llm-safety-monitor
+`system-prompt-injection-detector`
+
+---
 
 ## Description
 
-A streaming LLM safety classification platform that runs a continuous stream of real LLM interactions through three purpose-trained safety classifiers — a pair safety classifier, a prompt adversarial detector, and a harm taxonomy classifier — and routes flagged interactions to a human review queue based on a 2×2 prompt/response verdict matrix rather than a confidence threshold.
+A DistilBERT binary classifier and FastAPI middleware service that detects prompt injection attacks in AI agent pipelines, with a proxy endpoint that blocks flagged requests before they reach a downstream LLM, plus a React dashboard showing detection logs and model confidence distributions.
+
+---
 
 ## Language(s)
 
-Python (training, consumers, FastAPI backend) + TypeScript (React dashboard)
+- **Primary:** Python (classifier training + FastAPI service)
+- **Frontend:** TypeScript (React SPA)
+- **Tooling:** uv, ruff, pnpm, prettier, eslint
 
-## Context and Motivation
-
-This is a ground-up rework of the moderation-dashboard project. The streaming infrastructure (Kafka, async consumers, shadow routing, FastAPI, Postgres, React dashboard, case-queue escalation) is retained. Everything else — training data, model task, event schema, classification logic, escalation logic, and dashboard framing — is replaced.
-
-The prior version classified Bluesky social posts for toxicity using Jigsaw-trained models. The adversarial portfolio review on 2026-06-06 established that this task is not relevant to Anthropic Safeguards. The new version classifies LLM interactions (prompt + response pairs, and prompts alone) for safety policy violations using datasets produced specifically for LLM safety research.
-
-The key deliverable is a working system that can answer: *"Given a stream of LLM interactions, which ones violated a safety policy, what kind of violation, and how confident are we?"* — and surface the cases where classifiers disagree or fail.
-
----
-
-## Datasets
-
-Four datasets, two classification targets.
-
-### Pair classification (prompt + response)
-
-**Anthropic HH-RLHF** (`Anthropic/hh-rlhf`, HuggingFace)
-- ~170k human-Claude conversation pairs
-- Label: `chosen` (harmless response) vs `rejected` (harmful response)
-- Binary safe/unsafe at the response level
-- Primary training data for the pair safety classifier
-- Directly from Anthropic — provenance is portfolio-relevant
-
-**WildGuard** (`allenai/wildguard`, HuggingFace)
-- ~92k prompt + response pairs
-- Label: 13 harm categories (hate, violence, sexual content, PII, copyright, etc.) + binary safe/unsafe per category
-- Dual use: contributes to pair classifier training (binary label) and trains the harm taxonomy classifier (13-category label)
-- Broadens coverage beyond HH-RLHF's harmlessness framing
-
-### Prompt classification (prompt only)
-
-**AdvBench** (`llm-attacks/AdvBench`, HuggingFace / CSV)
-- ~520 adversarial harmful instructions
-- Label: implicitly harmful (all positives — requires sampling negatives from HH-RLHF chosen prompts)
-- Covers: bioweapons instructions, malware, radicalization, fraud, self-harm facilitation
-
-**JailbreakBench** (`JailbreakBench/JailbreakBench-artifacts`, HuggingFace)
-- ~100 harmful behaviors × multiple jailbreak prompt variants = ~1,000–3,000 prompt examples
-- Label: adversarial prompt (all positives — same negative sampling approach as AdvBench)
-- Covers jailbreak techniques: role-play bypasses, prompt injection, encoding tricks
-
-**Prompt classifier training composition:**
-- Positives: AdvBench + JailbreakBench prompts + WildGuard harmful prompts (subset, ~3,000 total)
-- Negatives: HH-RLHF chosen-side conversation openers + WildGuard safe prompts (~3,000 sampled)
-- Total: ~6,000 balanced examples. Small but focused — planner to assess whether augmentation is needed.
-
----
-
-## The Three Models
-
-**Model 1 — Pair safety classifier**
-- Base: DistilBERT (proven on this task class, fast on MPS)
-- Training data: HH-RLHF (primary) + WildGuard binary label (secondary)
-- Input: prompt + `[SEP]` + response (concatenated, max 512 tokens)
-- Output: binary (safe / unsafe response)
-- Ground truth available for all training examples → calibration analysis is fully valid
-
-**Model 2 — Prompt adversarial detector**
-- Base: DistilBERT
-- Training data: AdvBench + JailbreakBench + WildGuard harmful prompts (positives) vs HH-RLHF benign prompts (negatives)
-- Input: prompt only
-- Output: binary (benign / adversarial)
-- This model operates on the prompt before any response is generated — mirrors a real-time input filter
-
-**Model 3 — Harm taxonomy classifier**
-- Base: DistilBERT with multi-label head (BCEWithLogitsLoss, same pattern as finetuned_detoxify attempt)
-- Training data: WildGuard 13-category labels
-- Input: prompt + `[SEP]` + response
-- Output: 13 binary labels (one per harm category) — a single interaction can trigger multiple categories
-- This model answers "what kind of harm" rather than "is there harm"
-
----
-
-## Event Schema
-
-Each stream event represents one LLM interaction:
-
-```
-{
-  "event_id": "uuid",
-  "prompt": "...",
-  "response": "..." | null,        // null for prompt-only events from AdvBench
-  "source_dataset": "hh-rlhf" | "wildguard" | "advbench" | "jailbreakbench" | "live",
-  "ground_truth_safe": true | false | null,   // null for live Claude API events
-  "ground_truth_categories": ["hate", ...] | null
-}
-```
-
-Consumers produce classification rows per model per event, same schema as existing `classifications` table with `content` = prompt text (truncated), new `response_text` column, `predicted_label` = safe(0)/unsafe(1), `confidence` = float.
-
----
-
-## Live Data Stream
-
-**Primary: dataset replay** (zero API cost, zero account risk)
-- A replay producer samples from all four datasets at configurable rates, shuffling source datasets
-- Default mix: 60% HH-RLHF, 25% WildGuard, 10% AdvBench, 5% JailbreakBench
-- Rate: ~1 event/3 seconds (manageable for a demo, produces ~1,200 events/hour)
-- Ground truth labels are available → all evaluation metrics are meaningful in real time
-- **Principled choice, not just a cost call**: the classifiers operate on real adversarial data (AdvBench harmful instructions, JailbreakBench jailbreak prompts). Claude never receives this content. The portfolio story is identical either way and the account risk is zero. Dataset replay is the correct architecture for a safety research pipeline — you do not run known-adversarial prompts against a live model to demonstrate that your classifier works.
-
-**Secondary: live Claude API mode** (optional, demo-only)
-- Toggle flag in config, off by default
-- Sends benign or mildly borderline prompts only — not AdvBench/JailbreakBench content
-- Demonstrates the real-time pipeline for demo purposes; not part of the analytical story
-- Cost: ~$1.20/day at 1 call/minute using Haiku 3.5; only enabled during active demos
-
----
-
-## Escalation Logic (replaces confidence-threshold approach)
-
-The 2×2 prompt + response verdict matrix:
-
-| Prompt verdict | Response verdict | Escalation level |
-|---|---|---|
-| Benign | Safe | No escalation |
-| Adversarial | Safe | Log only — model handled correctly |
-| Benign | Unsafe | **High severity** — model introduced harm unprompted |
-| Adversarial | Unsafe | **Critical** — jailbreak succeeded |
-
-For prompt-only events (no response): escalate if adversarial with confidence > 0.7.
-
-Disagreement escalation: if pair classifier and taxonomy classifier contradict each other (pair says safe, taxonomy flags a category, or vice versa), escalate as a model disagreement case at medium severity.
-
----
-
-## Dashboard Changes
-
-The existing five-tab dashboard structure is retained. Content changes per tab:
-
-**StreamMonitor** — now shows prompt text (truncated) + response text (truncated), source dataset badge, and real-time verdict per model as a 3-column verdict row (pair: safe/unsafe, prompt: benign/adversarial, taxonomy: category badges)
-
-**ModelPerformance** — now genuinely meaningful because ground truth is available for all streamed events (not just seeded data). F1, precision, recall computed against real labels in real time. Distribution shift framing carries over: compare live-stream F1 to held-out test-set F1 per dataset.
-
-**ModelComparison** — now compares three qualitatively different classifiers, not three variants of the same task. The comparison story is: do they agree on which interactions are dangerous, and when they disagree, which one is right?
-
-**Calibration** (new, from analysis-depth brief) — reliability diagrams, confidence distributions, agreement-confidence correlation. Now fully valid because ground truth is available for all events. This was the strongest analytical addition from the previous brief and is now properly grounded.
-
-**HumanReview** — escalation queue now receives entries with a clear escalation reason from the 2×2 matrix (not just "model disagreement" or "low confidence"). Reviewers see: prompt, response, verdict from each model, and the escalation reason. Their decision (approve safe / confirm unsafe) is now meaningful label data.
-
----
-
-## What Carries Over Unchanged
-
-- Kafka infrastructure (topics, consumer groups, shadow routing)
-- Async consumer base class (`BaseConsumer`)
-- FastAPI application structure
-- React dashboard skeleton (routing, tab structure, TanStack Query, component library)
-- Postgres + Alembic (schema changes via new migration)
-- case-queue escalation service (escalation reason strings change, core logic unchanged)
-- All test infrastructure (pytest, vitest, conftest patterns)
+Two separate Python projects:
+- `injection-detector-training/` — standalone uv project for dataset preparation, synthetic data generation, and HuggingFace Trainer fine-tuning
+- `injection-detector/` — FastAPI service with Postgres logging and React dashboard
 
 ---
 
 ## Success Criteria
 
-1. Three models trained and evaluated on held-out splits: pair classifier, prompt adversarial detector, harm taxonomy classifier. Each with a reported F1 on the relevant test set.
-2. Replay producer streams all four datasets through the classification pipeline at ~1 event/3 seconds. All five dashboard tabs render with real data.
-3. The 2×2 escalation matrix routes at least three distinct escalation reason codes to the human review queue.
-4. The Calibration tab shows a reliability diagram per model computed against real ground-truth labels — not a seeded-data approximation.
-5. The ModelPerformance tab shows F1 computed against live-stream ground truth, not just seeded baseline.
-6. Live Claude API mode works when toggled: sends a prompt, receives a response, classifies the pair, appears in the stream within 5 seconds.
-7. One clearly articulable finding per model. Example: *"The pair classifier achieves F1=0.87 on HH-RLHF held-out data but drops to 0.74 on WildGuard — suggesting the harmlessness frame in HH-RLHF does not fully generalize to WildGuard's broader harm taxonomy."*
+The project is done when all of the following are true:
+
+1. **Classifier training** — DistilBERT fine-tuned on SPML-Chatbot Prompt Injection benchmark (HuggingFace: `reshabhs/SPML_Chatbot_Prompt_Injection`) augmented with 5000 synthetic benign examples generated via Ollama (qwen2.5-coder:7b); saves best checkpoint by val F1.
+2. **Synthetic data generation** — CLI command `uv run generate-negatives --count 5000` calls Ollama and saves JSONL file; runs independently before training.
+3. **Eval metrics** — F1, precision, recall, AUC-ROC, and calibration bins (10 equal-width bins) reported and saved to eval JSON file.
+4. **Detection API** — `POST /detect` accepts `{system_prompt, user_message, tool_outputs}`, runs classifier on each field independently, returns per-field probabilities, overall flag, and max probability.
+5. **Proxy endpoint** — `POST /proxy` blocks requests where `overall_flagged=True` (returns HTTP 400 with DetectionResponse body) and forwards clean requests to a downstream LLM URL via httpx.
+6. **Postgres logging** — every `/detect` call logged to `detection_log` table; threshold configurable via `INJECTION_THRESHOLD=0.7` env var.
+7. **Dashboard** — 4-tab React SPA: Detection Log (paginated), Field Analysis (bar chart by field flag rate), Confidence Distribution (histogram of injection probabilities for flagged vs benign), Model Card (eval metrics + calibration chart).
+8. **Tests** — pytest for Python (training utilities, API endpoints); vitest for React components.
+9. **Runs locally on Apple M4 MPS** — training uses MPS; service runs locally against a Postgres instance on port 5438.
 
 ---
 
 ## Constraints
 
-- Training must run on Apple M4 MPS (24GB unified memory). DistilBERT fine-tuning is confirmed safe at batch_size=128. Multi-label head follows the same pattern as train_detoxify.py.
-- No proprietary or access-controlled data. All four datasets are publicly available on HuggingFace.
-- Event schema must be backwards-compatible enough that the existing case-queue integration requires no changes.
-- Live Claude API mode uses Haiku only — no Sonnet or Opus calls in the streaming path.
-- AdvBench + JailbreakBench are small. Planner must assess whether ~6k balanced examples is sufficient for a binary prompt classifier or whether augmentation is required.
+- **MPS only for training:** Apple M4 24GB; no CUDA. HuggingFace Trainer with MPS device.
+- **Synchronous detection:** no Kafka, no message queue — direct HTTP call to `/detect` per request.
+- **Postgres port 5438** (non-default; avoids conflict with other local services).
+- **Ollama must be running locally** for synthetic negative generation — documented prerequisite, not an automated fallback.
+- **Independent of llm-safety-monitor:** no shared code, no checkpoint dependencies, can be built in parallel.
+- **No real-time streaming:** dashboard is polling/query-based, not WebSocket.
+
+---
 
 ## Out of Scope
 
-- Red-teaming or adversarial prompt generation (beyond replaying existing datasets)
-- Model output correction or refusal generation
-- Fine-tuning Claude or any generative model
-- Multi-turn conversation handling (all events treated as single-turn)
-- RLHF training loop (human review labels are collected but not used for retraining in v1)
+- Multi-label injection classification (binary: injection=1, benign=0 only)
+- CUDA / cloud training (MPS local only)
+- Kafka or async queuing (synchronous service)
+- Fine-tuning beyond DistilBERT (one model; portfolio signal is the full pipeline, not model comparison)
+- Model A/B comparison dashboard tab (single model card is sufficient)
+- Automated Ollama dataset download (manual prerequisite; CLI assumes Ollama is running)
+- Browser extension or SDK wrapper (detection is via HTTP API only)
+- Authentication / rate limiting on the detection service (out of scope for v1)
 
 ## Open Questions for Planner
 
 1. **Prompt classifier size**: ~6k balanced training examples may be too small for a standalone DistilBERT fine-tune to be credible. Should we augment with additional adversarial prompt datasets (e.g. HarmBench, SALAD-Bench), or accept the small training set with a strong held-out eval narrative?
 
-2. **HH-RLHF input format**: the `chosen`/`rejected` field contains full conversation history as a formatted string. Does the pair classifier input use the full conversation or just the final assistant turn? Full conversation is more faithful to the dataset; final turn only is faster and easier to truncate to 512 tokens.
+1. **SPML dataset field names** — assumed to be `prompt` and `label` (or `text` and `label`); implementer must inspect the HuggingFace dataset card to confirm exact column names before writing the data loader.
+2. **Synthetic negatives generation** — Ollama prompt template produces plain-text user messages; outputs saved as JSONL with fields `{"text": "...", "label": 0}` matching the injection examples schema.
+3. **Label convention** — injection=1, benign=0 (consistent with pair_classifier convention used in other workspace projects).
+4. **Threshold default** — `INJECTION_THRESHOLD=0.7` in `.env`; lower values = more sensitive. Trade-off documented in README.
+5. **Proxy endpoint** — v1 (not deferred); small addition that provides the key production-realism signal.
+6. **Dashboard is a separate React SPA** — not served by FastAPI; same pattern as other workspace projects.
+7. **Checkpoint stored at** `resources/models/injection-detector-training/<model-key>-<YYYY-MM-DD>/` per workspace convention.
+8. **Eval JSON stored at** `resources/evals/injection-detector-training/<model-key>-<timestamp>.json` per workspace convention.
+9. **HuggingFace Trainer** — same training pattern as other projects; warmup_steps (integer) not warmup_ratio; no `no_cuda`; eval_strategy and save_strategy both set to `"epoch"`.
+10. **Tool outputs treated as independent fields** — each element of `tool_outputs` list is scored separately; field name in results is `tool_output_0`, `tool_output_1`, etc.
 
 3. **WildGuard for both models**: WildGuard contributes to both the pair classifier and the taxonomy classifier. Does it get split by use (some examples for pair, others for taxonomy), or does it appear in both training sets? Overlap risks data leakage if the eval set is not carefully stratified.
 
@@ -214,10 +91,12 @@ The existing five-tab dashboard structure is retained. Content changes per tab:
 
 ## Handoff
 
-Next role: planner
+**Next role:** planner
 
-Reads this file plus `_config/project-state.md` for infrastructure context.
+The planner reads this file to define functional requirements, confirm tech stack, map top-level file structure, and list open questions for the architect.
 
-Planner must resolve all five open questions above before handing to implementer. The training pipeline order matters: pair classifier and prompt classifier should be trainable independently; taxonomy classifier depends on WildGuard allocation decision (Q3). Implementer should train in this order: pair classifier → prompt classifier → taxonomy classifier → replay producer → consumers → dashboard.
-
-Update `project_learnings.md` to log the pivot from Bluesky toxicity to LLM safety classification.
+**Flags for planner:**
+- Assumption 1 (SPML dataset field names) — planner should note this as an open question for the architect; the implementer must inspect the dataset before writing the data loader.
+- Assumption 5 (proxy endpoint in v1) — confirm this is v1 scope; it adds one endpoint and one env var (`DOWNSTREAM_LLM_URL`).
+- Assumption 6 (separate React SPA) — confirm dashboard deployment pattern matches other workspace projects.
+- Assumption 10 (tool_outputs field naming in detection_log) — confirm JSONB schema can accommodate variable-length tool_outputs list.
