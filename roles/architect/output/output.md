@@ -1,524 +1,519 @@
-# Architect Output — moderation-dashboard
+# Architect Output — llm-safety-monitor
 
 **Role:** architect
 **Sequence:** `new-project-full` (step 3)
-**Date:** 2026-06-03
-
----
-
-## Open Question Resolutions
-
-All six planner questions resolved as proposed — no overrides needed:
-- **Q1** Consumer process model: one OS process per consumer, `runner.py` as thin CLI ✓
-- **Q2** Anomaly detector: Kafka consumer in group `moderation-anomaly` ✓
-- **Q3** Escalation service: standalone process ✓
-- **Q4** No `raw_events` table; `GET /metrics/stream` derives event rate from `classifications` timestamp density ✓
-- **Q5** Single `classifications` table with `group` column ✓
-- **Q6** dbt materialises to `dbt_moderation` schema; API queries mart tables directly ✓
+**Date:** 2026-06-06
 
 ---
 
 ## System Overview
 
-Nine independent processes share a single Postgres database and a single Kafka topic (`moderation-events`, 5 partitions). The **producer** reads the Jigsaw CSV and publishes `ModerationEvent` messages. Six **consumer processes** subscribe: three in group `moderation-production` (Kafka round-robins partitions across them) and three in separate shadow groups (each gets all partitions, all events). Each consumer writes a `ClassificationResult` row to `classifications`. An **anomaly detector** runs in its own group `moderation-anomaly`, maintains 5-minute tumbling windows of volume and category signals from the raw event stream, and queries Postgres at flush time for shadow disagreement rate; it writes `AnomalyFlag` rows when Z-score thresholds trigger. A standalone **escalation service** polls shadow classifications, identifies uncertain events by disagreement or low confidence, and POSTs them to the case-queue API; it writes an `Escalation` row per event for dedup. The **FastAPI metrics API** runs async, queries Postgres and the dbt mart tables, and serves all dashboard panels. A **dbt CLI** (run on demand via `make dbt-refresh`) materialises staging and mart models into the `dbt_moderation` schema. The **React frontend** polls the metrics API (3–60s intervals) and polls case-queue directly for the Human Review panel.
+The system has two distinct sub-projects. The **training project** (`llm-safety-monitor-training/`) is a standalone uv project with heavy ML dependencies that trains three DistilBERT classifiers — a pair safety classifier, a prompt adversarial detector, and a harm taxonomy classifier — and writes checkpoints to the shared `resources/models/` directory. The **streaming app** (`llm-safety-monitor/`) is the deployed system: a Kafka replay producer samples four LLM interaction datasets, three consumer threads each load a checkpoint and classify every event, an `EscalationPoller` daemon applies the 2×2 verdict matrix and posts actionable cases to case-queue, and a FastAPI service serves the five-tab React dashboard. Postgres stores two tables: `interactions` (event-level ground truth, one row per event) and `classifications` (prediction-level, one row per model per event). The API computes live F1 and calibration data by joining these tables against events with non-null ground truth labels.
 
 ---
 
 ## Data Models
 
-### Postgres Tables
+### Training Project
 
-**`classifications`** — written by all 6 consumer processes (sync)
-```
-id:               TEXT PRIMARY KEY         -- uuid4
-event_id:         TEXT NOT NULL            -- producer-assigned uuid per CSV row
-group:            TEXT NOT NULL            -- 'production' | 'shadow'
-model_name:       TEXT NOT NULL            -- 'distilbert' | 'roberta' | 'detoxify' | 'finetuned_distilbert' | 'finetuned_roberta'
-category:         TEXT NOT NULL            -- primary Jigsaw category forwarded from event
-predicted_label:  INTEGER NOT NULL         -- 0 | 1
-confidence:       DOUBLE PRECISION NOT NULL
-latency_ms:       DOUBLE PRECISION NOT NULL
-correct:          BOOLEAN NOT NULL         -- predicted_label == ground_truth
-created_at:       TIMESTAMPTZ NOT NULL
-
-Indexes:
-  ix_classifications_group_model_created  ON (group, model_name, created_at)
-  ix_classifications_event_group          ON (event_id, group)
-  ix_classifications_created_at           ON (created_at)
-```
-
-**`anomaly_flags`** — written by anomaly detector (sync)
-```
-id:               TEXT PRIMARY KEY         -- uuid4
-window_start:     TIMESTAMPTZ NOT NULL
-window_end:       TIMESTAMPTZ NOT NULL
-signal_name:      TEXT NOT NULL            -- 'event_volume' | 'category_rate_{cat}' | 'disagreement_rate'
-z_score:          DOUBLE PRECISION NOT NULL
-value:            DOUBLE PRECISION NOT NULL -- observed value in window
-baseline_mean:    DOUBLE PRECISION NOT NULL
-baseline_std:     DOUBLE PRECISION NOT NULL
-created_at:       TIMESTAMPTZ NOT NULL
-
-Index:
-  ix_anomaly_flags_window_start  ON (window_start DESC)
-```
-
-**`escalations`** — written by escalation service (sync)
-```
-id:                   TEXT PRIMARY KEY     -- uuid4
-event_id:             TEXT NOT NULL UNIQUE -- dedup key
-case_queue_case_id:   TEXT NOT NULL        -- ID returned from case-queue POST /cases
-escalation_reason:    TEXT NOT NULL        -- 'model_disagreement' | 'low_confidence'
-confidence_max:       DOUBLE PRECISION     -- nullable; null when reason = 'model_disagreement'
-created_at:           TIMESTAMPTZ NOT NULL
-
-Index:
-  ix_escalations_event_id    ON (event_id)   -- UNIQUE; dedup lookup
-  ix_escalations_created_at  ON (created_at DESC)
-```
-
-### Kafka Message Schema
-
-**`ModerationEvent`** — Pydantic model, serialised as JSON to Kafka
 ```python
-class ModerationEvent(BaseModel):
-    event_id: str        # uuid4 assigned by producer
-    jigsaw_id: int       # CSV row index (0-based)
-    content: str         # comment_text column
-    ground_truth: int    # 0 | 1 — Jigsaw 'toxic' column
-    category: str        # primary category — see producer.get_primary_category()
-    published_at: datetime
+# llm_safety_training/datasets.py
+
+@dataclass
+class WildGuardSplits:
+    pair_train_texts: list[str]
+    pair_train_labels: list[int]          # binary: 0=safe, 1=unsafe
+    pair_eval_texts: list[str]
+    pair_eval_labels: list[int]
+    taxonomy_train_texts: list[str]
+    taxonomy_train_labels: list[list[int]] # 13-dim binary vectors, one per example
+    taxonomy_eval_texts: list[str]
+    taxonomy_eval_labels: list[list[int]]
+
+@dataclass
+class CalibrationBinData:
+    bin_lower: float
+    bin_upper: float
+    count: int
+    actual_positive_rate: float
+
+@dataclass
+class EvalResult:
+    model_type: Literal["pair", "prompt", "taxonomy"]
+    f1: float
+    precision: float
+    recall: float
+    per_category_f1: dict[str, float] | None  # taxonomy only; None for binary
+    calibration_bins: list[CalibrationBinData]
+    sample_count: int
+    timestamp: str  # ISO 8601
 ```
 
-Category priority (producer): `severe_toxic > threat > identity_hate > obscene > insult > toxic > clean`
+### Streaming App — Enums and Kafka Event
 
-**`ClassificationResult`** — internal type (not serialised to Kafka)
 ```python
-class ClassificationResult(BaseModel):
-    event_id: str
+# llm_safety_monitor/types.py
+
+class SourceDataset(StrEnum):
+    HH_RLHF = "hh-rlhf"
+    WILDGUARD = "wildguard"
+    ADVBENCH = "advbench"
+    JAILBREAKBENCH = "jailbreakbench"
+    LIVE = "live"
+
+class HarmCategory(StrEnum):
+    # Implementer: verify exact names from WildGuard dataset label schema before coding.
+    # Approximate list based on WildGuard paper — actual column names in the dataset
+    # must match exactly for label mapping to work correctly.
+    HATE = "hate"
+    HARASSMENT = "harassment"
+    VIOLENCE = "violence"
+    SELF_HARM = "self_harm"
+    SEXUAL = "sexual"
+    PRIVACY = "privacy"
+    FINANCIAL_CRIME = "financial_crime"
+    MALWARE = "malware"
+    WEAPONS = "weapons"
+    DRUGS = "drugs"
+    MISINFORMATION = "misinformation"
+    TERRORISM = "terrorism"
+    OTHER = "other"
+
+class EscalationReason(StrEnum):
+    JAILBREAK = "JAILBREAK"
+    BENIGN_HARMFUL = "BENIGN_HARMFUL"
+    LOG_ONLY = "LOG_ONLY"
+    MODEL_DISAGREEMENT = "MODEL_DISAGREEMENT"
+    ADVERSARIAL_PROMPT_FLAGGED = "ADVERSARIAL_PROMPT_FLAGGED"
+
+class LLMInteractionEvent(BaseModel):
+    event_id: UUID
+    prompt: str
+    response: str | None
+    source_dataset: SourceDataset
+    ground_truth_safe: bool | None
+    ground_truth_categories: list[HarmCategory] | None
+```
+
+### DB ORM — `llm_safety_monitor/api/models.py`
+
+```python
+class Interaction(Base):
+    __tablename__ = "interactions"
+    id: Mapped[UUID] = mapped_column(primary_key=True, default=uuid4)
+    prompt_text: Mapped[str]
+    response_text: Mapped[str | None]
+    source_dataset: Mapped[str]
+    ground_truth_safe: Mapped[bool | None]
+    ground_truth_categories: Mapped[dict | None] = mapped_column(JSONB)
+    created_at: Mapped[datetime] = mapped_column(default=lambda: datetime.now(UTC))
+    escalated: Mapped[bool] = mapped_column(default=False)
+    escalation_reason: Mapped[str | None]  # EscalationReason value or None
+
+class ClassificationResult(Base):
+    __tablename__ = "classifications"
+    # existing columns carried over:
+    id: Mapped[UUID] = mapped_column(primary_key=True, default=uuid4)
+    model_name: Mapped[str]
+    content: Mapped[str]        # prompt text (truncated 500 chars) — kept for compat
+    predicted_label: Mapped[int]
+    confidence: Mapped[float]
+    latency_ms: Mapped[float]
+    processed_at: Mapped[datetime]
+    seeded: Mapped[bool] = mapped_column(default=False)
+    # new columns (added via migration):
+    event_id: Mapped[UUID | None] = mapped_column(ForeignKey("interactions.id"), index=True)
+    taxonomy_labels: Mapped[list | None] = mapped_column(JSONB)
+```
+
+**`predicted_label` and `confidence` conventions per model:**
+
+| Model | `predicted_label` | `confidence` | `taxonomy_labels` |
+|-------|-------------------|--------------|-------------------|
+| `pair_classifier` | 0=safe, 1=unsafe | P(unsafe) | NULL |
+| `prompt_detector` | 0=benign, 1=adversarial | P(adversarial) | NULL |
+| `taxonomy_classifier` | 1 if ≥1 category flagged, else 0 | max sigmoid across 13 heads | JSON list of active HarmCategory strings |
+
+**Label alignment with `ground_truth_safe`:** `ground_truth_safe=True` → label 0; `ground_truth_safe=False` → label 1. The metrics router converts `ground_truth_safe` to `1 - int(ground_truth_safe)` before computing F1 against `predicted_label`.
+
+### API Schemas — `llm_safety_monitor/api/schemas.py`
+
+```python
+class VerdictEntry(BaseModel):
     model_name: str
-    group: str
-    category: str        # forwarded from ModerationEvent
     predicted_label: int
     confidence: float
-    latency_ms: float
-    correct: bool        # predicted_label == event.ground_truth
-    created_at: datetime
+    taxonomy_labels: list[str] | None  # populated for taxonomy_classifier only
+
+class RecentEvent(BaseModel):
+    event_id: UUID
+    prompt_text: str          # truncated to 200 chars
+    response_text: str | None # truncated to 200 chars
+    source_dataset: str
+    verdicts: list[VerdictEntry]
+    escalation_reason: str | None
+
+class StreamResponse(BaseModel):
+    events: list[RecentEvent]
+
+class ModelMetrics(BaseModel):
+    model_name: str
+    f1: float
+    precision: float
+    recall: float
+    sample_count: int
+
+class MetricsResponse(BaseModel):
+    models: list[ModelMetrics]
+
+class CalibrationBin(BaseModel):
+    bin_lower: float
+    bin_upper: float
+    count: int
+    actual_positive_rate: float
+
+class ModelCalibration(BaseModel):
+    model_name: str
+    bins: list[CalibrationBin]  # only bins with count > 0
+
+class CalibrationResponse(BaseModel):
+    models: list[ModelCalibration]
+
+# DisagreementsResponse carried over from existing implementation
 ```
 
-### dbt Source + Models
+### Frontend Types — `web/src/types/index.ts`
 
-**Source:** `moderation` schema — tables `classifications`, `escalations`
+```typescript
+type SourceDataset = 'hh-rlhf' | 'wildguard' | 'advbench' | 'jailbreakbench' | 'live'
 
-**Staging:**
-- `stg_events` — distinct events: `SELECT DISTINCT ON (event_id) event_id, ground_truth, category, date_trunc('hour', created_at) AS event_hour, created_at FROM classifications ORDER BY event_id, created_at`
-- `stg_classifications` — cleaned classifications with `date_trunc('hour', created_at) AS classification_hour`
+type EscalationReason =
+  | 'JAILBREAK'
+  | 'BENIGN_HARMFUL'
+  | 'LOG_ONLY'
+  | 'MODEL_DISAGREEMENT'
+  | 'ADVERSARIAL_PROMPT_FLAGGED'
 
-**Marts:**
-- `fct_category_trends` — grain: `(event_hour, category)`; columns: `event_count`; source: `stg_events`
-- `fct_model_accuracy` — grain: `(classification_hour, group, model_name)`; columns: `n, tp, fp, fn, f1`; F1 = `2*tp / (2*tp + fp + fn)`; TP/FP/FN derived from `predicted_label` + `correct`
-- `fct_escalation_rates` — grain: `(window_5min)`; columns: `escalation_count, total_events, escalation_rate`; joins `stg_events` windowed counts with `escalations` windowed counts
-
-All marts materialised as `table` (not `view`) so API queries hit pre-computed rows.
-
-### Config & Registry
-
-```python
-@dataclass
-class ModelSpec:
-    model_key: str
-    display_name: str
-    requires_checkpoint: bool
-    checkpoint_path_env_var: str | None  # None for zero-shot models
-
-MODEL_REGISTRY: dict[str, ModelSpec] = {
-    "distilbert":          ModelSpec("distilbert",          "DistilBERT (zero-shot)",    False, None),
-    "roberta":             ModelSpec("roberta",             "RoBERTa (zero-shot)",       False, None),
-    "detoxify":            ModelSpec("detoxify",            "Detoxify",                  False, None),
-    "finetuned_distilbert": ModelSpec("finetuned_distilbert", "DistilBERT (fine-tuned)", True, "DISTILBERT_CHECKPOINT_PATH"),
-    "finetuned_roberta":   ModelSpec("finetuned_roberta",   "RoBERTa (fine-tuned)",      True, "ROBERTA_CHECKPOINT_PATH"),
+type VerdictEntry = {
+  model_name: string
+  predicted_label: number
+  confidence: number
+  taxonomy_labels: string[] | null
 }
+
+type RecentEvent = {
+  event_id: string
+  prompt_text: string
+  response_text: string | null
+  source_dataset: SourceDataset
+  verdicts: VerdictEntry[]
+  escalation_reason: EscalationReason | null
+}
+
+type StreamResponse = { events: RecentEvent[] }
+
+type ModelMetrics = {
+  model_name: string
+  f1: number
+  precision: number
+  recall: number
+  sample_count: number
+}
+
+type MetricsResponse = { models: ModelMetrics[] }
+
+type CalibrationBin = {
+  bin_lower: number
+  bin_upper: number
+  count: number
+  actual_positive_rate: number
+}
+
+type ModelCalibration = {
+  model_name: string
+  bins: CalibrationBin[]
+}
+
+type CalibrationResponse = { models: ModelCalibration[] }
 ```
 
 ---
 
 ## Module Interfaces
 
-### `config.py`
+### `llm_safety_training/datasets.py`
 
 ```python
-class Settings(BaseSettings):
-    model_config = ConfigDict(extra="ignore")
+def extract_hhrlhf_pair(field: str) -> str:
+    """Extract 'final human turn [SEP] final assistant turn' from a HH-RLHF chosen/rejected string."""
 
-    # Kafka
-    kafka_bootstrap_servers: str = "localhost:9092"
-    kafka_topic: str = "moderation-events"
-    kafka_num_partitions: int = 5
+def load_hhrlhf_binary(split: str = "train") -> tuple[list[str], list[int]]:
+    """Returns (texts, labels) where text = extract_hhrlhf_pair(chosen|rejected), label=0/1."""
 
-    # Postgres — two URLs for sync (consumers) and async (API)
-    postgres_url_sync: str       # postgresql+psycopg2://postgres:postgres@localhost:5434/moderation_dashboard
-    postgres_url_async: str      # postgresql+asyncpg://postgres:postgres@localhost:5434/moderation_dashboard
+def split_wildguard(seed: int = 42) -> WildGuardSplits:
+    """70/30 example-level split. Each allocation's 10% reserve becomes the eval set."""
 
-    # Producer
-    jigsaw_csv_path: Path
-    producer_rate_per_sec: float = 10.0
+def load_advbench() -> tuple[list[str], list[int]]:
+    """All AdvBench harmful instructions; label=1 for all."""
 
-    # Phase 2 checkpoints (None = pending_weights)
-    distilbert_checkpoint_path: Path | None = None
-    roberta_checkpoint_path: Path | None = None
+def load_jailbreakbench() -> tuple[list[str], list[int]]:
+    """All JailbreakBench prompt variants; label=1 for all."""
 
-    # Escalation
-    escalation_confidence_threshold: float = 0.6
-    escalation_poll_interval_secs: float = 10.0
-    case_queue_api_url: str = "http://localhost:8000"
-
-    # Anomaly detection
-    anomaly_zscore_threshold: float = 3.0
-    anomaly_window_minutes: int = 5
-    anomaly_min_history_windows: int = 10  # skip checks until N windows of baseline
-
-    # API
-    cors_origins: list[str] = ["http://localhost:5174"]
-
-    # dbt
-    dbt_project_dir: Path  # absolute path to dbt/ directory
-
-@lru_cache
-def get_settings() -> Settings: ...
+def build_prompt_detector_dataset(seed: int = 42) -> tuple[list[str], list[int], list[str], list[int]]:
+    """Returns (train_texts, train_labels, eval_texts, eval_labels).
+    Positives: AdvBench + JailbreakBench + WildGuard harmful (subset).
+    Negatives: HH-RLHF chosen prompts + WildGuard safe prompts. Balanced 50/50."""
 ```
 
-### `producer.py`
+### `llm_safety_training/train_pair.py`
+
+Entry point: `uv run train-pair`
 
 ```python
-CATEGORY_PRIORITY: list[str] = ["severe_toxic", "threat", "identity_hate", "obscene", "insult", "toxic"]
-
-def load_jigsaw_csv(path: Path) -> list[dict[str, Any]]: ...
-
-def get_primary_category(row: dict[str, Any]) -> str:
-    # Returns first positive label in CATEGORY_PRIORITY, or "clean"
-    ...
-
-def ensure_topic(bootstrap_servers: str, topic: str, num_partitions: int) -> None:
-    # AdminClient.create_topics(); no-op if topic already exists
-    ...
-
-def publish_events(
-    events: list[dict[str, Any]],
-    bootstrap_servers: str,
-    topic: str,
-    rate_per_sec: float,
+def train(
+    output_dir: Path,
+    epochs: int = 4,
+    batch_size: int = 128,
+    seed: int = 42,
 ) -> None:
-    # Publishes ModerationEvent JSON; rate-limits with time.sleep; SIGINT exits cleanly
-    ...
-
-def main() -> None: ...   # CLI entry point; reads Settings; calls ensure_topic then publish_events
+    """Trains DistilBERT binary classifier on HH-RLHF + WildGuard pair split.
+    Saves checkpoint to output_dir. Uses Trainer with eval_strategy='epoch',
+    save_strategy='epoch', load_best_model_at_end=True, warmup_steps (not warmup_ratio)."""
 ```
 
-### `consumers/base.py`
+### `llm_safety_training/train_taxonomy.py`
+
+Entry point: `uv run train-taxonomy`
 
 ```python
-class BaseConsumer:
-    model_name: str
-    group_id: str
+def train(
+    output_dir: Path,
+    epochs: int = 4,
+    batch_size: int = 64,  # 13-head model; reduce from 128 if OOM
+    seed: int = 42,
+) -> None:
+    """Multi-label DistilBERT. Custom Trainer subclass overrides compute_loss to use
+    BCEWithLogitsLoss. Threshold 0.5 per category for predicted labels."""
+```
 
-    def __init__(
-        self,
-        model_name: str,
-        group_id: str,       # 'moderation-production' | 'moderation-shadow-{model_name}'
-        bootstrap_servers: str,
-        topic: str,
-        db_url: str,         # sync postgres URL (postgresql+psycopg2://...)
-    ) -> None: ...
+### `llm_safety_training/evaluate.py`
 
-    def classify(self, content: str) -> tuple[int, float]:
-        # Returns (predicted_label: 0|1, confidence: 0.0–1.0)
-        # Subclasses override; raises RuntimeError if weights not loaded
-        raise NotImplementedError
+Entry point: `uv run evaluate --model pair|prompt|taxonomy`
+
+```python
+def evaluate(
+    model_type: Literal["pair", "prompt", "taxonomy"],
+    checkpoint_path: Path,
+    output_dir: Path,
+) -> EvalResult:
+    """Loads checkpoint, runs on held-out split, computes metrics, writes JSON.
+    For taxonomy: per-category F1 via sklearn multilabel_confusion_matrix.
+    For all: calibration bins computed with 10 equal-width bins over confidence scores."""
+
+def write_eval_json(result: EvalResult, output_path: Path) -> None: ...
+```
+
+### `llm_safety_monitor/producer.py`
+
+Entry point: `uv run producer`
+
+```python
+class ReplayProducer:
+    def __init__(self, settings: Settings) -> None:
+        # Loads all 4 datasets into memory. Shuffles each per-dataset (random seed each run).
+        # Wraps each in itertools.cycle. Computes weights from REPLAY_MIX_* settings.
+        ...
 
     def run(self) -> None:
-        # Sync poll loop; SIGINT exits cleanly
-        # Per message:
-        #   1. Parse ModerationEvent from JSON
-        #   2. t0 = time.perf_counter(); label, conf = self.classify(event.content); latency_ms = (perf_counter()-t0)*1000
-        #   3. correct = (label == event.ground_truth)
-        #   4. _write_result(ClassificationResult(...))
-        ...
+        """Blocking loop. Each tick: random.choices over 4 cycled iterators using mix weights.
+        Serialises LLMInteractionEvent to JSON, writes to interactions table (sync SQLAlchemy),
+        publishes to Kafka, sleeps ~3 seconds."""
 
-    def _write_result(self, result: ClassificationResult) -> None:
-        # Sync SQLAlchemy session; INSERT INTO classifications
-        ...
+    def _write_interaction(self, event: LLMInteractionEvent, session: Session) -> None:
+        """Inserts into interactions table. Called before Kafka publish."""
 ```
 
-### `consumers/runner.py`
-
-CLI: `uv run consumer --model <model_key> --mode <production|shadow>`
+### `llm_safety_monitor/consumers/base.py`
 
 ```python
-def main() -> None:
-    # 1. Parse --model and --mode args (argparse or typer)
-    # 2. Look up ModelSpec in MODEL_REGISTRY
-    # 3. If requires_checkpoint: check env var; if unset, log warning and sys.exit(0)
-    # 4. Construct group_id:
-    #      production → "moderation-production"
-    #      shadow     → f"moderation-shadow-{model_key}"
-    # 5. Instantiate consumer class; call consumer.run()
-```
-
-### `anomaly/detector.py`
-
-```python
-@dataclass
-class WindowState:
-    window_start: datetime
-    window_end: datetime
-    event_count: int
-    category_counts: dict[str, int]   # category → count
-    # disagreement_rate computed at flush from Postgres query (not tracked in-memory)
-
-class RollingWindowDetector:
-    def __init__(
-        self,
-        bootstrap_servers: str,
-        topic: str,
-        db_url: str,         # sync postgres URL
-        window_minutes: int = 5,
-        zscore_threshold: float = 3.0,
-        min_history: int = 10,
-    ) -> None: ...
-
-    def run(self) -> None:
-        # Kafka consumer group: 'moderation-anomaly'
-        # Poll loop; on each event:
-        #   1. Determine window boundary for event.published_at
-        #   2. If event is in a new window, call _flush_window() on completed window
-        #   3. Update current window state
-        ...
-
-    def _flush_window(self, state: WindowState) -> None:
-        # 1. Append window volume to history; compute Z-score vs history
-        # 2. Append per-category rates to history; compute Z-scores
-        # 3. Query Postgres for shadow disagreement rate in window time range
-        # 4. Append disagreement rate to history; compute Z-score
-        # 5. For any signal where |z_score| > threshold and len(history) >= min_history:
-        #      write AnomalyFlag row
-        ...
-
-    def _compute_zscore(self, value: float, history: list[float]) -> float:
-        # numpy: (value - np.mean(history)) / np.std(history)
-        # Returns 0.0 if len(history) < 2
-        ...
-
-    def _get_shadow_disagreement_rate(
-        self, window_start: datetime, window_end: datetime
-    ) -> float:
-        # Query: for each event in window with >= 2 shadow classifications,
-        #        disagreement = not all models agree on predicted_label
-        # Returns: count(disagreeing events) / count(events with >= 2 shadow classifications)
-        ...
-```
-
-### `escalation/service.py`
-
-```python
-class EscalationService:
-    def __init__(
-        self,
-        db_url: str,
-        case_queue_api_url: str,
-        confidence_threshold: float = 0.6,
-        poll_interval_secs: float = 10.0,
-    ) -> None: ...
-
-    def run(self) -> None:
-        # Loop with SIGINT shutdown; sleep poll_interval_secs between cycles
-        ...
-
-    def _get_unevaluated_event_ids(self) -> list[str]:
-        # SELECT DISTINCT c.event_id
-        # FROM classifications c
-        # LEFT JOIN escalations e ON c.event_id = e.event_id
-        # WHERE c.group = 'shadow'
-        #   AND e.event_id IS NULL
-        # GROUP BY c.event_id
-        # HAVING COUNT(DISTINCT c.model_name) >= 2
-        ...
-
-    def _evaluate_event(
-        self, event_id: str, shadow_rows: list[Row]
-    ) -> tuple[bool, str, float | None]:
-        # Returns (should_escalate, reason, confidence_max)
-        # Disagreement: set(predicted_label) has more than one unique value
-        # Low confidence: max(confidence) < threshold
-        ...
-
-    def _get_event_content(self, event_id: str) -> tuple[str, str]:
-        # SELECT content (from Kafka event — not stored in DB)
-        # Problem: content is not in the classifications table
-        # Resolution: see Implementation Notes — content must be in classifications table
-        ...
-
-    def _post_to_case_queue(
-        self,
-        content: str,
-        category: str,
-        reason: str,
-        confidence_max: float | None,
-        shadow_rows: list[Row],
-    ) -> str:
-        # httpx.Client().post(f"{case_queue_api_url}/cases", json={...})
-        # Returns case_queue_case_id
-        # Raises on HTTP error; caller catches and logs
-        ...
-
-    def _write_escalation(
-        self, event_id: str, case_queue_case_id: str, reason: str, confidence_max: float | None
-    ) -> None: ...
-```
-
-**Critical note on event content:** The event's `content` (text) and `category` must be stored in `classifications` so the escalation service can retrieve them without a separate lookup. Add `content: TEXT NOT NULL` and the schema already has `category`. This avoids requiring a raw_events table while giving the escalation service what it needs to POST a meaningful case to case-queue.
-
-**Updated `classifications` table** (add one column):
-```
-content: TEXT NOT NULL   -- ADD THIS; forwarded from ModerationEvent.content
-```
-
-### `api/models.py`
-
-```python
-class Classification(Base):
-    __tablename__ = "classifications"
-    id: Mapped[str] = mapped_column(String, primary_key=True)
-    event_id: Mapped[str] = mapped_column(String, nullable=False)
-    group: Mapped[str] = mapped_column(String, nullable=False)
-    model_name: Mapped[str] = mapped_column(String, nullable=False)
-    category: Mapped[str] = mapped_column(String, nullable=False)
-    content: Mapped[str] = mapped_column(Text, nullable=False)
-    predicted_label: Mapped[int] = mapped_column(Integer, nullable=False)
-    confidence: Mapped[float] = mapped_column(Double, nullable=False)
-    latency_ms: Mapped[float] = mapped_column(Double, nullable=False)
-    correct: Mapped[bool] = mapped_column(Boolean, nullable=False)
-    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
-
-class AnomalyFlag(Base):
-    __tablename__ = "anomaly_flags"
-    id: Mapped[str] = mapped_column(String, primary_key=True)
-    window_start: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
-    window_end: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
-    signal_name: Mapped[str] = mapped_column(String, nullable=False)
-    z_score: Mapped[float] = mapped_column(Double, nullable=False)
-    value: Mapped[float] = mapped_column(Double, nullable=False)
-    baseline_mean: Mapped[float] = mapped_column(Double, nullable=False)
-    baseline_std: Mapped[float] = mapped_column(Double, nullable=False)
-    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
-
-class Escalation(Base):
-    __tablename__ = "escalations"
-    id: Mapped[str] = mapped_column(String, primary_key=True)
-    event_id: Mapped[str] = mapped_column(String, nullable=False, unique=True)
-    case_queue_case_id: Mapped[str] = mapped_column(String, nullable=False)
-    escalation_reason: Mapped[str] = mapped_column(String, nullable=False)
-    confidence_max: Mapped[float | None] = mapped_column(Double, nullable=True)
-    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
-```
-
-### `api/schemas.py`
-
-```python
-class ModelStatus(StrEnum):
-    active = "active"
-    pending_weights = "pending_weights"
-
-class ModelMetrics(BaseModel):
-    model_name: str
-    display_name: str
-    status: ModelStatus
-    event_count: int
-    f1: float | None
-    precision: float | None
-    recall: float | None
-    latency_p50: float | None
-    latency_p95: float | None
-    throughput_per_sec: float | None
-
-class EventComparison(BaseModel):
-    event_id: str
-    content: str
-    category: str
-    ground_truth: int
-    classifications: list[SingleModelVerdict]
-
-class SingleModelVerdict(BaseModel):
-    model_name: str
+class ClassifyResult(TypedDict):
     predicted_label: int
     confidence: float
     latency_ms: float
-    correct: bool
+    taxonomy_labels: list[str] | None
 
-class AnomalyFlagRead(BaseModel):
-    id: str
-    window_start: datetime
-    window_end: datetime
-    signal_name: str
-    z_score: float
-    value: float
-    baseline_mean: float
-    baseline_std: float
-    created_at: datetime
+class BaseConsumer:
+    model_name: str  # "pair_classifier" | "prompt_detector" | "taxonomy_classifier"
 
-class StreamMetrics(BaseModel):
-    event_rate_per_sec: float     # unique events in last 60s / 60
-    category_counts: dict[str, int]  # last 5 min
-    total_events: int
+    def __init__(self, mode: Literal["production", "shadow"], model_name: str) -> None:
+        """Loads model checkpoint from settings. Raises RuntimeError if path absent."""
 
-class AnalyticsResponse(BaseModel):
-    category_trends: list[CategoryTrend]
-    model_accuracy: list[ModelAccuracyPoint]
-    escalation_rates: list[EscalationRatePoint]
+    def classify(self, text: str) -> ClassifyResult:
+        """Subclasses implement. text = prompt [SEP] response for pair/taxonomy, prompt only for detector."""
 
-class CategoryTrend(BaseModel):
-    hour: datetime
-    category: str
-    event_count: int
+    def _write_classification(self, event_id: UUID, result: ClassifyResult, session: Session) -> None:
+        """Inserts into classifications table."""
 
-class ModelAccuracyPoint(BaseModel):
-    hour: datetime
-    group: str
-    model_name: str
-    f1: float
-    n: int
+    def run(self) -> None:
+        """Blocking Kafka poll loop. For each message: classify, write to DB. Catches exceptions
+        per message with logger.warning(exc_info=True); does not crash the loop."""
 
-class EscalationRatePoint(BaseModel):
-    window_start: datetime
-    escalation_count: int
-    total_events: int
-    escalation_rate: float
+    def stop(self) -> None: ...
 ```
 
-### API Route Contracts
+### `llm_safety_monitor/consumers/taxonomy_classifier.py`
 
+Subclasses `BaseConsumer`. Override `classify`:
+- Sigmoid over all 13 logits → per-category probabilities
+- `taxonomy_labels` = list of `HarmCategory` values where probability > 0.5
+- `predicted_label` = 1 if len(taxonomy_labels) > 0, else 0
+- `confidence` = max probability across all 13 heads (0.0 if all < 0.5 and predicted_label=0, else the max)
+
+### `llm_safety_monitor/consumers/runner.py`
+
+```python
+def run_all(settings: Settings) -> None:
+    """Starts pair_classifier, prompt_detector, taxonomy_classifier, and EscalationPoller
+    as daemon threads. Blocks until KeyboardInterrupt. Calls stop() on each on exit."""
 ```
-GET  /health
-     → 200 {"status": "ok"}
 
-GET  /metrics/stream
-     → StreamMetrics
+### `llm_safety_monitor/escalation/router.py`
 
-GET  /metrics/production
-     → list[ModelMetrics]
-     (includes pending_weights entries for all 5 MODEL_REGISTRY keys)
+```python
+class EscalationPoller:
+    """Daemon thread. Polls every 2 seconds for events where all 3 classification rows
+    exist and escalated=False. Applies 2×2 matrix. Also handles timeout: events older
+    than 10 seconds with escalated=False and fewer than 3 classification rows are
+    marked escalated=True with no case-queue post and a warning log."""
 
-GET  /metrics/shadow
-     → list[ModelMetrics]
+    def __init__(self, settings: Settings) -> None: ...
+    def run(self) -> None: ...
+    def stop(self) -> None: ...
 
-GET  /metrics/comparison/{event_id}
-     → EventComparison | 404
+def compute_escalation_reason(
+    pair_label: int,
+    pair_conf: float,
+    prompt_label: int,
+    prompt_conf: float,
+    taxonomy_labels: list[str],
+    has_response: bool,
+) -> EscalationReason | None:
+    """Pure function. Returns EscalationReason or None (no action needed).
+    Matrix:
+      has_response=False, prompt_label=1, prompt_conf>0.7 → ADVERSARIAL_PROMPT_FLAGGED
+      pair=1, prompt=1 → JAILBREAK
+      pair=1, prompt=0 → BENIGN_HARMFUL
+      pair=0, prompt=1 → LOG_ONLY (no case-queue post)
+      pair=0, taxonomy non-empty → MODEL_DISAGREEMENT
+      pair=1, taxonomy empty → MODEL_DISAGREEMENT
+      else → None"""
+```
 
-GET  /metrics/anomalies
-     → list[AnomalyFlagRead]   (limit 50, ordered by window_start DESC)
+**Escalation polling query (conceptual):**
 
-GET  /metrics/analytics
-     → AnalyticsResponse
-     (queries dbt_moderation.fct_* tables; returns empty lists if dbt not yet run)
+```sql
+-- Ready events: all 3 classification rows present
+SELECT i.id FROM interactions i
+WHERE i.escalated = FALSE
+  AND EXISTS (SELECT 1 FROM classifications c WHERE c.event_id=i.id AND c.model_name='pair_classifier')
+  AND EXISTS (SELECT 1 FROM classifications c WHERE c.event_id=i.id AND c.model_name='prompt_detector')
+  AND EXISTS (SELECT 1 FROM classifications c WHERE c.event_id=i.id AND c.model_name='taxonomy_classifier')
+LIMIT 100;
+
+-- Timed-out events: stale without all 3 rows
+SELECT i.id FROM interactions i
+WHERE i.escalated = FALSE
+  AND i.created_at < NOW() - INTERVAL '10 seconds'
+  AND (
+    NOT EXISTS (SELECT 1 FROM classifications c WHERE c.event_id=i.id AND c.model_name='pair_classifier')
+    OR NOT EXISTS (SELECT 1 FROM classifications c WHERE c.event_id=i.id AND c.model_name='prompt_detector')
+    OR NOT EXISTS (SELECT 1 FROM classifications c WHERE c.event_id=i.id AND c.model_name='taxonomy_classifier')
+  )
+LIMIT 100;
+```
+
+### API Routers
+
+**`/metrics` (GET)**
+```
+Fetches (model_name, predicted_label, ground_truth_safe) for all classifications joined to
+interactions where ground_truth_safe IS NOT NULL. Computes F1, precision, recall per model
+using sklearn in Python. ground_truth_safe=True → y_true=0; False → y_true=1.
+Returns MetricsResponse.
+```
+
+**`/metrics/calibration` (GET)**
+```
+Fetches (model_name, confidence, ground_truth_safe) from same join.
+Bins confidence [0,1] into 10 equal-width buckets. Computes actual_positive_rate per bin.
+Returns CalibrationResponse (bins with count=0 excluded).
+```
+
+**`/stream/recent` (GET, ?limit=50)**
+```
+Two queries:
+  1. SELECT * FROM interactions ORDER BY created_at DESC LIMIT $limit
+  2. SELECT * FROM classifications WHERE event_id = ANY($event_ids)
+Merges in Python: group classifications by event_id, attach to each interaction as verdicts.
+Truncates prompt_text and response_text to 200 chars before returning.
+Returns StreamResponse.
+```
+
+**`/metrics/disagreements` (GET)** — carried over, no changes.
+
+### Frontend Hooks
+
+```typescript
+// api/stream.ts
+function useRecentEvents(limit = 50): QueryResult<StreamResponse>
+// polls every 5s via TanStack Query refetchInterval
+
+// api/metrics.ts
+function useModelMetrics(): QueryResult<MetricsResponse>
+// polls every 30s
+
+function useCalibration(): QueryResult<CalibrationResponse>
+// polls every 60s (changes slowly)
+
+function useDisagreements(): QueryResult<DisagreementsResponse>
+// polls every 30s — carried over
+
+// api/review.ts
+function useEscalationQueue(): QueryResult<EscalationQueueResponse>
+function useDecide(eventId: string): MutationResult<void>
+```
+
+### Frontend Components
+
+**`VerdictRow.tsx`**
+```typescript
+function VerdictRow({ verdicts }: { verdicts: VerdictEntry[] }): JSX.Element
+// 3-column layout: pair verdict (Safe|Unsafe badge), prompt verdict (Benign|Adversarial badge),
+// taxonomy verdict (list of HarmCategory chips or "none" text).
+// Takes verdicts array; finds each model by model_name.
+```
+
+**`SourceBadge.tsx`**
+```typescript
+function SourceBadge({ source }: { source: SourceDataset }): JSX.Element
+// Colour-coded badge: hh-rlhf=blue, wildguard=purple, advbench=red, jailbreakbench=orange, live=green
+```
+
+**`CalibrationChart.tsx`**
+```typescript
+function CalibrationChart({ data }: { data: ModelCalibration }): JSX.Element
+// recharts LineChart.
+// X axis: bin_lower (0–1, labeled as percentages). Y axis: actual_positive_rate (0–1).
+// Two series: actual (dots+line from data) and perfect calibration (diagonal y=x reference line).
+// ReferenceLine at slope 1 via recharts ReferenceLine.
+```
+
+**`EscalationReasonBadge.tsx`**
+```typescript
+function EscalationReasonBadge({ reason }: { reason: EscalationReason | null }): JSX.Element
+// Null → renders nothing. Colour scheme:
+// JAILBREAK=red, BENIGN_HARMFUL=orange, MODEL_DISAGREEMENT=yellow,
+// ADVERSARIAL_PROMPT_FLAGGED=purple, LOG_ONLY=gray
 ```
 
 ---
@@ -526,20 +521,41 @@ GET  /metrics/analytics
 ## Dependencies
 
 ```
-producer.py           → config.py, types.py
-consumers/base.py     → config.py, types.py, api/models.py (sync session)
-consumers/*.py        → consumers/base.py
-consumers/runner.py   → consumers/*.py, config.py
-anomaly/detector.py   → config.py, types.py, api/models.py (sync session)
-escalation/service.py → config.py, types.py, api/models.py (sync session)
-api/models.py         → (standalone — no moderation_dashboard imports)
-api/schemas.py        → config.py (ModelStatus, MODEL_REGISTRY)
-api/database.py       → config.py
-api/routers/*.py      → api/models.py, api/schemas.py, api/database.py
-api/main.py           → api/routers/*, api/database.py, config.py
+llm-safety-monitor-training/ (standalone, no runtime deps on streaming app)
+  llm_safety_training/datasets.py
+    ← no internal deps
+  llm_safety_training/train_pair.py, train_prompt.py, train_taxonomy.py
+    ← datasets.py
+  llm_safety_training/evaluate.py
+    ← datasets.py (for held-out splits)
+
+llm-safety-monitor/ (streaming app)
+  config.py ← no internal deps
+  types.py  ← no internal deps
+  api/models.py ← types.py
+  api/schemas.py ← types.py
+  api/database.py ← config.py
+  api/routers/* ← models.py, schemas.py, database.py
+  api/main.py ← routers/*, database.py
+  consumers/base.py ← config.py, types.py, api/models.py (sync engine)
+  consumers/pair_classifier.py ← base.py
+  consumers/prompt_detector.py ← base.py
+  consumers/taxonomy_classifier.py ← base.py, types.py (HarmCategory)
+  consumers/runner.py ← all consumers, escalation/router.py
+  escalation/router.py ← config.py, types.py, api/models.py (sync engine)
+  producer.py ← config.py, types.py, api/models.py (sync engine)
+
+  web/ (frontend — depends on API contract only, not Python code)
+  types/index.ts ← no internal deps
+  api/client.ts ← no internal deps
+  api/stream.ts, metrics.ts, review.ts ← client.ts, types/index.ts
+  components/* ← types/index.ts
+  pages/* ← api hooks, components, types/index.ts
 ```
 
-No circular dependencies. `api/models.py` is the sole shared ORM layer; sync processes import it via a sync engine, the API imports it via an async engine. The ORM class definitions are the same — only the engine/session differ.
+**Two SQLAlchemy engines:** consumers, producer, and EscalationPoller use a **synchronous** engine (blocking Kafka loops). The API uses an **async** engine (FastAPI lifespan). Both target the same Postgres database. This is the same pattern as moderation-dashboard — no shared sessions between them.
+
+No circular dependencies.
 
 ---
 
@@ -547,87 +563,84 @@ No circular dependencies. `api/models.py` is the sole shared ORM layer; sync pro
 
 | Concern | Approach |
 |---------|----------|
-| Error handling (sync) | Consumer/detector/escalation poll loops: catch `Exception`, log `exc_info=True`, continue. Never crash on a single bad message. |
-| Error handling (API) | Let FastAPI handle exceptions. `HTTPException` for 4xx. Unhandled exceptions → 500. |
-| Uninitialised state | Fine-tuned consumers that can't load weights must `raise RuntimeError` — not return a silent default. |
-| Logging | `logging.getLogger(__name__)` in every module. Root logger configured in each process entry point. Level `INFO` default; consumer classification loop at `DEBUG`. |
-| Configuration | `get_settings()` with `@lru_cache`. Single `.env` file; `extra="ignore"` on all settings models. Both `postgres_url_sync` and `postgres_url_async` declared — same DB, different drivers. |
-| Sync DB (consumers/detector/escalation) | `create_engine(settings.postgres_url_sync)` with `psycopg2-binary`. `sessionmaker` with context manager per write. No shared session across messages. |
-| Async DB (API) | `create_async_engine(settings.postgres_url_async)` with `NullPool` in tests, `AsyncSession` via `get_db` dependency. |
-| Boolean→float cast (SQL) | Use `correct::int::float` pattern in all raw SQL. Postgres cannot cast `boolean` directly to `double precision`. |
-| Testing (Python) | Unit tests mock `confluent_kafka.Consumer`/`Producer` and `transformers.pipeline`. Integration tests use real Postgres on port 5434. `NullPool` on test engine. |
-| Testing (frontend) | MSW for API mocking. No snapshot tests. Test loading, error, and data-populated states for each panel. |
+| Error handling | Specific exceptions with context (`raise RuntimeError(...) from exc`). Consumer loops catch per-message exceptions with `logger.warning(exc_info=True)`, do not crash the loop. Missing checkpoint raises `RuntimeError` at startup — fail loud, not silent. |
+| Configuration | `pydantic-settings` `Settings` class with `extra="ignore"`. Single `.env` file. Consumers, producer, and EscalationPoller all instantiate `Settings()` at startup. |
+| Logging | `logging` stdlib. Root logger configured in `main.py` and `runner.py` at `INFO` level. Per-module loggers via `logger = logging.getLogger(__name__)`. All exception boundaries log with `exc_info=True`. |
+| DB engines | Two engines: `create_async_engine` for FastAPI; `create_engine` (sync) for consumers + producer + poller. Neither shares sessions across thread/coroutine boundaries. |
+| Testing (training) | Patch `transformers.AutoModelForSequenceClassification.from_pretrained` (source) and `Trainer.train`, `Trainer.save_model`. Do not patch module-level names (deferred imports per python-conventions.md). |
+| Testing (API) | Real async test DB (sqlite or postgres). `conftest.py` seeds interactions + classifications. Assert computed output values, not just shape. |
+| Testing (consumers) | Mock the HuggingFace pipeline object. Verify label, confidence in [0,1], latency > 0. |
+| Testing (frontend) | msw for API mocks. Test behaviour (rendered text, badges) not internal state. |
+| Type hints | All function signatures annotated. `from __future__ import annotations` at top of every Python file. |
 
 ---
 
 ## Implementation Notes for Implementer
 
-**1. Do this first: case-queue source filter PR**
-Add `source: str | None = None` to `list_cases()` in `projects/case-queue/api/app/routers/cases.py`. Add `if source is not None: filters.append(Case.source == source)` to `_build_filters`. Add one test. This unblocks the Human Review panel.
+**Training order matters:**
+- `datasets.py` must be complete before any `train_*.py` — all three share it.
+- WildGuard 70/30 split must use the same seed=42 so `train_pair.py` and `train_taxonomy.py` get non-overlapping examples every time.
+- The `build_prompt_detector_dataset` function draws WildGuard positives from the 70% pair allocation (not an independent draw) to ensure the taxonomy's 30% is not contaminated.
 
-**2. Start from project 22**
-Copy `projects/moderation-stream/` to `projects/moderation-dashboard/`. Rename package from `moderation_stream` to `moderation_dashboard` throughout. Then add: `group_id` param to `BaseConsumer.__init__`, `category` and `content` columns to the DB write and `ClassificationResult` type, `runner.py` CLI, anomaly detector, escalation service, dbt project, updated API routers, new React app.
+**HH-RLHF parsing:**
+The `chosen` and `rejected` fields look like: `"\n\nHuman: ...\n\nAssistant: ..."`. Parse by splitting on `"\n\nHuman: "` and `"\n\nAssistant: "`. The last Human segment + last Assistant segment form the pair. Strip whitespace. If parsing fails (malformed string), skip the example and log a warning — do not crash.
 
-**3. Kafka topic: 5 partitions**
-In `docker-compose.yml` set `KAFKA_CREATE_TOPICS: "moderation-events:5:1"` (5 partitions, 1 replica). The existing project 22 topic had 1 partition — the new compose creates it fresh. Production consumers with 5 partitions and 3 processes receive partition assignments approximately 2+2+1; Phase 2 with 5 processes is exactly 1 per consumer.
+**Taxonomy multi-label Trainer:**
+Standard `AutoModelForSequenceClassification` with `num_labels=13` and `problem_type="multi_label_classification"` automatically uses `BCEWithLogitsLoss` — no custom Trainer subclass needed. Set `model.config.problem_type = "multi_label_classification"` before training. Labels must be `float` tensors (not `long`) for BCEWithLogitsLoss.
 
-**4. `content` in `classifications`**
-Because the escalation service needs the event text to POST to case-queue, `content` must be stored in the `classifications` table alongside the classification result. Each consumer forwards `event.content` into the DB row. This is a small denormalisation but avoids requiring a raw events table.
+**WildGuard harm category names:**
+Load the dataset with `datasets.load_dataset("allenai/wildguard")` and inspect the feature schema to get the exact column names for the 13 harm categories. The `HarmCategory` StrEnum values must match these names exactly — the implementer must update the enum after inspecting the schema. Do not hardcode approximate names.
 
-**5. Sync vs async engine**
-Consumers, anomaly detector, and escalation service are sync processes — they must use `create_engine(settings.postgres_url_sync)` with `psycopg2-binary`. Do not import or use `create_async_engine` or `asyncio` in these modules. The API exclusively uses `create_async_engine`. The ORM model classes (`Classification`, `AnomalyFlag`, `Escalation`) are shared but instantiated by whichever engine the process uses.
+**EscalationPoller sync engine:**
+The poller runs in a daemon thread alongside the consumers. Use `sessionmaker(bind=sync_engine)` and create a new session per poll cycle (`with Session() as session:`). Do not share sessions across cycles.
 
-**6. Anomaly detector baseline**
-Maintain `window_history: dict[str, list[float]]` — one entry per signal name. Skip Z-score check if `len(history[signal]) < settings.anomaly_min_history_windows` (default 10). Start accumulating on window 1; first check on window 11. This prevents false positives during warm-up.
+**`LOG_ONLY` escalation reason:**
+`LOG_ONLY` (adversarial prompt + safe response) does not POST to case-queue. The poller logs it at `INFO` level and marks `escalated=TRUE` with `escalation_reason="LOG_ONLY"`. The stream endpoint returns it so the dashboard can display it, but no human review queue entry is created.
 
-**7. Escalation content lookup**
-`_get_unevaluated_event_ids()` returns event_ids. To get `content` and `category` for the case-queue POST, query `classifications WHERE event_id = ? LIMIT 1` — `content` and `category` are the same across all classification rows for an event (forwarded from the original event message).
+**`/stream/recent` truncation:**
+Truncate `prompt_text` and `response_text` to 200 chars with `text[:200]` (no ellipsis needed — the frontend displays as-is).
 
-**8. Case-queue POST payload**
-```python
-{
-    "content": event_content,
-    "category": jigsaw_category_to_case_queue_category(category),  # map Jigsaw → CaseCategory enum
-    "severity": infer_severity(confidence_max, reason),             # 'low' | 'medium' | 'high'
-    "source": "moderation-dashboard",
-    "meta": {
-        "escalation_reason": reason,
-        "confidence_max": confidence_max,
-        "model_verdicts": {model_name: label for model_name, label in verdicts.items()},
-    }
-}
-```
-`category` mapping: Jigsaw labels → case-queue `CaseCategory` enum. They match exactly: `toxic`, `severe_toxic`, `obscene`, `threat`, `insult`, `identity_hate`. No mapping needed. `severity` heuristic: `high` if `severe_toxic` or `threat`; `medium` if `obscene` or `insult` or `identity_hate`; `low` otherwise.
+**CalibrationChart reference line:**
+recharts does not natively draw a y=x diagonal. Use a `ReferenceLine` with a custom `segment` prop: `segment={[{x: 0, y: 0}, {x: 1, y: 1}]}`. This draws the perfect calibration diagonal. Requires recharts ≥ 2.5.
 
-**9. dbt `profiles.yml`**
-Use `env_var()` calls — no hardcoded credentials. The dbt process reads from the same `.env` file as the rest of the project. `DBT_DB_*` env vars (host, port, user, password, dbname) are separate from the SQLAlchemy URLs to avoid parsing conflicts.
+**Postgres port:**
+Use port 5434 for this project (5432 reserved for case-queue, 5433 for moderation-stream/moderation-dashboard). Document in `docker-compose.yml` and `.env.example`.
 
-**10. API: `GET /metrics/production` and `/metrics/shadow`**
-Always return all 5 MODEL_REGISTRY entries. For models with no rows in `classifications`, return the entry with `status=pending_weights` and all metric fields `null`. SQL: `GROUP BY model_name` then left-join with registry keys in Python.
+**`taxonomy_labels` in `classifications`:**
+Store as a JSON array of strings matching `HarmCategory` values: `["hate", "violence"]`. Empty list `[]` means the taxonomy classifier ran but flagged no categories. `NULL` means the row belongs to a non-taxonomy model (pair or prompt).
 
-**11. `GET /metrics/stream` event rate dedup**
-Count unique `event_id` values (not total rows) in the last 60s to avoid triple-counting from shadow consumers: `SELECT COUNT(DISTINCT event_id) FROM classifications WHERE created_at >= NOW() - INTERVAL '60 seconds'`. Divide by 60 for per-second rate.
+**Frontend `CalibrationChart` test:**
+recharts renders SVG — `@testing-library/react` assertions should check for rendered axis labels or the component's container (not SVG path data). The test should verify the component renders without crashing when passed a `ModelCalibration` prop and that the model name appears in the DOM.
 
-**12. Frontend dev port**
-In `vite.config.ts`: `server: { port: 5174 }`. In `tsconfig.app.json`: remove `baseUrl` (TypeScript 6 breaks with `baseUrl` + `moduleResolution: bundler`). Use `paths: { "@/*": ["src/*"] }` only.
+---
 
-**13. Alembic**
-Generate initial migration with `alembic revision --autogenerate -m "initial"` against live Postgres. All three tables (`classifications`, `anomaly_flags`, `escalations`) in one migration. Tests use `Base.metadata.create_all()` directly with a NullPool test engine — no Alembic in test setup.
+## Resolutions to Planner Open Questions
+
+1. **Calibration schema:** Confirmed. `{models: [{model_name, bins: [{bin_lower, bin_upper, count, actual_positive_rate}]}]}`. Zero-count bins excluded. `actual_positive_rate` omitted (not present in object) when excluded — no null, just not in the list.
+
+2. **Taxonomy categories StrEnum:** Confirmed as `StrEnum` in `types.py`. Names must be verified from dataset schema at implementation time. Approximate 13 provided above as a starting template — implementer replaces with actual names.
+
+3. **Escalation coordination:** Changed from DB-poll-per-write to a dedicated `EscalationPoller` daemon thread (polls every 2s). Cleaner than per-consumer coordination, no cross-thread locking needed. Adds `escalated BOOLEAN DEFAULT FALSE` and `escalation_reason VARCHAR NULLABLE` to `interactions` table.
+
+4. **Replay producer in-memory state:** Confirmed. In-memory shuffle + `itertools.cycle`. Memory safe: ~262k items × ~600 bytes avg ≈ 160MB. Weighted sampling via `random.choices(population=[iter_a, iter_b, iter_c, iter_d], weights=[0.60, 0.25, 0.10, 0.05])`.
+
+5. **Taxonomy consumer output format:** Confirmed compact representation. `predicted_label=1|0`, `confidence=max sigmoid`, `taxonomy_labels=["hate", ...]` stored as JSONB on `classifications`. `classifications.taxonomy_labels` column is JSONB NULLABLE.
 
 ---
 
 ## Handoff
 
-**Next role:** design-brief (frontend has 5 panels — routing.md requires design-brief + frontend-architect before implementer for projects with a frontend)
+Next role: implementer
 
-**What design-brief does with this:**
-- Locks in the visual layout of the 5-panel dashboard: tab navigation vs sidebar vs grid
-- Specifies the primary interaction for each panel (read-only monitoring vs click-to-drill-down)
-- Defines the key components needed (ModelCard, MetricChart, AnomalyBadge)
-- Sets done criteria for the UI before frontend-architect specifies component hierarchy
+Reads: this file (`roles/architect/output/output.md`) + `roles/planner/output/output.md`.
 
-**Flags for design-brief:**
-- Model Performance and Model Comparison panels share the `ModelCard` component — design-brief should decide whether they are separate tabs or adjacent sections
-- Human Review panel is read-only in the dashboard (links out to case-queue) — design-brief should confirm this interaction model
-- Analytics panel has 3 charts — design-brief should confirm layout (stacked vs side-by-side)
-- Stream Monitor is the "hero" panel — design-brief should decide if it is the default/landing view
+**Implement in this order:**
+1. `llm-safety-monitor-training/`: `datasets.py` → `train_pair.py` + `train_prompt.py` + `train_taxonomy.py` (parallel) → `evaluate.py` → tests
+2. `llm-safety-monitor/` DB + config: Alembic migration → `config.py` → `types.py`
+3. `producer.py` + its test
+4. Consumers: `base.py` → `pair_classifier.py` + `prompt_detector.py` + `taxonomy_classifier.py` (parallel) → `runner.py`
+5. `escalation/router.py` + its test
+6. API: `models.py` → `schemas.py` → routers → `main.py` + tests
+7. Frontend: `types/index.ts` → api hooks → components → pages + tests
+
+**Uncertain interfaces:** The exact WildGuard harm category names are uncertain until the dataset is inspected. The `HarmCategory` StrEnum and any code depending on it (taxonomy classifier label mapping, DB values, frontend type) must be finalized from the dataset schema before training runs. Everything else is fully specified.
