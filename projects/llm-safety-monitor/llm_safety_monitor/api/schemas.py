@@ -58,6 +58,7 @@ class DisagreementSample(BaseModel):
     prompt_text: str
     pair_label: int | None
     taxonomy_labels: list[str] | None
+    escalation_reason: str | None = None
 
 
 class DisagreementsResponse(BaseModel):

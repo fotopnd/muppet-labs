@@ -24,10 +24,13 @@ class BaseConsumer:
     model_name: str
 
     def __init__(self, mode: Literal["production", "shadow"], model_name: str, settings: Settings) -> None:
+        from sqlalchemy import create_engine
+
         self._mode = mode
         self.model_name = model_name
         self._settings = settings
         self._running = False
+        self._engine = create_engine(settings.SYNC_DATABASE_URL)
         self._load_model()
 
     @abstractmethod
@@ -39,13 +42,11 @@ class BaseConsumer:
         """Classify text and return result dict."""
 
     def _write_classification(self, event: LLMInteractionEvent, result: ClassifyResult) -> None:
-        from sqlalchemy import create_engine
         from sqlalchemy.orm import Session
 
         from llm_safety_monitor.api.models import ClassificationResult
 
-        engine = create_engine(self._settings.SYNC_DATABASE_URL)
-        with Session(engine) as session:
+        with Session(self._engine) as session:
             row = ClassificationResult(
                 model_name=self.model_name,
                 content=event.prompt[:500],

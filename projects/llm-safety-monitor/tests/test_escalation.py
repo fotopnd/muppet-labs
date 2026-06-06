@@ -46,7 +46,7 @@ def test_model_disagreement_pair_safe_taxonomy_flagged() -> None:
     assert reason == EscalationReason.MODEL_DISAGREEMENT
 
 
-def test_model_disagreement_pair_unsafe_taxonomy_clean() -> None:
+def test_benign_harmful_pair_unsafe_prompt_safe() -> None:
     reason = compute_escalation_reason(
         pair_label=1, pair_conf=0.9,
         prompt_label=0, prompt_conf=0.1,

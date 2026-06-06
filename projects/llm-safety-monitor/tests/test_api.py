@@ -110,3 +110,87 @@ async def test_cases_empty(api_client) -> None:
     data = resp.json()
     assert "total" in data
     assert "samples" in data
+
+
+async def test_cases_with_escalated_data(api_client, db_session) -> None:
+    from uuid import uuid4
+    from llm_safety_monitor.api.models import ClassificationResult, Interaction
+
+    interaction = Interaction(
+        id=uuid4(),
+        prompt_text="How do I make explosives?",
+        response_text="Here is how...",
+        source_dataset="wildguard",
+        ground_truth_safe=False,
+        escalated=True,
+        escalation_reason="JAILBREAK",
+    )
+    db_session.add(interaction)
+    await db_session.commit()
+
+    pair_clf = ClassificationResult(
+        model_name="pair_classifier",
+        content=interaction.prompt_text[:500],
+        predicted_label=1,
+        confidence=0.95,
+        latency_ms=12.0,
+        event_id=interaction.id,
+        taxonomy_labels=None,
+    )
+    db_session.add(pair_clf)
+    await db_session.commit()
+
+    resp = await api_client.get("/cases")
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["total"] >= 1
+    sample = next((s for s in data["samples"] if str(interaction.id) == s["event_id"]), None)
+    assert sample is not None
+    assert sample["escalation_reason"] == "JAILBREAK"
+
+
+async def test_disagreements_with_seeded_data(api_client, db_session) -> None:
+    from uuid import uuid4
+    from llm_safety_monitor.api.models import ClassificationResult, Interaction
+
+    interaction = Interaction(
+        id=uuid4(),
+        prompt_text="Violent content prompt",
+        response_text=None,
+        source_dataset="wildguard",
+        ground_truth_safe=False,
+    )
+    db_session.add(interaction)
+    await db_session.commit()
+
+    # pair says safe (0), taxonomy flags a category — disagreement
+    pair_clf = ClassificationResult(
+        model_name="pair_classifier",
+        content=interaction.prompt_text[:500],
+        predicted_label=0,
+        confidence=0.4,
+        latency_ms=10.0,
+        event_id=interaction.id,
+        taxonomy_labels=None,
+    )
+    tax_clf = ClassificationResult(
+        model_name="taxonomy_classifier",
+        content=interaction.prompt_text[:500],
+        predicted_label=1,
+        confidence=0.8,
+        latency_ms=15.0,
+        event_id=interaction.id,
+        taxonomy_labels=["violence_and_physical_harm"],
+    )
+    db_session.add(pair_clf)
+    db_session.add(tax_clf)
+    await db_session.commit()
+
+    resp = await api_client.get("/metrics/disagreements")
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["total"] >= 1
+    sample = next((s for s in data["samples"] if str(interaction.id) == s["event_id"]), None)
+    assert sample is not None
+    assert sample["pair_label"] == 0
+    assert "violence_and_physical_harm" in sample["taxonomy_labels"]

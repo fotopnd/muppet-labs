@@ -1,12 +1,11 @@
 from __future__ import annotations
 
+import json
 from collections import defaultdict
-from uuid import UUID
 
 from fastapi import APIRouter, Depends
-from sqlalchemy import select
+from sqlalchemy import select, text
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy.orm import aliased
 
 from llm_safety_monitor.api.database import get_db
 from llm_safety_monitor.api.models import ClassificationResult, Interaction
@@ -87,40 +86,62 @@ async def get_calibration(db: AsyncSession = Depends(get_db)) -> CalibrationResp
     return CalibrationResponse(models=models)
 
 
+_DISAGREEMENT_WHERE = """
+    (pair_c.predicted_label = 0 AND tax_c.taxonomy_labels != '[]' AND tax_c.taxonomy_labels IS NOT NULL)
+    OR
+    (pair_c.predicted_label = 1 AND (tax_c.taxonomy_labels IS NULL OR tax_c.taxonomy_labels = '[]'))
+"""
+
+
 @router.get("/disagreements", response_model=DisagreementsResponse)
 async def get_disagreements(db: AsyncSession = Depends(get_db)) -> DisagreementsResponse:
     """Events where pair classifier and taxonomy classifier contradict each other."""
-    PairClf = aliased(ClassificationResult, name="pair_c")
-    TaxClf = aliased(ClassificationResult, name="tax_c")
-
-    result = await db.execute(
-        select(Interaction, PairClf, TaxClf)
-        .join(PairClf, (PairClf.event_id == Interaction.id) & (PairClf.model_name == "pair_classifier"))
-        .join(TaxClf, (TaxClf.event_id == Interaction.id) & (TaxClf.model_name == "taxonomy_classifier"))
-        .order_by(Interaction.created_at.desc())
-        .limit(200)
-    )
-    rows = result.all()
-
-    samples: list[DisagreementSample] = []
-    for interaction, pair_clf, tax_clf in rows:
-        tax_labels: list[str] = tax_clf.taxonomy_labels or []
-        pair_label: int = pair_clf.predicted_label
-        # Disagreement: pair says safe but taxonomy flags categories, or vice versa
-        is_disagreement = (pair_label == 0 and len(tax_labels) > 0) or (
-            pair_label == 1 and len(tax_labels) == 0
+    rows = (
+        await db.execute(
+            text(f"""
+                SELECT i.id, i.prompt_text, pair_c.predicted_label, tax_c.taxonomy_labels
+                FROM interactions i
+                JOIN classifications pair_c
+                    ON pair_c.event_id = i.id AND pair_c.model_name = 'pair_classifier'
+                JOIN classifications tax_c
+                    ON tax_c.event_id = i.id AND tax_c.model_name = 'taxonomy_classifier'
+                WHERE {_DISAGREEMENT_WHERE}
+                ORDER BY i.created_at DESC
+                LIMIT 50
+            """)
         )
-        if is_disagreement:
-            samples.append(
-                DisagreementSample(
-                    event_id=interaction.id,
-                    prompt_text=(interaction.prompt_text or "")[:200],
-                    pair_label=pair_label,
-                    taxonomy_labels=tax_labels,
-                )
-            )
+    ).fetchall()
 
-    return DisagreementsResponse(total=len(samples), samples=samples[:50])
+    total_row = await db.execute(
+        text(f"""
+            SELECT COUNT(*)
+            FROM interactions i
+            JOIN classifications pair_c
+                ON pair_c.event_id = i.id AND pair_c.model_name = 'pair_classifier'
+            JOIN classifications tax_c
+                ON tax_c.event_id = i.id AND tax_c.model_name = 'taxonomy_classifier'
+            WHERE {_DISAGREEMENT_WHERE}
+        """)
+    )
+    total = total_row.scalar() or 0
+
+    def _parse_labels(raw: object) -> list[str]:
+        if isinstance(raw, list):
+            return raw
+        if isinstance(raw, str):
+            return json.loads(raw)
+        return []
+
+    samples = [
+        DisagreementSample(
+            event_id=row[0],
+            prompt_text=(row[1] or "")[:200],
+            pair_label=row[2],
+            taxonomy_labels=_parse_labels(row[3]),
+        )
+        for row in rows
+    ]
+    return DisagreementsResponse(total=total, samples=samples)
 
 
 def _compute_metrics(pairs: list[tuple[int, int]]) -> tuple[float, float, float]:

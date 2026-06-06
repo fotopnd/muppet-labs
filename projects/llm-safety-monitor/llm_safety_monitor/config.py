@@ -33,7 +33,7 @@ class Settings(BaseSettings):
 
     # Live Claude API mode
     LIVE_CLAUDE_MODE: bool = False
-    ANTHROPIC_API_KEY: str = ""
+    ANTHROPIC_API_KEY: str | None = None
 
     # API server
     API_HOST: str = "0.0.0.0"

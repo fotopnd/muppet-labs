@@ -44,6 +44,7 @@ async def get_escalated_cases(db: AsyncSession = Depends(get_db)) -> Disagreemen
         DisagreementSample(
             event_id=row[0],
             prompt_text=(row[1] or "")[:200],
+            escalation_reason=row[2],
             pair_label=row[3],
             taxonomy_labels=row[4] or [],
         )

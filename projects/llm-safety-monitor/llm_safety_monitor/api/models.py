@@ -19,6 +19,7 @@ class Interaction(Base):
     response_text: Mapped[str | None] = mapped_column(Text, nullable=True)
     source_dataset: Mapped[str] = mapped_column(String(50), nullable=False)
     ground_truth_safe: Mapped[bool | None] = mapped_column(Boolean, nullable=True)
+    # JSON not JSONB: cross-dialect for SQLite tests; Alembic migration uses JSONB for prod (intentional divergence)
     ground_truth_categories: Mapped[dict | None] = mapped_column(JSON, nullable=True)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=lambda: datetime.now(UTC)
@@ -48,6 +49,7 @@ class ClassificationResult(Base):
     event_id: Mapped[UUID | None] = mapped_column(
         Uuid, ForeignKey("interactions.id"), nullable=True, index=True
     )
+    # JSON not JSONB: cross-dialect for SQLite tests (see ground_truth_categories note above)
     taxonomy_labels: Mapped[list | None] = mapped_column(JSON, nullable=True)
 
     interaction: Mapped[Interaction | None] = relationship(

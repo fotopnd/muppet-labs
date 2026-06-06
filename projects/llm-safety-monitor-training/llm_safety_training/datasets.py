@@ -6,25 +6,22 @@ from dataclasses import dataclass
 
 logger = logging.getLogger(__name__)
 
-# Verify these names against the actual WildGuard dataset schema:
-#   from datasets import load_dataset
-#   ds = load_dataset("allenai/wildguard", split="train")
-#   print(ds.features)
-# Update WILDGUARD_CATEGORIES to match the exact subcategory strings in the dataset.
+# Exact subcategory strings from allenai/wildguardmix dataset (verified 2026-06-06).
+# 'benign' and 'others' are excluded — they map to all-zero label vectors.
 WILDGUARD_CATEGORIES: tuple[str, ...] = (
-    "Violent Crimes",
-    "Non-Violent Crimes",
-    "Sex-Related Crimes",
-    "Child Sexual Exploitation",
-    "Specialized Advice",
-    "Privacy",
-    "Intellectual Property",
-    "Indiscriminate Weapons",
-    "Hate",
-    "Self-Harm",
-    "Sexual Content",
-    "Elections",
-    "Disinformation",
+    "causing_material_harm_by_disseminating_misinformation",
+    "copyright_violations",
+    "cyberattack",
+    "defamation_encouraging_unethical_or_unsafe_actions",
+    "disseminating_false_or_misleading_information_encouraging_disinformation_campaigns",
+    "fraud_assisting_illegal_activities",
+    "mental_health_over-reliance_crisis",
+    "private_information_individual",
+    "sensitive_information_organization_government",
+    "sexual_content",
+    "social_stereotypes_and_unfair_discrimination",
+    "toxic_language_hate_speech",
+    "violence_and_physical_harm",
 )
 NUM_HARM_CATEGORIES: int = len(WILDGUARD_CATEGORIES)
 CATEGORY_TO_IDX: dict[str, int] = {c: i for i, c in enumerate(WILDGUARD_CATEGORIES)}
@@ -94,7 +91,7 @@ def split_wildguard(seed: int = 42) -> WildGuardSplits:
     """
     from datasets import load_dataset  # deferred: slow import
 
-    ds = load_dataset("allenai/wildguard", split="train")
+    ds = load_dataset("allenai/wildguardmix", "wildguardtrain", split="train")
     rng = random.Random(seed)
 
     all_indices = list(range(len(ds)))

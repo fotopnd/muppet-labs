@@ -32,14 +32,13 @@ def compute_escalation_reason(
 
     if pair_label == 1 and prompt_label == 1:
         return EscalationReason.JAILBREAK
+    # pair=1 + prompt=0: BENIGN_HARMFUL takes precedence over taxonomy disagreement
     if pair_label == 1 and prompt_label == 0:
         return EscalationReason.BENIGN_HARMFUL
     if pair_label == 0 and prompt_label == 1:
         return EscalationReason.LOG_ONLY
     # pair_label == 0, prompt_label == 0
-    if pair_label == 0 and taxonomy_labels:
-        return EscalationReason.MODEL_DISAGREEMENT
-    if pair_label == 1 and not taxonomy_labels:
+    if taxonomy_labels:
         return EscalationReason.MODEL_DISAGREEMENT
     return None
 

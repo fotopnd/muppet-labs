@@ -1,111 +1,117 @@
-# Reviewer Output — moderation-dashboard safety-signal additions
+# Reviewer Output — llm-safety-monitor
 
 **Role:** reviewer
-**Sequence:** add-feature → reviewer
-**Date:** 2026-06-05
+**Sequence:** new-project-full (step 7)
+**Date:** 2026-06-06
 
 ---
 
 ## Summary
 
-The implementation is correct and complete. Both additions (live flag rate on model cards, disagreement analysis panel) are working, all new tests pass, and no previously passing tests were broken. Two findings worth noting: the disagreement sample ordering is non-deterministic in a subtle way (samples are not guaranteed to be the 10 most recent), and the `ModelPerformance.test.tsx` mock data now has a TypeScript gap introduced by the new required fields on `ModelMetrics`. Neither is blocking. Verdict: PASS WITH NOTES.
+The implementation is structurally sound: consumers, escalation poller, API, and frontend are all present and 23+24 tests pass. The most impactful finding is C2 — a new SQLAlchemy engine is instantiated per Kafka message, which will exhaust Postgres connections under production load. C3 (disagreements total undercount) and C4 (escalation_reason silently dropped in `/cases`) are next. T1 and T2 are test coverage gaps required by conventions. Recommended next action: one implementer pass addressing C2, C3, C4, T1, T2 before deploy.
 
 ---
 
 ## Correctness
 
-**C1 — Disagreement sample ordering: 10 events are not necessarily the most recent** · `metrics.py:_DISAGREEMENTS_SAMPLES_SQL` + `get_disagreements()` · **Minor**
+**C1 — Dead `MODEL_DISAGREEMENT` branch in escalation router (WARNING)**
+- `llm_safety_monitor/escalation/router.py:42-43`
+- The branch `if pair_label == 1 and not taxonomy_labels: return MODEL_DISAGREEMENT` is unreachable. All `pair_label == 1` cases return at lines 33 (JAILBREAK) and 35 (BENIGN_HARMFUL) before line 42 is reached. `pair_label` is necessarily 0 at this point.
+- The case "pair says unsafe, taxonomy says nothing" is absorbed by BENIGN_HARMFUL — a valid precedence decision. The test `test_model_disagreement_pair_unsafe_taxonomy_clean` correctly documents this. Remove the dead branch and add a comment at line 35 noting that pair=1+prompt=0 classifies as BENIGN_HARMFUL regardless of taxonomy output.
+- Severity: **warning** (behaviour is correctly tested; dead code is misleading, not wrong)
 
-`_DISAGREEMENTS_SAMPLES_SQL` selects up to 50 recent escalation events (ordered by `created_at DESC`) in a CTE, then joins to `classifications`. The outer query orders by `r.event_id, c.model_name` (alphabetical event_id). When Python groups the rows and does `list(events.items())[:10]`, the 10 events shown are the first 10 alphabetically by event_id — not the 10 most recent among the 50.
+**C2 — New SQLAlchemy engine created per Kafka message (WARNING)**
+- `llm_safety_monitor/consumers/base.py:46-47`
+- `create_engine(self._settings.SYNC_DATABASE_URL)` is called inside `_write_classification`, which runs for every Kafka message. Each call allocates a new connection pool. At ~4 events/second, this will rapidly exhaust Postgres `max_connections` and leave orphaned pool objects.
+- Fix: move `create_engine(...)` to `BaseConsumer.__init__`, store as `self._engine`, and use it in `_write_classification`.
+- Severity: **warning** (does not manifest in unit tests; will fail under sustained production load)
 
-For the portfolio use case (showing representative disagreement examples) this is immaterial. But if "most recent" is the intent, fix by adding an explicit ordering column to the CTE and preserving it through the join:
+**C3 — `/metrics/disagreements` total count unreliable above 200 rows (WARNING)**
+- `llm_safety_monitor/api/routers/metrics.py:96-123`
+- The query fetches 200 rows (all interactions with both pair + taxonomy results) and filters for disagreements in Python. `total=len(samples)` counts only disagreements found within those 200 rows. If there are >200 interactions, the true disagreement count is undercounted.
+- Fix: push the disagreement filter to SQL (`WHERE` with pair vs taxonomy contradiction condition) and run a separate `SELECT COUNT(*)` for `total`.
+- Severity: **warning** (data accuracy issue; does not crash)
 
-```sql
-WITH recent AS (
-    SELECT event_id, ROW_NUMBER() OVER (ORDER BY created_at DESC) AS rn
-    FROM escalations
-    WHERE escalation_reason = 'model_disagreement'
-    ORDER BY created_at DESC
-    LIMIT 50
-)
-SELECT r.event_id, r.rn, c.content, c.model_name, c.predicted_label, c.confidence
-FROM recent r
-JOIN classifications c ON c.event_id = r.event_id AND c."group" = 'shadow'
-ORDER BY r.rn, c.model_name
-```
+**C4 — `escalation_reason` fetched but silently dropped in `/cases` (MINOR)**
+- `llm_safety_monitor/api/routers/review.py:19, 43-51`
+- `i.escalation_reason` is selected as `row[2]` in the SQL query but never passed to `DisagreementSample`. Human reviewers see the event and pair/taxonomy labels but not why it was escalated.
+- Fix: add `escalation_reason: str | None` to `DisagreementSample` and pass `row[2]` at construction. Alternatively, split to a separate `EscalationCaseSample` schema as the architect intended (see R2).
+- Severity: **minor** (missing UX information; nothing is incorrect)
 
-Then in Python, sort `events.items()` by rn before slicing.
-
-**C2 — `ModelPerformance.test.tsx` mock data missing new required fields** · `web/src/test/ModelPerformance.test.tsx:9–38` · **Warning**
-
-`ModelMetrics` now requires `live_event_count: number` and `live_flagged_count: number`. The `PRODUCTION_DATA` mock in `ModelPerformance.test.tsx` was not updated. esbuild (used by vitest) strips types and runs JS, so the runtime value is `undefined`. In `ModelCard.tsx`, `undefined > 0` evaluates to `false`, so the live flag rate stat shows `—` instead of crashing. The tests still fail (pre-existing: 4 of 5 were already failing before this PR for unrelated model-registry reasons), but the missing fields are a TypeScript compile error that will appear if `tsc --noEmit` is run.
-
-**Fix:** add `live_event_count: 500, live_flagged_count: 193` (or any plausible values) to both mock objects in `ModelPerformance.test.tsx`.
-
-No other correctness issues found. The SQL logic is sound:
-- `_LIVE_COUNTS_SQL` groups by `model_name` in shadow group; each event produces exactly one row per model so `COUNT(*)` equals `COUNT(DISTINCT event_id)`.
-- `total_last_hour = sum(by_category.values())` is correct because the CTE uses `DISTINCT ON (e.event_id)` — one row per event, one category per event.
-- `content[:140]` truncation by Python code point is acceptable for Bluesky UTF-8 text.
+**C5 — ORM `JSON` vs migration `JSONB` type mismatch (MINOR)**
+- `llm_safety_monitor/api/models.py:22,51` vs `alembic/versions/001_initial_schema.py:29,61`
+- ORM declares `JSON` (cross-dialect; required for SQLite tests); Alembic migration creates `JSONB` columns. PostgreSQL accepts writes from a `JSON`-typed ORM column into a `jsonb` physical column, so runtime behaviour is correct. However `alembic check` will report a pending migration detecting the type difference.
+- Implementer's rationale is sound — accept the deviation. Add a comment on the ORM JSON columns documenting the intentional divergence so it isn't "fixed" by a future developer.
+- Severity: **minor** (no runtime impact; `alembic check` will be noisy)
 
 ---
 
 ## Style
 
-**S1 — `_build_model_metrics` `group` parameter unused** · `metrics.py:183` · **Minor**
+**S1 — `ANTHROPIC_API_KEY` defaults to empty string (WARNING)**
+- `llm_safety_monitor/config.py:38`
+- `ANTHROPIC_API_KEY: str = ""` lets the app start without the key, producing a cryptic authentication error only when live Claude mode triggers. Should be `str | None = None` with a startup validation that raises if `LIVE_CLAUDE_MODE=True and not settings.ANTHROPIC_API_KEY`.
 
-The `group: str` parameter was unused before this PR and remains unused after. Not introduced by this change, but worth removing in a cleanup pass.
+**S2 — Ambiguous variable name `l` (MINOR)**
+- `llm_safety_monitor-training/llm_safety_training/datasets.py:266`
+- `[l for _, l in train]` — single-character `l` is visually ambiguous (l/1). Rename to `label` or `lbl`.
 
-No new style violations found. Pydantic fields use correct defaults (`int = 0`). TypeScript types use `type` not `interface`. React component is under 90 lines. Hook follows the `useX` naming convention. No `any`, no non-null assertions.
+**S3 — Misleading test function name (MINOR)**
+- `projects/llm-safety-monitor/tests/test_escalation.py:49`
+- `test_model_disagreement_pair_unsafe_taxonomy_clean` asserts `BENIGN_HARMFUL`, not `MODEL_DISAGREEMENT`. The name contradicts the assertion and will confuse future readers. Rename to `test_benign_harmful_pair_unsafe_prompt_safe`.
 
 ---
 
 ## Tests
 
-**T1 — `test_disagreements_endpoint_shape` does not seed disagreement rows** · `tests/test_api.py` · **Minor gap**
+**T1 — `/cases` endpoint has no seeded-data test (WARNING)**
+- `tests/test_api.py:107-111` — `test_cases_empty` checks shape only.
+- Per `python-conventions.md`: aggregation endpoints need at least one seeded-data test asserting computed output. Add a test that seeds an interaction with a non-`LOG_ONLY` `escalation_reason` and verifies `total >= 1` and a matching sample in the response.
 
-Planner requirement 11 specified "at least one test asserts correctly shaped data from seeded disagreement rows." The current test verifies shape with an empty DB (all zeros). This is correct and useful but does not exercise the SQL join logic or the sample-grouping Python code with real data.
+**T2 — `/metrics/disagreements` endpoint has no seeded-data test (WARNING)**
+- `tests/test_api.py:99-104` — `test_disagreements_empty` checks shape only.
+- Same convention gap. Seed an interaction where `pair_classifier` label=0 and `taxonomy_classifier` has non-empty labels; verify `total >= 1` and at least one sample with correct fields.
 
-A stronger test would create an `Escalation` row with `escalation_reason='model_disagreement'` and two matching `Classification` rows (different `model_name`, different `predicted_label`) in the shadow group, then assert:
-- `total_last_hour == 1`
-- `by_category` has one entry
-- `samples` has one item with two verdicts
-
-This requires adding `Escalation` to the conftest imports and a new fixture. Recommended as a follow-up.
-
-**T2 — No test for `live_event_count = 0` case (seeded-only model)** · **Minor gap**
-
-The new live-count test covers `live_event_count == 10` (all rows unseeded). A complementary test with seeded rows only (`seeded=True`) verifying `live_event_count == 0` would confirm the `seeded=false` filter works in both directions. Nice-to-have.
+**T3 — `EscalationPoller` DB dispatch logic is untested (MINOR)**
+- `_check_ready`, `_check_timed_out`, and `_process_event` are only exercisable through `run()` (a daemon). The SQL queries, the escalation reason commit, and the `_post_to_case_queue` call have no unit coverage. Consider unit-testing `_process_event` directly with a mocked `Session` to verify the commit and case-queue dispatch for each escalation branch.
 
 ---
 
 ## Refactor Candidates
 
-**R1 — `_get_live_counts` and `_get_seeded_counts` could be merged**
+**R1 — Engine per-consumer (same fix as C2)**
+- `BaseConsumer.__init__` should call `create_engine(settings.SYNC_DATABASE_URL)` once and store as `self._engine`. `_write_classification` uses `self._engine`.
 
-Both run a simple `SELECT model_name, COUNT(...) FROM classifications GROUP BY model_name` pattern. They could be collapsed into one SQL query with multiple aggregations. Deferred — premature until there's evidence the extra DB round-trip matters.
+**R2 — Split `DisagreementsResponse` from escalation schema**
+- The architect intended a separate `EscalationQueueResponse`. Currently `DisagreementsResponse` serves both `/metrics/disagreements` and `/cases`. When C4 is fixed (adding `escalation_reason` per sample), the schema split becomes necessary anyway — do both together.
 
-**R2 — `DisagreementPanel` inline `VerdictBadge` and `SamplePost` sub-components**
-
-The component is clear but could be moved to a `DisagreementPanel/` folder with index.tsx if it grows. Not needed for current size.
+**R3 — SQL-side disagreement filter**
+- The in-Python filter at `metrics.py:110-111` works for small volumes. Fixing C3 requires moving this to SQL — do R3 and C3 together.
 
 ---
 
 ## Verdict
 
-**PASS WITH NOTES**
-
-No blocking issues. The implementation is correct and all new tests pass.
-
-Recommended follow-ups (can batch before VPS deploy or do now):
-1. **C2** — add `live_event_count` and `live_flagged_count` to `ModelPerformance.test.tsx` mock data (2-line fix, clears the TypeScript gap)
-2. **T1** — add a seeded-data disagreements test with an `Escalation` fixture (optional but would fully satisfy planner requirement 11)
-3. **C1** — if "most recent samples" is the intended behaviour, fix the sample ordering SQL
+**PASS WITH NOTES** — no blocking issues. Code runs, all tests pass, implementation is structurally complete. One implementer pass is needed before deploy or training.
 
 ---
 
 ## Handoff
 
-No next role required. The safety-signal additions are complete.
+**Next role: implementer.** Address the following (ordered by priority):
 
-**Next action (P1): apply C2 fix (ModelPerformance mock data) — 2-line change**
-**Next action (P2): VPS deploy** per `_config/project-state.md`
+**Must fix (conventions + production correctness):**
+1. **C2** — Move `create_engine` to `BaseConsumer.__init__`; use `self._engine` in `_write_classification`
+2. **T1** — Add seeded test for `GET /cases` asserting `total >= 1` with an escalated interaction
+3. **T2** — Add seeded test for `GET /metrics/disagreements` asserting `total >= 1` with a seeded disagreement
+4. **C3 + R3** — Push disagreement filter to SQL; use `COUNT(*)` for `total` in `/metrics/disagreements`
+5. **C4 + R2** — Add `escalation_reason: str | None` to `DisagreementSample` (or split to `EscalationCaseSample`); wire from `row[2]` in `review.py`
+
+**Address if time permits:**
+6. **C1** — Remove dead branch at `router.py:42-43`; add comment at line 35 explaining BENIGN_HARMFUL precedence
+7. **S3** — Rename `test_model_disagreement_pair_unsafe_taxonomy_clean` → `test_benign_harmful_pair_unsafe_prompt_safe`
+8. **C5** — Add comment on ORM `JSON` columns documenting the intentional JSONB deviation
+9. **S1** — Change `ANTHROPIC_API_KEY: str = ""` to `str | None = None`; add startup guard for live mode
+
+**Before training (not a code fix — human action required):**
+- **Known Gap 1** — Verify `WILDGUARD_CATEGORIES` against actual dataset schema: `load_dataset("allenai/wildguard")` → inspect `features`. Update both `types.py` and `datasets.py` if names differ. This must happen before any training run or taxonomy labels will be silently wrong.
