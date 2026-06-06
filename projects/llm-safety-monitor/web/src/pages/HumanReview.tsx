@@ -1,40 +1,88 @@
-import { useEscalationQueue } from '@/api/review'
+import { useState } from 'react'
+import { useDecide, useEscalationQueue } from '@/api/review'
+import { EscalationCard } from '@/components/EscalationCard'
 import { ErrorMessage } from '@/components/ErrorMessage'
-import { EscalationReasonBadge } from '@/components/EscalationReasonBadge'
 import { Skeleton } from '@/components/Skeleton'
-import type { EscalationReason } from '@/types'
+
+const PAGE_SIZE = 20
 
 export function HumanReview() {
   const { data, isLoading, isError } = useEscalationQueue()
+  const mutation = useDecide()
+  const [pendingId, setPendingId] = useState<string | null>(null)
+  const [page, setPage] = useState(0)
 
-  if (isLoading) return <Skeleton className="h-40 w-full" />
-  if (isError) return <ErrorMessage message="Failed to load escalation queue" />
+  if (isLoading) {
+    return (
+      <div className="flex flex-col gap-4">
+        {Array.from({ length: 3 }).map((_, i) => (
+          <Skeleton key={i} className="h-48 w-full" />
+        ))}
+      </div>
+    )
+  }
+
+  if (isError) {
+    return <ErrorMessage message="Failed to load escalation queue" />
+  }
 
   const samples = data?.samples ?? []
+  const totalPages = Math.max(1, Math.ceil(samples.length / PAGE_SIZE))
+  const safePage = Math.min(page, totalPages - 1)
+  const paginatedSamples = samples.slice(safePage * PAGE_SIZE, (safePage + 1) * PAGE_SIZE)
+
+  function handleDecide(
+    eventId: string,
+    decision: 'approve' | 'dismiss' | 'escalate',
+  ) {
+    setPendingId(eventId)
+    mutation.mutate(
+      { caseId: eventId, decision },
+      { onSettled: () => setPendingId(null) },
+    )
+  }
 
   return (
-    <div className="space-y-4">
-      <p className="text-sm text-gray-500">
-        Escalated events pending review:{' '}
-        <span className="font-medium text-gray-800">{data?.total ?? 0}</span>
-      </p>
-      {samples.map((s) => (
-        <div key={s.event_id} className="border border-gray-200 rounded-lg p-4 space-y-2">
-          <div className="flex items-center gap-2">
-            <EscalationReasonBadge reason={null as EscalationReason | null} />
-            <span className="text-xs text-gray-500 font-mono">{s.event_id.slice(0, 8)}…</span>
+    <div className="flex flex-col gap-4">
+      <div className="flex items-center justify-between">
+        <p className="text-sm text-slate-500">
+          Pending review:{' '}
+          <span className="font-medium text-slate-800">{data?.total ?? 0}</span>
+        </p>
+        {totalPages > 1 && (
+          <div className="flex items-center gap-2 text-sm">
+            <button
+              disabled={safePage === 0}
+              onClick={() => setPage((p) => p - 1)}
+              className="px-3 py-1 rounded border border-slate-200 text-slate-600 hover:bg-slate-50 disabled:opacity-40 disabled:cursor-not-allowed"
+            >
+              Prev
+            </button>
+            <span className="text-slate-400">
+              {safePage + 1} / {totalPages}
+            </span>
+            <button
+              disabled={safePage >= totalPages - 1}
+              onClick={() => setPage((p) => p + 1)}
+              className="px-3 py-1 rounded border border-slate-200 text-slate-600 hover:bg-slate-50 disabled:opacity-40 disabled:cursor-not-allowed"
+            >
+              Next
+            </button>
           </div>
-          <p className="text-sm text-gray-800">{s.prompt_text}</p>
-          <div className="flex gap-3 text-xs text-gray-500">
-            <span>Pair: {s.pair_label === 1 ? '⚠ Unsafe' : s.pair_label === 0 ? '✓ Safe' : '—'}</span>
-            {(s.taxonomy_labels?.length ?? 0) > 0 && (
-              <span>Categories: {s.taxonomy_labels!.join(', ')}</span>
-            )}
-          </div>
-        </div>
+        )}
+      </div>
+      {paginatedSamples.map((item) => (
+        <EscalationCard
+          key={item.event_id}
+          item={item}
+          isPending={pendingId === item.event_id}
+          onDecide={(decision) => handleDecide(item.event_id, decision)}
+        />
       ))}
       {samples.length === 0 && (
-        <p className="text-center text-gray-400 py-12">No events in the review queue.</p>
+        <p className="text-center text-slate-400 py-12 font-sans text-sm">
+          No pending cases.
+        </p>
       )}
     </div>
   )

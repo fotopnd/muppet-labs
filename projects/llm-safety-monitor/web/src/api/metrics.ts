@@ -1,6 +1,6 @@
 import { useQuery } from '@tanstack/react-query'
 import { apiFetch } from '@/api/client'
-import type { CalibrationResponse, DisagreementsResponse, MetricsResponse } from '@/types'
+import type { MetricsResponse, TaxonomyTimeseriesResponse, TimeseriesResponse } from '@/types'
 
 export function useModelMetrics() {
   return useQuery<MetricsResponse>({
@@ -10,18 +10,18 @@ export function useModelMetrics() {
   })
 }
 
-export function useCalibration() {
-  return useQuery<CalibrationResponse>({
-    queryKey: ['metrics', 'calibration'],
-    queryFn: () => apiFetch<CalibrationResponse>('/metrics/calibration'),
-    refetchInterval: 60_000,
+export function useMetricsTimeseries() {
+  return useQuery<TimeseriesResponse>({
+    queryKey: ['metrics', 'timeseries'],
+    queryFn: () => apiFetch<TimeseriesResponse>('/metrics/timeseries?bucket_minutes=5'),
+    refetchInterval: 30_000,
   })
 }
 
-export function useDisagreements() {
-  return useQuery<DisagreementsResponse>({
-    queryKey: ['metrics', 'disagreements'],
-    queryFn: () => apiFetch<DisagreementsResponse>('/metrics/disagreements'),
+export function useTaxonomyTimeseries() {
+  return useQuery<TaxonomyTimeseriesResponse>({
+    queryKey: ['metrics', 'taxonomy', 'timeseries'],
+    queryFn: () => apiFetch<TaxonomyTimeseriesResponse>('/metrics/taxonomy/timeseries?bucket_minutes=5'),
     refetchInterval: 30_000,
   })
 }

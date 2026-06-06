@@ -16,3 +16,15 @@ export async function apiFetch<T>(path: string): Promise<T> {
   }
   return resp.json() as Promise<T>
 }
+
+export async function apiPost<T>(path: string, body: unknown): Promise<T> {
+  const resp = await fetch(`${BASE_URL}${path}`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  })
+  if (!resp.ok) {
+    throw new ApiError(resp.status, `API error ${resp.status}: ${path}`)
+  }
+  return resp.json() as Promise<T>
+}

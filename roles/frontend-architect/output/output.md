@@ -1,25 +1,35 @@
-# Frontend-Architect Output — moderation-dashboard
+# Frontend-Architect Output — llm-safety-monitor (UI Redesign)
 
 **Role:** frontend-architect
-**Sequence:** `new-project-full` (step 5)
-**Date:** 2026-06-03
+**Sequence:** `add-feature` (tab redesign)
+**Date:** 2026-06-06
 
 ---
 
 ## Open Decision Resolutions (from design-brief)
 
-- **Model Performance vs Model Comparison:** Two separate tabs. Model Performance shows production group (round-robin) metrics; Model Comparison shows shadow group metrics side-by-side. No shared selection state, no cross-tab drill-down. Clean separation of stories.
-- **ModelCard grid:** `grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4`. Phase 1 (3 active cards) fills the 3-column row exactly. Phase 2 (5 cards) wraps to 3+2 — acceptable; no layout reflow or breakpoint logic needed.
-- **Stream Monitor layout:** Same `max-w-7xl` container as all other panels. Internal layout is a 3-row stack (`space-y-6`): stat row → category chart → anomaly feed. No hero treatment.
-- **MetricSparkline data source:** Client-side accumulation in React state inside each metrics hook. Up to 30 points per model. Resets on page refresh. A server-side time-series endpoint is deferred — document this limitation in README.
+- **TaxonomyTrendChart chart type:** Stacked bar chart. With up to 13 harm categories (most
+  sparse at any bucket), stacked bars communicate total flagged volume and per-category
+  composition simultaneously. Render only categories that appear in the response — no zero-count
+  series. Legend is auto-generated from active category names.
+
+- **ModelPerformanceCard timeseries bucket:** Fixed at `bucket_minutes=60` in the hook. No UI
+  control. Adds no portfolio value; keeps the tab layout clean.
+
+- **EscalationCard list management:** Refetch-on-success. After `POST /cases/{id}/decide`
+  returns 200, call `queryClient.invalidateQueries(['escalation-queue'])`. Simpler than
+  optimistic removal and avoids rollback complexity.
+
+- **HumanReview pagination:** Client-side pagination, page size 20. The API returns the full
+  queue; the page component slices it. If the queue regularly exceeds 100 items, move
+  pagination to the API layer in a follow-up.
 
 ---
 
 ## Token Layer
 
-**Accent hue: Blue** — assumed default for operational dashboard register. Change `blue` → any Tailwind hue in `tailwind.config.js` and all components update automatically via semantic tokens.
-
-### `tailwind.config.js`
+**Carried over from moderation-dashboard.** The `tailwind.config.js` below is identical —
+accent hue is Blue. Copy it verbatim into `projects/llm-safety-monitor/web/tailwind.config.js`.
 
 ```js
 module.exports = {
@@ -49,7 +59,67 @@ module.exports = {
 }
 ```
 
-No dark mode tokens in this config — the dashboard is light-mode only for the portfolio build. Dark mode can be added in a follow-up pass by adding `dark:` values.
+---
+
+## Frontend Types (New — Timeseries Endpoints)
+
+These endpoints were added post-architect. Define in `web/src/types/index.ts` alongside
+the architect-specified types. **Implementer: verify field names against actual API responses
+before wiring hooks.**
+
+```typescript
+// GET /metrics/timeseries?bucket_minutes=60
+type MetricsBucket = {
+  bucket_start: string    // ISO 8601 timestamp
+  f1: number
+  precision: number
+  recall: number
+  sample_count: number
+}
+
+type ModelTimeseries = {
+  model_name: string
+  buckets: MetricsBucket[]
+}
+
+type TimeseriesResponse = { models: ModelTimeseries[] }
+
+// GET /metrics/taxonomy/timeseries?bucket_minutes=60
+type TaxonomyCategoryCount = {
+  category: string        // HarmCategory value
+  count: number
+}
+
+type TaxonomyBucket = {
+  bucket_start: string    // ISO 8601 timestamp
+  categories: TaxonomyCategoryCount[]
+}
+
+type TaxonomyTimeseriesResponse = { buckets: TaxonomyBucket[] }
+
+// POST /cases/{id}/decide — mutation payload
+type DecisionPayload = {
+  decision: 'approve' | 'dismiss' | 'escalate'
+}
+
+// EscalationEntry — response shape for GET /cases (escalation queue)
+// Verify against actual API; likely matches the existing case-queue CaseListItem shape
+// enriched with verdicts and escalation_reason.
+type EscalationEntry = {
+  id: string
+  event_id: string
+  prompt_text: string
+  response_text: string | null
+  escalation_reason: EscalationReason | null
+  verdicts: VerdictEntry[]
+  created_at: string
+}
+
+type EscalationQueueResponse = {
+  cases: EscalationEntry[]
+  total: number
+}
+```
 
 ---
 
@@ -57,9 +127,9 @@ No dark mode tokens in this config — the dashboard is light-mode only for the 
 
 ```
 ┌──────────────────────────────────────────────────────────┐
-│  Header: app name (left) · [no right content]            │  h-14, bg-surface, border-b border-border
+│  Header: "LLM Safety Monitor" (left)                     │  h-14 bg-surface border-b border-border
 ├──────────────────────────────────────────────────────────┤
-│  PanelTabBar: 5 tabs flush left                          │  border-b border-border
+│  PanelTabBar: 4 tabs flush left                          │  border-b border-border
 ├──────────────────────────────────────────────────────────┤
 │                                                          │
 │  Panel content area: max-w-7xl mx-auto px-6 py-6        │  bg-background min-h-screen
@@ -71,7 +141,16 @@ No dark mode tokens in this config — the dashboard is light-mode only for the 
 - Header: `h-14 bg-surface border-b border-border flex items-center px-6`
   - App name: `text-base font-semibold text-text-intense font-interface`
 - Content: `max-w-7xl mx-auto px-6 py-6`
-- Dev port: 5174 (set `server: { port: 5174 }` in `vite.config.ts`)
+- Dev port: 5174 (`server: { port: 5174 }` in `vite.config.ts`)
+
+**Panel layouts per tab:**
+
+| Tab | Layout |
+|-----|--------|
+| Stream Monitor | Single column feed (`flex flex-col`) |
+| Model Performance | 3-column card grid (`grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4`) |
+| Taxonomy Trends | Full-width chart (`w-full`) |
+| Human Review | Single column card stack (`flex flex-col gap-4`) + pagination bar |
 
 ---
 
@@ -82,218 +161,379 @@ No dark mode tokens in this config — the dashboard is light-mode only for the 
 - **Hierarchy:** `nav > ul > li > button` — one `button` per tab
 - **Layout:** `flex border-b border-border` on `nav`; tabs sit flush, no gaps
 - **Tokens:**
-  - Active tab: `border-b-2 border-accent text-text-intense font-medium`
-  - Inactive tab: `text-text-muted hover:text-text-default border-b-2 border-transparent`
-  - Tab item: `px-4 py-3 text-sm font-interface transition-colors`
-- **States:**
-  - Default (inactive): `text-text-muted`
-  - Hover (inactive): `text-text-default`
-  - Active: `text-text-intense border-b-2 border-accent`
-- **Data:** receives `activeTab: string` and `onTabChange: (tab: string) => void`; tab list is a static constant (no API)
-- **Tabs (in order):** `stream-monitor` | `model-performance` | `model-comparison` | `human-review` | `analytics`
+  - Active: `border-b-2 border-accent text-text-intense font-medium`
+  - Inactive: `text-text-muted hover:text-text-default border-b-2 border-transparent`
+  - Item: `px-4 py-3 text-sm font-interface transition-colors`
+- **States:** inactive, hover (inactive), active
+- **Data:** `activeTab: string`, `onTabChange: (tab: string) => void`; tab list is a
+  static constant — 4 tabs in order:
+  `'stream-monitor' | 'model-performance' | 'taxonomy-trends' | 'human-review'`
 
 ---
 
-### ModelCard
+### EventFeedItem
 
 - **Hierarchy:**
   ```
-  article.bg-surface.rounded-lg.border.border-border.p-5
-  ├── header (flex row): model name + StatusBadge
-  ├── [active only] MetricGrid (2-col grid of metric pairs)
-  │   ├── MetricCell × 4: F1 · Precision · Latency p50 · Latency p95
-  │   └── MetricCell × 1 full-width: Throughput
-  ├── [active only] MetricSparkline
-  └── [pending only] PendingLabel (centered)
+  li.flex.flex-col.gap-2.py-4.border-b.border-border.last:border-0
+  ├── div.flex.items-center.gap-2.flex-wrap    ← badge row
+  │   ├── SourceBadge
+  │   └── EscalationReasonBadge (render nothing when reason is null)
+  ├── p.font-data.text-sm.text-text-default.break-words    ← prompt_text
+  ├── p.font-data.text-xs.text-text-muted.break-words      ← response_text (or "(no response)")
+  └── VerdictRow(verdicts)
   ```
-- **Layout:**
-  - Card: `bg-surface rounded-lg border border-border p-5 flex flex-col gap-4`
-  - Header: `flex items-center justify-between`
-  - MetricGrid: `grid grid-cols-2 gap-x-6 gap-y-3`
-  - Full-width metric (throughput): `col-span-2`
+- **Layout:** `flex flex-col gap-2 py-4 border-b border-border last:border-0`
+- **Tokens:**
+  - Prompt: `font-data text-sm text-text-default`
+  - Response: `font-data text-xs text-text-muted`
+  - "(no response)" label: `font-interface text-xs text-text-muted italic`
+- **States:**
+  - Default: full render (badge row + texts + VerdictRow)
+  - Escalated: `EscalationReasonBadge` visible in badge row
+  - No distinct hover state — feed is read-only
+- **Data:**
+  ```ts
+  type EventFeedItemProps = {
+    event: RecentEvent
+  }
+  ```
+- **Skeleton:** `li.flex.flex-col.gap-2.py-4.border-b.border-border`
+  ```
+  div.flex.gap-2: Skeleton(h-5 w-16) + Skeleton(h-5 w-24)
+  Skeleton(h-4 w-full)
+  Skeleton(h-4 w-3/4)
+  div.grid.grid-cols-3.gap-4: Skeleton(h-6 w-20) × 3
+  ```
+  Render 5 `EventFeedItemSkeleton` rows while loading.
+
+---
+
+### VerdictRow
+
+Shared by `EventFeedItem` and `EscalationCard`. Consumes `VerdictEntry[]` from the
+verdicts array; finds each model by `model_name`.
+
+- **Hierarchy:**
+  ```
+  div.grid.grid-cols-3.gap-4
+  ├── div.flex.flex-col.gap-1         ← pair_classifier column
+  │   ├── span.font-interface.text-xs.text-text-muted  "Pair"
+  │   └── VerdictBadge(predicted_label, type="pair")
+  ├── div.flex.flex-col.gap-1         ← prompt_detector column
+  │   ├── span.font-interface.text-xs.text-text-muted  "Prompt"
+  │   └── VerdictBadge(predicted_label, type="prompt")
+  └── div.flex.flex-col.gap-1         ← taxonomy_classifier column
+      ├── span.font-interface.text-xs.text-text-muted  "Taxonomy"
+      └── div.flex.flex-wrap.gap-1
+          ← HarmCategoryChip × N, or "none" text
+  ```
+- **Layout:** `grid grid-cols-3 gap-4`
+- **Tokens — VerdictBadge (inline sub-component):**
+  - pair, label=0 (Safe): `bg-success/10 text-success font-data text-xs px-2 py-0.5 rounded`
+  - pair, label=1 (Unsafe): `bg-danger/10 text-danger font-data text-xs px-2 py-0.5 rounded`
+  - prompt, label=0 (Benign): `bg-border text-text-muted font-data text-xs px-2 py-0.5 rounded`
+  - prompt, label=1 (Adversarial): `bg-danger/10 text-danger font-data text-xs px-2 py-0.5 rounded`
+- **Tokens — HarmCategoryChip (inline sub-component):**
+  - `bg-accent-subtle text-accent font-data text-xs px-2 py-0.5 rounded`
+- **Tokens — "none" text:**
+  - `font-interface text-xs text-text-muted`
+- **States:**
+  - VerdictRow renders nothing if `verdicts` array is empty (guard with `if (!verdicts.length) return null`)
+  - taxonomy column with `taxonomy_labels = []`: renders "none" (not an empty div)
+  - taxonomy column with missing `taxonomy_classifier` verdict (model not yet classified): renders "—" in `text-text-muted`
+- **Data:**
+  ```ts
+  type VerdictRowProps = {
+    verdicts: VerdictEntry[]
+  }
+  ```
+
+---
+
+### SourceBadge
+
+Shared by `EventFeedItem` and `EscalationCard`. Five categorical color variants.
+These colors use named Tailwind palette classes (not semantic tokens) — categorical data
+distinctions, not UI state. See Constraints Applied §4.
+
+- **Hierarchy:** `span` with conditional class set
+- **Tokens per source:**
+  - `hh-rlhf`: `bg-blue-100 text-blue-700 font-data text-xs px-2 py-0.5 rounded`
+  - `wildguard`: `bg-purple-100 text-purple-700 font-data text-xs px-2 py-0.5 rounded`
+  - `advbench`: `bg-danger/10 text-danger font-data text-xs px-2 py-0.5 rounded`
+  - `jailbreakbench`: `bg-amber-100 text-amber-700 font-data text-xs px-2 py-0.5 rounded`
+  - `live`: `bg-success/10 text-success font-data text-xs px-2 py-0.5 rounded`
+- **Data:** `{ source: SourceDataset }`
+
+---
+
+### EscalationReasonBadge
+
+Renders nothing (`return null`) when `reason` is null. Five color variants.
+`LOG_ONLY` uses muted styling — it is informational, not actionable.
+
+- **Tokens per reason:**
+  - `JAILBREAK`: `bg-danger/10 text-danger font-data text-xs px-2 py-0.5 rounded`
+  - `BENIGN_HARMFUL`: `bg-warning/10 text-warning font-data text-xs px-2 py-0.5 rounded`
+  - `MODEL_DISAGREEMENT`: `bg-amber-100 text-amber-700 font-data text-xs px-2 py-0.5 rounded`
+  - `ADVERSARIAL_PROMPT_FLAGGED`: `bg-purple-100 text-purple-700 font-data text-xs px-2 py-0.5 rounded`
+  - `LOG_ONLY`: `bg-border text-text-muted font-data text-xs px-2 py-0.5 rounded`
+- **Data:** `{ reason: EscalationReason | null }`
+
+---
+
+### ModelPerformanceCard
+
+One card per classifier (3 cards total in a `grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4`).
+
+- **Hierarchy:**
+  ```
+  article.bg-surface.rounded-lg.border.border-border.p-5.flex.flex-col.gap-4
+  ├── header.flex.items-center.justify-between
+  │   ├── h3: model name
+  │   └── span: sample count
+  ├── div.grid.grid-cols-3.gap-4           ← metric row
+  │   ├── MetricCell(label="F1", value)
+  │   ├── MetricCell(label="Precision", value)
+  │   └── MetricCell(label="Recall", value)
+  └── div.flex.flex-col.gap-1
+      ├── span.font-interface.text-xs.text-text-muted.uppercase.tracking-wide  "F1 over time"
+      └── ModelTimeseriesChart(buckets)     ← empty state handled inside
+  ```
+- **Layout:** `bg-surface rounded-lg border border-border p-5 flex flex-col gap-4`
 - **Tokens:**
   - Model name: `font-interface text-sm font-semibold text-text-intense`
-  - Metric label: `font-interface text-xs text-text-muted uppercase tracking-wide`
-  - Metric value: `font-data text-base font-medium text-text-intense`
-  - `null` metric (not enough data yet): `font-data text-base text-text-muted` — render `"—"`
+  - Sample count: `font-data text-xs text-text-muted`
+  - Metric label (inside MetricCell): `font-interface text-xs text-text-muted uppercase tracking-wide`
+  - Metric value (inside MetricCell): `font-data text-lg font-medium text-text-intense`
+  - Value when null/0: `font-data text-lg text-text-muted` — render `"—"`
 - **States:**
-  - **Active:** full card rendered; opacity 100%
-  - **Pending weights:** `opacity-60`; no MetricGrid; no MetricSparkline; PendingLabel rendered: `font-interface text-sm text-text-muted text-center py-4` — "Awaiting checkpoint"
-  - **Loading:** replaced by `ModelCardSkeleton` — see skeleton spec below
-  - **Error:** card renders with metric values as `"—"` and error note at bottom in `text-xs text-danger`
-- **StatusBadge sub-component** (used inside ModelCard header):
-  - `active`: `bg-success/10 text-success text-xs font-data px-2 py-0.5 rounded-full` — "active"
-  - `pending_weights`: `bg-warning/10 text-warning text-xs font-data px-2 py-0.5 rounded-full` — "pending"
-- **Data:** `ModelMetrics` from architect `schemas.py`:
-  ```ts
-  type ModelCardProps = {
-    metrics: ModelMetrics
-    sparklineData: number[]   // accumulated F1 history, up to 30 points
-  }
-  ```
-
----
-
-### MetricSparkline
-
-- **Hierarchy:**
-  ```
-  div.h-12.w-full          ← provides height for recharts DOM read
-  └── ResponsiveContainer(width="100%", height="100%")
-      └── LineChart(data, margin={top:2,right:0,bottom:2,left:0})
-          └── Line(type="monotone", dataKey="value", stroke=accent, dot=false, strokeWidth=1.5)
-  ```
-- **Layout:** `div` with `h-12` (48px) wrapping `ResponsiveContainer`. No padding classes on the `div` — recharts fills it fully.
-- **Tokens:**
-  - Line stroke: `#2563eb` (accent token value) — hardcoded in recharts `stroke` prop since recharts does not read CSS vars. If accent hue changes, update this value in `MetricSparkline.tsx`.
-  - No CartesianGrid, no Legend, no Tooltip, no XAxis, no YAxis — fully decorative
-- **States:**
-  - **< 2 data points:** render `Line` with data `[{value:0},{value:0}]` — flat line at bottom; no empty box
-  - **Normal:** standard line over accumulated history
-- **Data:** `data: number[]` — each entry is a raw F1 value (0.0–1.0). Component maps to `{value: n}` internally before passing to recharts.
-
----
-
-### AnomalyFeedItem
-
-- **Hierarchy:**
-  ```
-  li.flex.items-start.gap-3.py-3.border-b.border-border.last:border-0
-  ├── SignalName: span
-  ├── ZScoreBadge: span
-  └── Timestamp: span.ml-auto
-  ```
-- **Layout:** `flex items-start gap-3 py-3 border-b border-border last:border-0`
-- **Tokens:**
-  - Signal name: `font-data text-sm text-text-default`
-  - Z-score badge (Z > 3): `font-data text-xs px-2 py-0.5 rounded bg-warning/15 text-warning`
-  - Z-score badge (Z ≤ 3): `font-data text-xs px-2 py-0.5 rounded bg-border text-text-muted`
-  - Timestamp: `font-interface text-xs text-text-muted ml-auto whitespace-nowrap`
-- **States:**
-  - No hover state; no interaction; read-only
-  - Empty feed: parent renders `font-interface text-sm text-text-muted py-4 text-center` — "No anomalies detected"
+  - Loading: replaced by `ModelPerformanceCardSkeleton`:
+    ```
+    article (same outer classes)
+    ├── div.flex.justify-between: Skeleton(h-4 w-32) + Skeleton(h-4 w-20)
+    ├── div.grid.grid-cols-3.gap-4: Skeleton(h-10 w-full) × 3
+    └── Skeleton(h-32 w-full)
+    ```
+  - Error: card renders with metric values as `"—"` and `p.text-xs.text-danger` error note below metric row
+  - No timeseries data: `ModelTimeseriesChart` renders inline placeholder (see below)
 - **Data:**
   ```ts
-  type AnomalyFeedItemProps = {
-    flag: AnomalyFlagRead   // from architect schemas.py
+  type ModelPerformanceCardProps = {
+    metrics: ModelMetrics            // from /metrics
+    timeseries: ModelTimeseries      // from /metrics/timeseries; matching model_name
   }
   ```
-  Timestamp formatted with `Intl.RelativeTimeFormat` — seconds/minutes/hours ago.
+
+**ModelTimeseriesChart (embedded sub-component):**
+
+```
+div.h-32.w-full                        ← fixed height div; ResponsiveContainer fills it
+├── [if buckets.length === 0]:
+│     div.h-32.flex.items-center.justify-center
+│       span.font-interface.text-xs.text-text-muted  "No timeseries data"
+└── [if buckets.length > 0]:
+      ResponsiveContainer(width="100%", height="100%")
+      └── LineChart(data=buckets, margin={top:4, right:4, bottom:4, left:0})
+          ├── XAxis(dataKey="bucket_start", tickFormatter=formatBucketTime, tick={fontSize:10})
+          ├── YAxis(domain=[0,1], tick={fontSize:10}, tickCount=3)
+          ├── Tooltip(formatter=(v) => v.toFixed(3))
+          └── Line(dataKey="f1", stroke="#2563eb", dot=false, strokeWidth=1.5)
+```
+
+`formatBucketTime`: parses ISO string → `HH:mm` using `Intl.DateTimeFormat`.
+recharts `stroke` is a raw hex value — cannot read CSS variables (see Constraints §3).
 
 ---
 
-### EscalationCaseRow
+### TaxonomyTrendChart
+
+Full-width chart on the Taxonomy Trends tab. Stacked bar chart.
 
 - **Hierarchy:**
   ```
-  a[href={caseQueueUrl}/cases/{id}][target="_blank"][rel="noopener noreferrer"]
-  └── li.flex.items-center.gap-4.py-3.border-b.border-border.last:border-0
-      ├── ContentExcerpt: span.truncate.flex-1
-      ├── CategoryBadge: span
-      ├── ReasonBadge: span
-      └── ExternalLinkIcon: svg (lucide ExternalLink, 14px)
+  div.flex.flex-col.gap-4
+  ├── div.flex.items-center.justify-between
+  │   ├── h2.font-interface.text-base.font-semibold.text-text-intense  "Harm Category Trends"
+  │   └── span.font-interface.text-xs.text-text-muted  "60-min buckets"
+  └── [if no data]:
+        div.h-64.flex.items-center.justify-center.bg-surface.rounded-lg.border.border-border
+          span.font-interface.text-sm.text-text-muted  "No taxonomy data yet"
+      [if data]:
+        div.h-64.w-full.bg-surface.rounded-lg.border.border-border.p-4
+          ResponsiveContainer(width="100%", height="100%")
+          └── BarChart(data=pivoted_buckets, margin={top:4,right:4,bottom:24,left:0})
+              ├── XAxis(dataKey="bucket_start", tickFormatter=formatBucketTime,
+              │         tick={fontSize:10}, angle=-30, textAnchor="end")
+              ├── YAxis(tick={fontSize:10})
+              ├── Tooltip
+              ├── Legend(wrapperStyle={fontSize:10})
+              └── Bar × N  (one per active category, stackId="a")
   ```
-- **Layout:** `flex items-center gap-4 py-3 border-b border-border last:border-0`; `ContentExcerpt` gets `flex-1 min-w-0` to allow truncation
-- **Tokens:**
-  - Content excerpt: `font-interface text-sm text-text-default truncate`
-  - Category badge: `font-data text-xs px-2 py-0.5 rounded bg-accent-subtle text-accent`
-  - Reason badge — `model_disagreement`: `bg-danger/10 text-danger text-xs font-data px-2 py-0.5 rounded`
-  - Reason badge — `low_confidence`: `bg-warning/10 text-warning text-xs font-data px-2 py-0.5 rounded`
-  - Link icon: `text-text-muted group-hover:text-accent flex-shrink-0` (wrap `a` in `group` class)
+- **Layout:** `flex flex-col gap-4 w-full`
+- **Data pivoting:** The API returns `{ buckets: [{ bucket_start, categories: [{category, count}] }] }`.
+  Before passing to recharts, pivot to a flat array where each row is a bucket and each
+  category is a key:
+  ```ts
+  // [{ bucket_start: "...", hate: 3, harassment: 1, violence: 0, ... }, ...]
+  type PivotedBucket = { bucket_start: string } & Record<string, number>
+  ```
+  Collect all distinct category names across all buckets to know which `Bar` components to render.
+- **Colors:** Fixed hex palette, one per category slot (recharts cannot use CSS variables):
+  ```ts
+  const CATEGORY_COLORS = [
+    '#2563eb', '#059669', '#f59e0b', '#dc2626', '#7c3aed',
+    '#0891b2', '#db2777', '#65a30d', '#ea580c', '#0284c7',
+    '#9333ea', '#16a34a', '#d97706',
+  ]
+  // Map category name → CATEGORY_COLORS[index % 13] using sorted category list for stable assignment
+  ```
 - **States:**
-  - Hover: full row background tints to `hover:bg-accent-subtle/50` — subtle highlight on hover since row is a link
-  - Empty escalation list: `font-interface text-sm text-text-muted py-4 text-center` — "No pending escalations"
-  - **Case queue unreachable:** parent `HumanReview` panel shows `ErrorMessage` component with title "Case queue unavailable" and body "Retrying automatically…"; `EscalationCaseRow` list is not rendered
+  - Loading: `div.h-64.animate-pulse.bg-surface.rounded-lg.border.border-border`
+  - Empty data: placeholder div (see hierarchy above)
+  - Error: parent `TaxonomyTrends` page renders `ErrorMessage` component; chart not rendered
 - **Data:**
   ```ts
-  type EscalationCaseRowProps = {
-    caseItem: CaseListItem    // from case-queue GET /cases response
-    caseQueueUrl: string      // from VITE_CASE_QUEUE_URL
+  type TaxonomyTrendChartProps = {
+    data: TaxonomyTimeseriesResponse
   }
   ```
 
 ---
 
-## Skeleton Loading Specs
+### EscalationCard
 
-Used by all panels while data is in-flight. Import `Skeleton` from shadcn/ui.
+One card per case in the HumanReview queue. Decision buttons trigger a mutation.
 
-**ModelCardSkeleton:** same outer card dimensions as `ModelCard`
-```
-article.bg-surface.rounded-lg.border.border-border.p-5.flex.flex-col.gap-4
-├── div.flex.justify-between: Skeleton(h-4 w-32) + Skeleton(h-5 w-16)
-├── div.grid.grid-cols-2.gap-x-6.gap-y-3:
-│   Skeleton(h-8 w-full) × 4
-└── Skeleton(h-12 w-full)
-```
-
-**FeedItemSkeleton** (for AnomalyFeed and EscalationList):
-```
-li.flex.items-center.gap-3.py-3.border-b.border-border:
-  Skeleton(h-4 w-28) + Skeleton(h-5 w-12) + Skeleton(h-4 w-16 ml-auto)
-```
-Render 3 `FeedItemSkeleton` rows while loading.
+- **Hierarchy:**
+  ```
+  article.bg-surface.rounded-lg.border.border-border.p-5.flex.flex-col.gap-4
+  ├── header.flex.items-center.justify-between.gap-2
+  │   ├── EscalationReasonBadge(reason)
+  │   └── span.font-data.text-xs.text-text-muted  "{id.slice(-8)}"  ← last 8 chars of id
+  ├── div.flex.flex-col.gap-2
+  │   ├── p.font-data.text-sm.text-text-default.break-words   prompt_text
+  │   └── p.font-data.text-xs.text-text-muted.break-words     response_text | "(no response)"
+  ├── VerdictRow(verdicts)
+  └── footer.flex.items-center.gap-3.pt-3.border-t.border-border
+      ├── button.approve   "Approve"
+      ├── button.dismiss   "Dismiss"
+      └── button.escalate  "Escalate"
+  ```
+- **Layout:** `bg-surface rounded-lg border border-border p-5 flex flex-col gap-4`
+- **Button tokens:**
+  - Approve: `px-3 py-1.5 rounded text-sm font-interface bg-success/10 text-success
+    hover:bg-success/20 disabled:opacity-50 disabled:cursor-not-allowed transition-colors`
+  - Dismiss: `px-3 py-1.5 rounded text-sm font-interface bg-border text-text-muted
+    hover:bg-slate-200 disabled:opacity-50 disabled:cursor-not-allowed transition-colors`
+  - Escalate: `px-3 py-1.5 rounded text-sm font-interface bg-danger/10 text-danger
+    hover:bg-danger/20 disabled:opacity-50 disabled:cursor-not-allowed transition-colors`
+- **States:**
+  - Default: all buttons enabled
+  - In-flight: all three buttons disabled (`disabled` attribute); clicked button renders
+    an inline spinner (a simple `animate-spin` border div, 12px) in place of its label
+  - Decided: card removed from view via invalidation + refetch
+- **Data:**
+  ```ts
+  type EscalationCardProps = {
+    caseItem: EscalationEntry
+    onDecide: (caseId: string, decision: 'approve' | 'dismiss' | 'escalate') => void
+    isPending: boolean   // true while mutation is in-flight for this caseId
+  }
+  ```
+- **Skeleton:**
+  ```
+  article (same outer classes)
+  ├── div.flex.justify-between: Skeleton(h-5 w-24) + Skeleton(h-4 w-16)
+  ├── Skeleton(h-16 w-full)
+  ├── div.grid.grid-cols-3.gap-4: Skeleton(h-6 w-20) × 3
+  └── div.flex.gap-3.pt-3.border-t.border-border: Skeleton(h-8 w-20) × 3
+  ```
 
 ---
 
-## Hook Data Accumulation Pattern
+## Hook Specs
 
-For sparklines — implement in `useProductionMetrics` and `useShadowMetrics`:
+```typescript
+// api/stream.ts — carried over (no changes)
+function useRecentEvents(limit = 50): UseQueryResult<StreamResponse>
+// refetchInterval: 5000
 
-```ts
-const MAX_HISTORY = 30
+// api/metrics.ts — updated + new hooks
+function useModelMetrics(): UseQueryResult<MetricsResponse>
+// refetchInterval: 30000
 
-export function useProductionMetrics() {
-  const [history, setHistory] = useState<Record<string, number[]>>({})
+function useMetricsTimeseries(): UseQueryResult<TimeseriesResponse>
+// GET /metrics/timeseries?bucket_minutes=60; refetchInterval: 60000
 
-  const query = useQuery({
-    queryKey: ['metrics', 'production'],
-    queryFn: () => apiFetch<ModelMetrics[]>('/metrics/production'),
-    refetchInterval: 3000,
-  })
+function useTaxonomyTimeseries(): UseQueryResult<TaxonomyTimeseriesResponse>
+// GET /metrics/taxonomy/timeseries?bucket_minutes=60; refetchInterval: 60000
 
-  useEffect(() => {
-    if (!query.data) return
-    setHistory(prev => {
-      const next = { ...prev }
-      for (const m of query.data) {
-        const pts = next[m.model_name] ?? []
-        next[m.model_name] = [...pts, m.f1 ?? 0].slice(-MAX_HISTORY)
-      }
-      return next
-    })
-  }, [query.data])
+// api/review.ts — updated
+function useEscalationQueue(): UseQueryResult<EscalationQueueResponse>
+// GET /cases (with escalated=true filter if supported); refetchInterval: 10000
 
-  return { metrics: query.data, history, isLoading: query.isLoading, isError: query.isError }
-}
+function useDecide(): UseMutationResult<
+  void,
+  Error,
+  { caseId: string; decision: 'approve' | 'dismiss' | 'escalate' }
+>
+// POST /cases/{caseId}/decide; body: { decision }
+// onSuccess: queryClient.invalidateQueries({ queryKey: ['escalation-queue'] })
 ```
-
-`useShadowMetrics` follows the identical pattern.
 
 ---
 
 ## Constraints Applied
 
-1. **No arbitrary px values in recharts wrappers:** recharts `ResponsiveContainer` requires an explicit `height`. Resolution: always wrap in a `div` with a Tailwind height class (`h-12`, `h-48`); recharts reads the div's DOM height. This is the correct pattern — never pass `height` as a raw pixel to `ResponsiveContainer`.
+1. **No arbitrary px values in recharts wrappers:** recharts `ResponsiveContainer` requires
+   its parent `div` to have an explicit height via Tailwind class (`h-32`, `h-64`). Never
+   pass a raw pixel value to `ResponsiveContainer`'s `height` prop.
 
-2. **60-30-10 rule with multiple state badge colors (success/warning/danger):** Multiple badge types appear simultaneously on Model Performance. Resolution: all badges use `/10` or `/15` opacity backgrounds — they read as tinted neutrals, not full accent blocks. Only `PanelTabBar` active state and category badges use the full `accent` token. State colors (success/warning/danger) are confined to badge backgrounds at low opacity and badge text only.
+2. **60-30-10 rule with many badge colors:** `SourceBadge`, `EscalationReasonBadge`,
+   `VerdictBadge`, and `HarmCategoryChip` all appear simultaneously in `EventFeedItem`.
+   Resolution: all badge backgrounds are at low opacity (`/10`) or light tints (`-100`)
+   so they read as tinted neutrals. The full accent color is confined to `HarmCategoryChip`
+   and the `PanelTabBar` active state only.
 
-3. **"Subtle contrast over heavy shapes" for card separation:** Cards sit on `bg-background` (slate-50). `bg-surface` (white) cards provide contrast via background tint shift, not a heavy border. The `border border-border` is `slate-200` — light enough to read as structural, not harsh.
+3. **recharts stroke cannot use CSS variables:** All `stroke` and `fill` props in recharts
+   components use raw hex values (`#2563eb`, etc.). If the accent hue changes, update these
+   values in `ModelTimeseriesChart.tsx` and `TaxonomyTrendChart.tsx`. Add a comment in
+   each file marking the hardcoded values.
 
-4. **Monospace for all metric values:** Every number that represents a computed metric (F1, latency, throughput, Z-score, event rate, escalation count) must use `font-data`. Category labels, model names, panel titles, and descriptive copy use `font-interface`. No mixing within a single text node.
+4. **SourceBadge categorical colors exceed semantic token set:** Five dataset sources map to
+   five distinct colors; only two (danger=advbench, success=live) align with semantic tokens.
+   The others (blue-100/blue-700, purple-100/purple-700, amber-100/amber-700) use named
+   Tailwind palette classes directly. This is an explicit exception for categorical data
+   distinction — not arbitrary, not hex-coded.
 
-5. **recharts stroke color cannot use CSS variables:** recharts `stroke` prop is a DOM attribute, not a CSS property, so it cannot read `var(--color-accent)`. Resolution: use the raw hex value of the accent token (`#2563eb`) as the stroke. Comment this in `MetricSparkline.tsx` so the implementer knows to update it if the accent hue changes.
+5. **"Subtle contrast over heavy shapes" for stacked cards (HumanReview):** `EscalationCard`
+   cards on `bg-background`. Card surface is `bg-surface` (white), providing contrast via
+   background tint shift. The `border border-border` (slate-200) is structural, not
+   decorative — cards need a visible boundary to separate stacked items.
 
 ---
 
 ## Open Questions
 
-The following decisions are intentionally left to the implementer:
+The following are intentionally left to the implementer:
 
-1. **Chart library version:** recharts v2 vs v3 — pick whichever is current stable; no architectural difference for this usage.
-2. **Relative timestamp formatting:** `Intl.RelativeTimeFormat` or a library (`date-fns/formatDistanceToNow`) — either is acceptable; no component API difference.
-3. **lucide-react icon size:** `14` or `16` for the `ExternalLink` icon in `EscalationCaseRow` — implementer's call based on visual fit at review time.
-4. **Analytics chart colour per model:** `ModelAccuracyChart` shows multiple models as separate lines. The implementer should pick a fixed palette of 5 distinct colours (one per model) using Tailwind palette values — no arbitrary hex codes. Suggest: blue-600, emerald-600, amber-500, violet-600, rose-600.
+1. **EscalationQueueResponse shape:** Verify the actual GET /cases response schema against
+   the case-queue API or the llm-safety-monitor `/cases` router. The `EscalationEntry` type
+   in this spec is a projection — field names may differ. Update the type if needed.
+
+2. **Spinner implementation:** The in-flight button spinner is a simple `animate-spin` border
+   div (`w-3 h-3 rounded-full border-2 border-current border-t-transparent`). If shadcn/ui
+   has a `Spinner` or `Loader` component already in the project, use that instead.
+
+3. **Relative timestamp for EventFeedItem:** No timestamp is shown in the current spec.
+   If the implementer adds one (e.g., "3s ago" below the badge row), use
+   `Intl.RelativeTimeFormat` — do not pull in a date library for this alone.
+
+4. **HumanReview empty queue badge:** The tab label can optionally show a count badge
+   (e.g., "Human Review (4)") when cases are pending. This is out of scope for this spec
+   but easy to wire — `useEscalationQueue().data?.total` is available. Implementer's call.
 
 ---
 
@@ -303,11 +543,17 @@ The implementer reads this file alongside `roles/architect/output/output.md`.
 
 Deviations from this spec must be documented in `roles/implementer/output/output.md` with a reason.
 
-**Implementation sequence for the frontend:**
-1. Write `tailwind.config.js` from the Token Layer section above.
-2. Scaffold the React app with `pnpm create vite web --template react-ts` at `projects/moderation-dashboard/web/`. Apply `skills/setup-ts-pnpm.md`.
-3. Add shadcn/ui base components needed: `Skeleton`, `Badge`. Do NOT run `npx shadcn init` non-interactively — install shadcn primitives manually or defer to a live terminal session.
-4. Implement components in dependency order: `PanelTabBar` → `StatusBadge` → `MetricSparkline` → `ModelCard` → `AnomalyFeedItem` → `EscalationCaseRow`.
-5. Implement API hooks with accumulation pattern before wiring into page components.
-6. Implement pages: `StreamMonitor` → `ModelPerformance` → `ModelComparison` → `HumanReview` → `Analytics`.
-7. Write vitest tests for each page component covering loading, error, and data-populated states.
+**Implementation sequence:**
+1. Extend `web/src/types/index.ts` with timeseries types defined in this file.
+2. Add new hooks to `api/metrics.ts` and `api/review.ts` per hook specs above.
+3. Implement shared components in dependency order:
+   `SourceBadge` → `EscalationReasonBadge` → `VerdictRow` → `EventFeedItem` → `EscalationCard`
+   → `ModelTimeseriesChart` → `ModelPerformanceCard` → `TaxonomyTrendChart`
+4. Update `PanelTabBar` to 4 tabs; remove Calibration and ModelComparison tab entries.
+5. Implement pages: `StreamMonitor` (update) → `ModelPerformance` (rework) →
+   `TaxonomyTrends` (new) → `HumanReview` (rework).
+6. Write vitest tests for each new/updated component covering: loading skeleton, empty state,
+   data-populated state, error state. For `EscalationCard`, test button disabled state
+   during mutation in-flight.
+7. Remove `Calibration.tsx`, `ModelComparison.tsx` and their test files. Remove imports from
+   `App.tsx`. Remove `useCalibration()` and `useDisagreements()` hooks if no longer referenced.

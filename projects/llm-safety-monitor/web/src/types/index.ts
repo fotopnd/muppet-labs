@@ -35,28 +35,54 @@ export type ModelMetrics = {
 
 export type MetricsResponse = { models: ModelMetrics[] }
 
-export type CalibrationBin = {
-  bin_lower: number
-  bin_upper: number
-  count: number
-  actual_positive_rate: number
+// Performance timeseries — matches GET /metrics/timeseries?bucket_minutes=60
+export type MetricPoint = {
+  bucket: string      // ISO 8601 datetime
+  f1: number
+  precision: number
+  recall: number
+  sample_count: number
 }
 
-export type ModelCalibration = {
+export type ModelTimeseries = {
   model_name: string
-  bins: CalibrationBin[]
+  points: MetricPoint[]
 }
 
-export type CalibrationResponse = { models: ModelCalibration[] }
+export type TimeseriesResponse = {
+  models: ModelTimeseries[]
+  bucket_minutes: number
+}
 
-export type DisagreementSample = {
+// Taxonomy timeseries — matches GET /metrics/taxonomy/timeseries?bucket_minutes=60
+export type TaxonomyBucket = {
+  bucket: string      // ISO 8601 datetime
+  counts: Record<string, number>
+}
+
+export type TaxonomyTimeseriesResponse = {
+  buckets: TaxonomyBucket[]
+  categories: string[]
+  bucket_minutes: number
+}
+
+// Escalation queue — matches GET /cases (DisagreementsResponse shape on backend)
+export type EscalationQueueItem = {
   event_id: string
   prompt_text: string
   pair_label: number | null
   taxonomy_labels: string[] | null
+  escalation_reason: EscalationReason | null
 }
 
-export type DisagreementsResponse = {
+export type EscalationQueueResponse = {
   total: number
-  samples: DisagreementSample[]
+  samples: EscalationQueueItem[]
+}
+
+// Human review decision — matches POST /cases/{id}/decide
+export type ReviewDecisionResponse = {
+  case_id: string
+  decision: string
+  acknowledged: boolean
 }
