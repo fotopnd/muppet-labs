@@ -11,6 +11,7 @@ export function HumanReview() {
   const mutation = useDecide()
   const [pendingId, setPendingId] = useState<string | null>(null)
   const [page, setPage] = useState(0)
+  const [decidedIds, setDecidedIds] = useState<Set<string>>(new Set())
 
   if (isLoading) {
     return (
@@ -26,15 +27,17 @@ export function HumanReview() {
     return <ErrorMessage message="Failed to load escalation queue" />
   }
 
-  const samples = data?.samples ?? []
-  const totalPages = Math.max(1, Math.ceil(samples.length / PAGE_SIZE))
+  const visibleSamples = (data?.samples ?? []).filter((s) => !decidedIds.has(s.event_id))
+  const pendingCount = Math.max(0, (data?.total ?? 0) - decidedIds.size)
+  const totalPages = Math.max(1, Math.ceil(visibleSamples.length / PAGE_SIZE))
   const safePage = Math.min(page, totalPages - 1)
-  const paginatedSamples = samples.slice(safePage * PAGE_SIZE, (safePage + 1) * PAGE_SIZE)
+  const paginatedSamples = visibleSamples.slice(safePage * PAGE_SIZE, (safePage + 1) * PAGE_SIZE)
 
   function handleDecide(
     eventId: string,
-    decision: 'approve' | 'dismiss' | 'escalate',
+    decision: 'harmful' | 'safe' | 'needs_review',
   ) {
+    setDecidedIds((prev) => new Set([...prev, eventId]))
     setPendingId(eventId)
     mutation.mutate(
       { caseId: eventId, decision },
@@ -47,7 +50,7 @@ export function HumanReview() {
       <div className="flex items-center justify-between">
         <p className="text-sm text-slate-500">
           Pending review:{' '}
-          <span className="font-medium text-slate-800">{data?.total ?? 0}</span>
+          <span className="font-medium text-slate-800">{pendingCount}</span>
         </p>
         {totalPages > 1 && (
           <div className="flex items-center gap-2 text-sm">
@@ -79,7 +82,7 @@ export function HumanReview() {
           onDecide={(decision) => handleDecide(item.event_id, decision)}
         />
       ))}
-      {samples.length === 0 && (
+      {visibleSamples.length === 0 && (
         <p className="text-center text-slate-400 py-12 font-sans text-sm">
           No pending cases.
         </p>

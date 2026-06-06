@@ -45,9 +45,9 @@ test('renders pending count', () => {
 
 test('renders decide buttons', () => {
   render(<HumanReview />, { wrapper })
-  expect(screen.getByTestId('decide-approve')).toBeInTheDocument()
-  expect(screen.getByTestId('decide-dismiss')).toBeInTheDocument()
-  expect(screen.getByTestId('decide-escalate')).toBeInTheDocument()
+  expect(screen.getByTestId('decide-harmful')).toBeInTheDocument()
+  expect(screen.getByTestId('decide-safe')).toBeInTheDocument()
+  expect(screen.getByTestId('decide-needs_review')).toBeInTheDocument()
 })
 
 test('renders escalation reason badge', () => {

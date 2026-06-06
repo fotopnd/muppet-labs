@@ -16,7 +16,7 @@ from llm_safety_monitor.api.schemas import (
 
 router = APIRouter(prefix="/cases", tags=["review"])
 
-_VALID_DECISIONS = {"approve", "dismiss", "escalate"}
+_VALID_DECISIONS = {"harmful", "safe", "needs_review"}
 
 
 @router.get("", response_model=DisagreementsResponse)
@@ -76,8 +76,8 @@ async def decide_case(
         raise HTTPException(status_code=422, detail=f"decision must be one of {_VALID_DECISIONS}")
 
     result = await db.execute(
-        text("UPDATE interactions SET reviewed = TRUE WHERE id = :id"),
-        {"id": case_id},
+        text("UPDATE interactions SET reviewed = TRUE, human_decision = :decision WHERE id = :id"),
+        {"id": case_id, "decision": body.decision},
     )
     await db.commit()
 

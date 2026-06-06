@@ -2,15 +2,21 @@ import { useEffect, useState } from 'react'
 import { EscalationReasonBadge } from '@/components/EscalationReasonBadge'
 import type { EscalationQueueItem } from '@/types'
 
-type Decision = 'approve' | 'dismiss' | 'escalate'
+type Decision = 'harmful' | 'safe' | 'needs_review'
 
 const BUTTON_STYLES: Record<Decision, string> = {
-  approve:
-    'px-3 py-1.5 rounded text-sm font-sans bg-emerald-50 text-emerald-600 hover:bg-emerald-100 disabled:opacity-50 disabled:cursor-not-allowed transition-colors',
-  dismiss:
-    'px-3 py-1.5 rounded text-sm font-sans bg-slate-100 text-slate-500 hover:bg-slate-200 disabled:opacity-50 disabled:cursor-not-allowed transition-colors',
-  escalate:
+  harmful:
     'px-3 py-1.5 rounded text-sm font-sans bg-red-50 text-red-600 hover:bg-red-100 disabled:opacity-50 disabled:cursor-not-allowed transition-colors',
+  safe:
+    'px-3 py-1.5 rounded text-sm font-sans bg-emerald-50 text-emerald-600 hover:bg-emerald-100 disabled:opacity-50 disabled:cursor-not-allowed transition-colors',
+  needs_review:
+    'px-3 py-1.5 rounded text-sm font-sans bg-amber-50 text-amber-600 hover:bg-amber-100 disabled:opacity-50 disabled:cursor-not-allowed transition-colors',
+}
+
+const BUTTON_LABELS: Record<Decision, string> = {
+  harmful: 'Harmful',
+  safe: 'Safe',
+  needs_review: 'Needs Review',
 }
 
 type Props = {
@@ -65,7 +71,7 @@ export function EscalationCard({ item, isPending, onDecide }: Props) {
         )}
       </div>
       <footer className="flex items-center gap-3 pt-3 border-t border-slate-200">
-        {(['approve', 'dismiss', 'escalate'] as const).map((decision) => (
+        {(['harmful', 'safe', 'needs_review'] as const).map((decision) => (
           <button
             key={decision}
             disabled={isPending}
@@ -76,10 +82,10 @@ export function EscalationCard({ item, isPending, onDecide }: Props) {
             {isPending && activeDecision === decision ? (
               <span className="flex items-center gap-1.5">
                 <span className="w-3 h-3 rounded-full border-2 border-current border-t-transparent animate-spin" />
-                {decision}
+                {BUTTON_LABELS[decision]}
               </span>
             ) : (
-              decision.charAt(0).toUpperCase() + decision.slice(1)
+              BUTTON_LABELS[decision]
             )}
           </button>
         ))}

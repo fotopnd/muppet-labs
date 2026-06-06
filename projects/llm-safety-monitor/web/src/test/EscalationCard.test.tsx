@@ -33,18 +33,18 @@ test('renders taxonomy labels', () => {
   expect(screen.getByText('violence')).toBeInTheDocument()
 })
 
-test('calls onDecide with correct decision on approve click', async () => {
+test('calls onDecide with correct decision on harmful click', async () => {
   const onDecide = vi.fn()
   render(<EscalationCard item={ITEM} isPending={false} onDecide={onDecide} />)
-  await userEvent.click(screen.getByTestId('decide-approve'))
-  expect(onDecide).toHaveBeenCalledWith('approve')
+  await userEvent.click(screen.getByTestId('decide-harmful'))
+  expect(onDecide).toHaveBeenCalledWith('harmful')
 })
 
 test('buttons are disabled when isPending is true', () => {
   render(<EscalationCard item={ITEM} isPending={true} onDecide={vi.fn()} />)
-  expect(screen.getByTestId('decide-approve')).toBeDisabled()
-  expect(screen.getByTestId('decide-dismiss')).toBeDisabled()
-  expect(screen.getByTestId('decide-escalate')).toBeDisabled()
+  expect(screen.getByTestId('decide-harmful')).toBeDisabled()
+  expect(screen.getByTestId('decide-safe')).toBeDisabled()
+  expect(screen.getByTestId('decide-needs_review')).toBeDisabled()
 })
 
 test('renders Unsafe pair label', () => {
@@ -60,5 +60,6 @@ test('renders Safe pair label when pair_label is 0', () => {
       onDecide={vi.fn()}
     />,
   )
-  expect(screen.getByText('Safe')).toBeInTheDocument()
+  // "Safe" appears as both the pair label badge and the Safe button
+  expect(screen.getAllByText('Safe').length).toBeGreaterThanOrEqual(1)
 })

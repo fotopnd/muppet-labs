@@ -103,7 +103,7 @@ class TaxonomyTimeseriesResponse(BaseModel):
 # --- Human review decision ---
 
 class ReviewDecision(BaseModel):
-    decision: str  # "approve" | "dismiss" | "escalate"
+    decision: str  # "harmful" | "safe" | "needs_review"
 
 
 class ReviewDecisionResponse(BaseModel):
