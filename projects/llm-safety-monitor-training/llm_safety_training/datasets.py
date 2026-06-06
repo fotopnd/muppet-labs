@@ -175,23 +175,12 @@ def split_wildguard(seed: int = 42) -> WildGuardSplits:
     )
 
 
-def load_advbench() -> tuple[list[str], list[int]]:
-    """Load AdvBench harmful instructions. All positives (label=1)."""
+def load_do_not_answer() -> tuple[list[str], list[int]]:
+    """Load LibrAI/do-not-answer harmful questions. All positives (label=1)."""
     from datasets import load_dataset  # deferred: slow import
 
-    ds = load_dataset("llm-attacks/AdvBench", split="train")
-    texts = [row["goal"].strip() for row in ds if row.get("goal")]
-    labels = [1] * len(texts)
-    return texts, labels
-
-
-def load_jailbreakbench() -> tuple[list[str], list[int]]:
-    """Load JailbreakBench adversarial prompts. All positives (label=1)."""
-    from datasets import load_dataset  # deferred: slow import
-
-    # JailbreakBench artifacts — prompt variants per behavior
-    ds = load_dataset("JailbreakBench/JailbreakBench-artifacts", split="train")
-    texts = [row["prompt"].strip() for row in ds if row.get("prompt")]
+    ds = load_dataset("LibrAI/do-not-answer", split="train")
+    texts = [row["question"].strip() for row in ds if row.get("question")]
     labels = [1] * len(texts)
     return texts, labels
 
@@ -201,7 +190,7 @@ def build_prompt_detector_dataset(
 ) -> tuple[list[str], list[int], list[str], list[int]]:
     """Build balanced binary dataset for the prompt adversarial detector.
 
-    Positives: AdvBench + JailbreakBench + WildGuard harmful prompt-only examples (subset).
+    Positives: LibrAI/do-not-answer + WildGuard harmful prompt-only examples (subset).
     Negatives: HH-RLHF chosen-side conversation openers + WildGuard safe prompts.
 
     WildGuard examples drawn from the pair_train 70% allocation only — the taxonomy 30%
@@ -214,8 +203,7 @@ def build_prompt_detector_dataset(
     rng = random.Random(seed)
 
     # Positives
-    adv_texts, adv_labels = load_advbench()
-    jbb_texts, jbb_labels = load_jailbreakbench()
+    dna_texts, _ = load_do_not_answer()
 
     # WildGuard harmful prompts from the pair_train split
     wg_splits = split_wildguard(seed=seed)
@@ -225,7 +213,7 @@ def build_prompt_detector_dataset(
         if lbl == 1
     ]
 
-    all_positive_texts = adv_texts + jbb_texts + wg_harmful_texts
+    all_positive_texts = dna_texts + wg_harmful_texts
     rng.shuffle(all_positive_texts)
     n_pos = len(all_positive_texts)
 

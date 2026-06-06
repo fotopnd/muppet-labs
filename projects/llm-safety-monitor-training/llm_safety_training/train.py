@@ -1,9 +1,9 @@
 """Unified training entry point — dispatches to per-model training functions.
 
 Usage:
-    uv run train --model pair    --output-dir <dir> [--epochs 4] [--batch-size 128] [--max-train-samples N]
-    uv run train --model prompt  --output-dir <dir> [--epochs 4] [--batch-size 128] [--max-train-samples N]
-    uv run train --model taxonomy --output-dir <dir> [--epochs 4] [--batch-size 64]  [--max-train-samples N]
+    uv run train --model pair    --output-dir <dir> [--epochs 2] [--batch-size 32] [--max-train-samples N]
+    uv run train --model prompt  --output-dir <dir> [--epochs 2] [--batch-size 32] [--max-train-samples N]
+    uv run train --model taxonomy --output-dir <dir> [--epochs 2] [--batch-size 32] [--max-train-samples N]
 """
 from __future__ import annotations
 
@@ -15,7 +15,7 @@ from pathlib import Path
 
 logger = logging.getLogger(__name__)
 
-_DEFAULT_BATCH = {"pair": 64, "prompt": 64, "taxonomy": 32}
+_DEFAULT_BATCH = {"pair": 32, "prompt": 32, "taxonomy": 32}
 
 
 def main() -> None:

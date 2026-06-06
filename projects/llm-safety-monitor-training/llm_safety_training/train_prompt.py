@@ -11,12 +11,12 @@ logger = logging.getLogger(__name__)
 
 def train(
     output_dir: Path,
-    epochs: int = 4,
-    batch_size: int = 64,
+    epochs: int = 2,
+    batch_size: int = 32,
     seed: int = 42,
     max_train_samples: int | None = None,
 ) -> None:
-    """Train DeBERTa-v3-small binary prompt adversarial detector."""
+    """Train RoBERTa-base binary prompt adversarial detector."""
     import random  # deferred
     from datasets import Dataset  # deferred: slow import
     from transformers import (  # deferred: slow import
@@ -40,8 +40,8 @@ def train(
 
     logger.info("Train: %d examples, Eval: %d examples", len(train_texts), len(eval_texts))
 
-    model_name = "microsoft/deberta-v3-small"
-    tokenizer = AutoTokenizer.from_pretrained(model_name, use_fast=False)
+    model_name = "roberta-base"
+    tokenizer = AutoTokenizer.from_pretrained(model_name)
     model = AutoModelForSequenceClassification.from_pretrained(model_name, num_labels=2)
 
     def tokenize(texts: list[str], labels: list[int]) -> Dataset:
@@ -57,6 +57,11 @@ def train(
         def __init__(self, log_path: Path) -> None:
             self._log_path = log_path
             self._log: list[dict] = []
+
+        def on_save(self, args, state, control, **kwargs):
+            import torch
+            if torch.backends.mps.is_available():
+                torch.mps.synchronize()
 
         def on_evaluate(self, args, state, control, metrics=None, **kwargs):
             self._log.append({
@@ -91,7 +96,7 @@ def train(
     trainer.train()
     trainer.save_model(str(output_dir))
     tokenizer.save_pretrained(str(output_dir))
-    logger.info("Prompt detector (deberta-v3-small) saved to %s", output_dir)
+    logger.info("Prompt detector (roberta-base) saved to %s", output_dir)
 
 
 def main() -> None:
@@ -107,8 +112,8 @@ def main() -> None:
             )
         ),
     )
-    parser.add_argument("--epochs", type=int, default=4)
-    parser.add_argument("--batch-size", type=int, default=64)
+    parser.add_argument("--epochs", type=int, default=2)
+    parser.add_argument("--batch-size", type=int, default=32)
     parser.add_argument("--seed", type=int, default=42)
     parser.add_argument("--max-train-samples", type=int, default=None)
     args = parser.parse_args()
