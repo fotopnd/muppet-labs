@@ -1,45 +1,62 @@
-# Retro — moderation-dashboard safety-signal additions
+# Retro — llm-safety-monitor
 
 **Role:** retro
-**Sequence:** `add-feature`
+**Sequence:** `new-project-full`
 **Date:** 2026-06-06
 
 ---
 
 ## Project
 
-`moderation-dashboard-safety-signals` — live flag rate on model cards + model disagreement analysis panel. Sequence: `add-feature`. Two sessions (brief written 2026-06-05; planner + implementer + reviewer 2026-06-05/06). Roles that ran: brief → planner → implementer → reviewer → retro. Architect, design-brief, frontend-architect, ui-reviewer all skipped (correct — planner confirmed the feature fit cleanly into existing structure).
+**Name:** llm-safety-monitor (project 29)
+**Sequence:** new-project-full
+**Sessions:** 1 (brief through retro in a single session)
+**Roles that ran:** brief → planner → architect → implementer → reviewer → implementer-fixes → retro
+**Outcome:** PASS WITH NOTES → all fixes applied → 25/25 tests passing
 
 ---
 
 ## What Went Well
 
-**Three open questions resolved with zero rework.**
-The brief pre-identified the three structural unknowns (SQL approach, panel placement, pagination). The planner answered all three with explicit reasoning in a single pass. None resurface in the reviewer output. This is the brief/planner pattern working correctly — the human should keep using it for features where the implementation has real design choices.
+**1 — Implementer handoff quality**
+The implementer's Handoff section named five specific review priorities with file locations and the exact design question for each (JSONB deviation, escalation precedence, DisagreementsResponse reuse, WildGuard categories, patch target). The reviewer was able to open the right files immediately rather than doing a full manifest scan. This is the pattern the handoff section is designed for. Worth reinforcing.
 
-**Separate `_LIVE_COUNTS_SQL` kept existing SQL untouched.**
-The decision to not touch `_METRICS_SQL` was correct. Extending `_build_model_metrics` with an optional `live_counts` parameter preserved all three callers unchanged and made the new SQL easy to test in isolation. This pattern — adding a parallel helper rather than augmenting an existing query — is worth preserving.
+**2 — Deferred imports followed correctly throughout**
+All three consumer classes deferred `transformers` imports inside `_load_model` and `classify`. Tests patched at `transformers.AutoTokenizer.from_pretrained` (the source) as the convention requires. No test failures from import patching. The convention added after project 8 held.
 
-**Pre-existing test failures disambiguated before review via `git stash`.**
-Six test failures existed in the suite before this feature was built. Using `git stash` to confirm pre-existence prevented them from contaminating the reviewer's correctness assessment. The reviewer correctly assessed only the new tests. This is a good discipline to continue.
+**3 — Escalation matrix as pure function**
+`compute_escalation_reason` is pure — no DB, no IO, no side effects. This made it trivially testable: 8 unit tests, no fixtures, no mocks. The pattern (push business logic into pure functions; delegate DB work to the outer loop) kept the test surface clean.
 
-**`DisagreementPanel` built as a self-contained component.**
-Wiring into `ModelComparison` was one import line and one JSX element. No state lifted, no prop threading. Clean separation made the reviewer's structural assessment trivial.
+**4 — WildGuard category verification caught before training**
+The wrong categories were identified during the reviewer session before any training run. Correcting post-training would have required re-running all three models (~6h). The convention of flagging Known Gaps explicitly in the implementer output.md, and the reviewer treating them as must-address, worked as intended.
 
 ---
 
 ## What Could Have Gone Better
 
-**Implementer output.md was never written.**
-The implementer role ran entirely as inline code changes. No `roles/implementer/output/output.md` was produced. The reviewer role contract specifies this file as its primary input — the reviewer had to reconstruct what was built from conversation context and code inspection. This breaks the formal handoff chain and means any future session referencing this feature will need to re-read the code rather than the implementer's summary.
+**1 — WILDGUARD_CATEGORIES used wrong taxonomy entirely**
+The implementer used MLCommons AI Safety taxonomy names (Title Case) instead of verifying against the actual dataset field values (snake_case). The two taxonomies are completely different. If training had run without verification, the taxonomy classifier would have silently mapped every example to an all-zero label vector for 13 of 13 categories.
 
-Root cause: in short add-feature passes where the plan is in the planner output, the implementer output.md feels redundant. But its purpose is archival and handoff, not planning. Even a 10-line output.md (files changed, key decisions, known gaps) would be sufficient.
+- Root cause: No convention for "verify dataset field values as code constants before use." The implementer assumed the model card description matched the raw field values — it did not.
+- What would have prevented it: A one-liner `load_dataset(..., split='train[:10]')` + field inspection at the end of the implementer pass.
 
-**T1 gap: planner specified a seeded-Escalation test that the implementer downgraded.**
-Planner requirement 11 said "at least one test asserts correctly shaped data from seeded disagreement rows." The implementer wrote an empty-DB shape test instead. The reviewer caught it. Root cause: the planner didn't assess fixture complexity — seeding linked `Escalation + Classification` rows in a test conftest requires understanding the ORM models and session lifecycle, which is non-trivial. The planner specified the test without knowing this cost.
+**2 — Dataset name was wrong (`allenai/wildguard` → `allenai/wildguardmix`)**
+The model is `allenai/wildguard`; the dataset is `allenai/wildguardmix`. They are separately gated. The implementer used the model page as the dataset reference. This caused an extra access-request round-trip during verification.
 
-**C2 (ModelPerformance mock gap) was foreseeable.**
-Adding `live_event_count` and `live_flagged_count` as required fields to `ModelMetrics` should have triggered a grep for all test mocks using that type. It didn't, and the reviewer caught it. There is no workspace convention that says: "when adding required fields to a shared type, update all test mocks." vitest's esbuild transpiler silently swallows TypeScript compile errors from missing required fields — they don't crash, they just produce `undefined`. This makes the gap invisible until a reviewer reads the test file.
+- Root cause: No note that HuggingFace model and dataset are distinct resources, often with different names and separate access controls.
+- What would have prevented it: A lookup step: always navigate to `huggingface.co/datasets/` directly rather than inferring the dataset path from the model name.
+
+**3 — SQLAlchemy engine created per Kafka message (C2)**
+`create_engine` was called inside `_write_classification` — once per message. This is a well-known SQLAlchemy anti-pattern that causes connection pool exhaustion under load. No convention covered it.
+
+- Root cause: python-conventions.md has no SQLAlchemy section.
+- What would have prevented it: A one-line note about engine lifecycle: create once per process, not per call.
+
+**4 — Disagreement total computed from Python-filtered slice (C3)**
+The endpoint fetched 200 rows and filtered in Python, then set `total=len(samples)`. This makes `total` wrong when there are >200 rows. The existing aggregation convention says "assert computed outputs not just shape" — but it does not explicitly say "never derive total from a Python slice."
+
+- Root cause: The convention covers test assertions, not the implementation pattern.
+- What would have prevented it: Strengthen the aggregation note: push filters to SQL; derive counts via `COUNT(*)`.
 
 ---
 
@@ -49,18 +66,16 @@ Adding `live_event_count` and `live_flagged_count` as required fields to `ModelM
 
 | Stage | Issue | Estimated Waste | Recommendation |
 |-------|-------|-----------------|----------------|
-| All roles | `project-state.md` is 280+ lines; retro/reviewer only needed ~30 lines of current state | Medium | Split into `project-state-current.md` (≤50 lines, active context) and `project-state-archive.md` (decisions log, session history) |
-| Retro | `routing.md` is 240 lines; retro only needed the `add-feature` section and retro role notes | Low | Acceptable — routing is fast to scan |
-| Reviewer | No `implementer/output.md` to read; reviewer inspected code directly from memory | Low | Writing output.md would have saved re-derivation cost in this session; higher payoff for long-lived projects |
+| Reviewer | Loaded all 50+ code files from the manifest | Medium | Implementer Handoff section already ranked priority files — reviewer should load priority files first, then scan others if needed. No structural change required; the pattern worked. |
+| Implementer output.md | "How to Run" and "Setup Steps Taken" sections (40 lines) provide no signal for the reviewer | Low | These are useful for the human but reviewer can skip them. Add a note to routing.md: reviewer reads Handoff + Deviations + Known Gaps first; How to Run is human-facing only. |
 
 ### Redundancy Patterns
 
-The planner output reproduced the brief's SQL assumption confirmation verbatim ("confirmed from brief"). This is correct per the planner contract but the brief is already in context. The planner's Confirmed Assumptions section is useful to downstream roles as a summary — keep it, but note it should be terse (one line per assumption, not a full re-statement).
+- `WILDGUARD_CATEGORIES` was defined identically in both `types.py` (streaming app) and `datasets.py` (training project). These are separate uv projects so sharing via import isn't possible, but the duplication means a correction must be applied twice. Acceptable given the project boundaries; not a workspace issue.
 
 ### Scoping Recommendations
 
-- For `add-feature` passes: limit planner context to brief output + project-state.md header only. The full 280-line project-state is not needed — the planner needs current objective and file map, not session history.
-- The reviewer role should explicitly list which files it read and which were already in context from implementer output.md. Currently the reviewer contract says "read each code file listed in the implementer's file manifest" but when there is no manifest, the reviewer falls back to reading everything, which is wasteful.
+- No significant scoping changes needed. Reviewer loaded what it needed; context was within normal bounds for a project of this size.
 
 ---
 
@@ -70,65 +85,44 @@ The planner output reproduced the brief's SQL assumption confirmation verbatim (
 
 | File | Change | Reason | Human decision required? |
 |------|--------|--------|--------------------------|
-| `resources/typescript-conventions.md` | Add note under Testing section: "When adding required fields to a shared TypeScript type, grep all test mock objects using that type and update them. vitest's esbuild transpiler silently swallows missing required field errors — the test won't crash, but the new field will be `undefined` at runtime." | Prevents C2 class of reviewer finding recurring | No |
-| `resources/python-conventions.md` | Add note under Testing section: "When a test requirement involves multi-table fixture creation (e.g. linked Escalation + Classification rows), note the fixture complexity in the planner output — do not specify the test without assessing whether the conftest can support it." | Prevents T1-class planner/implementer mismatch | No — add to planner CONTEXT.md instead (see below) |
+| `resources/python-conventions.md` | Add **SQLAlchemy** section: "`create_engine` is expensive — call once per process, not per request or message. Store as a class attribute or module-level singleton. Never call inside a hot loop (Kafka consumer, background worker, request handler)." | C2 would not have occurred with this note in scope | No |
+| `resources/python-conventions.md` | Strengthen **Aggregation endpoints** note: append "Never filter in Python what can be filtered in SQL. `total` / `count` fields in API responses must come from a SQL `COUNT(*)`, not from `len()` on a Python-filtered slice." | C3 pattern | No |
+| `resources/python-conventions.md` | Add to **HuggingFace Trainer** section: "Before using dataset field values as code constants (label strings, category names), verify exact values programmatically: `load_dataset(..., split='train[:20]')` → inspect field values. Do not infer field values from the model card description — they often differ. HuggingFace model and dataset are distinct resources with different paths and separate gating (e.g. model: `allenai/wildguard`, dataset: `allenai/wildguardmix`)." | Prevents WILDGUARD_CATEGORIES class of error on every future HF training project | No |
 
 ### Skills to Update
 
-| File | Change | Reason | Human decision required? |
-|------|--------|--------|--------------------------|
-| — | — | — | — |
+None required.
 
 ### Routing Changes
 
-| Sequence | Change | Reason | Human decision required? |
-|----------|--------|--------|--------------------------|
-| `add-feature` | Add note: "Implementer must write `roles/implementer/output/output.md` even for small passes. Minimum: files changed, key decisions, known gaps. Reviewer uses this as primary input." | Prevents formal handoff gap; output.md is archival, not planning | No |
+None required. `new-project-full` was the right sequence and ran cleanly.
 
 ### New Resources or Skills Needed
 
-None.
-
-### Role Contract Updates Needed
-
-**`roles/planner/CONTEXT.md` — Requirements section**
-Add to the Notes at bottom:
-> When a requirement involves test fixture creation (seeding records across multiple related tables), note the fixture complexity inline: "requires new conftest fixture with [table A] + [table B] linked by [FK]." This lets the implementer scope the test correctly rather than silently downgrading to a weaker assertion.
-
-**`_config/project-state.md` — structure**
-Consider restructuring to two logical sections with a clear divider:
-- **Current State** (≤50 lines): active project, objective, next action, known environment — rewritten each session
-- **Session Archive** (append-only): decisions log, session summaries — never rewritten
-
-Retro and reviewer would load only the Current State header. The full file is only needed for project planning and brief roles.
+None. All findings map to additions in python-conventions.md.
 
 ---
 
 ## One Change to Make Now
 
-**Add the required-field grep convention to `resources/typescript-conventions.md`.**
+**Add SQLAlchemy engine lifecycle note to `resources/python-conventions.md`.**
 
-In the Testing section, after the existing vitest/msw paragraph, add:
+Under the existing `## Error Handling` or as a new `## SQLAlchemy` section, add:
 
 ```
-- When adding required fields to a shared TypeScript type (e.g. `ModelMetrics`), run
-  `grep -r 'TypeName' src/test/` and update all mock objects. vitest's esbuild transpiler
-  silently ignores missing required fields — the new field will be `undefined` at runtime
-  rather than raising a compile error. The reviewer will catch it, but it is faster to fix
-  at implementation time.
+## SQLAlchemy
+
+- `create_engine` allocates a connection pool — call it once per process, not per request, message, or loop iteration.
+- Store the engine as a class attribute (created in `__init__`) or module-level singleton.
+- Never call `create_engine` inside a Kafka consumer loop, FastAPI route handler, or background worker tick.
 ```
 
-This is a 4-line addition, immediately actionable, and prevents a recurring reviewer catch that has now appeared once.
+This is the highest-value change: it prevents C2 in every future project that combines SQLAlchemy with a hot loop, and the pattern (Kafka consumers, background pollers) will recur frequently in this workspace.
 
 ---
 
 ## Handoff
 
-Human reviews recommendations above. Suggested actions before the next project:
-
-1. **(Now)** Add the required-field grep note to `resources/typescript-conventions.md` Testing section (text above is ready to paste).
-2. **(Before next add-feature)** Add the implementer output.md note to `routing.md` add-feature sequence.
-3. **(Before next add-feature)** Add the fixture-complexity note to `roles/planner/CONTEXT.md`.
-4. **(Optional, longer term)** Restructure `_config/project-state.md` into Current State header + append-only archive.
+Human reviews recommendations above. Apply the three python-conventions.md additions before the next project starts — they are all No on human decision required.
 
 Update `_config/project-state.md` to record retro complete.

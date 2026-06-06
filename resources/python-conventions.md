@@ -68,6 +68,17 @@
 
 - Use `StrEnum` (Python 3.11+) instead of `(str, Enum)` for string enums. Ruff UP042 enforces this.
 
+## SQLAlchemy
+
+- `create_engine` allocates a connection pool — call it once per process, not per request, message, or loop iteration.
+- Store the engine as a class attribute (created in `__init__`) or module-level singleton. Never call `create_engine` inside a Kafka consumer loop, FastAPI route handler, or background worker tick.
+- `Session(engine)` as a context manager is correct for sync writes; `AsyncSession` for async routes.
+
+## API Aggregation Endpoints
+
+- Never filter in Python what can be filtered in SQL. Push `WHERE` conditions to the query.
+- `total` / `count` fields in API responses must come from a SQL `COUNT(*)` against the full table, not from `len()` on a Python-filtered slice of a `LIMIT`-ed result. A Python count is wrong as soon as there are more rows than the limit.
+
 ## HuggingFace Trainer (fine-tuning projects)
 
 - Always add `accelerate` as an **explicit** dependency when `Trainer` is in scope. It is a hard runtime dep of `transformers.Trainer` in versions ≥5.x and is not auto-installed.
@@ -75,6 +86,8 @@
 - `warmup_ratio` was removed in transformers 5.2. Use `warmup_steps` (integer) instead.
 - `eval_strategy` and `save_strategy` must use the same value (e.g. both `"epoch"`) when `load_best_model_at_end=True`. Mismatched values raise a config error at `Trainer.__init__`.
 - Deferred imports inside training functions are correct for slow HuggingFace loads. When patching in tests, patch at `transformers.AutoModelForSequenceClassification.from_pretrained` (the source), not at the module-level name — deferred imports create no module-level binding to patch against.
+- **Dataset field verification:** Before using dataset field values as code constants (label strings, category names), verify exact values programmatically — do not infer from the model card description, which uses human-readable names that often differ from raw field values. Run `load_dataset(..., split='train[:20]')` and inspect the relevant field. A mismatch silently produces wrong labels with no error at training time.
+- **Model ≠ dataset on HuggingFace Hub:** The model at `huggingface.co/{org}/{model}` and the dataset at `huggingface.co/datasets/{org}/{name}` are separately gated resources with different paths. Do not infer the dataset path from the model name — look it up directly (e.g. model: `allenai/wildguard`, dataset: `allenai/wildguardmix`). The dataset also requires a config name: `load_dataset('org/name', 'config-name', split='train')`.
 
 ---
 
