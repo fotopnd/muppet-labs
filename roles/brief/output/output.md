@@ -112,18 +112,18 @@ Consumers produce classification rows per model per event, same schema as existi
 
 ## Live Data Stream
 
-**Primary: dataset replay** (zero API cost)
+**Primary: dataset replay** (zero API cost, zero account risk)
 - A replay producer samples from all four datasets at configurable rates, shuffling source datasets
 - Default mix: 60% HH-RLHF, 25% WildGuard, 10% AdvBench, 5% JailbreakBench
 - Rate: ~1 event/3 seconds (manageable for a demo, produces ~1,200 events/hour)
 - Ground truth labels are available → all evaluation metrics are meaningful in real time
+- **Principled choice, not just a cost call**: the classifiers operate on real adversarial data (AdvBench harmful instructions, JailbreakBench jailbreak prompts). Claude never receives this content. The portfolio story is identical either way and the account risk is zero. Dataset replay is the correct architecture for a safety research pipeline — you do not run known-adversarial prompts against a live model to demonstrate that your classifier works.
 
-**Secondary: live Claude API mode** (optional, low-cost)
-- Toggle flag in config
-- Prompt generator sends adversarial/benign prompts to Claude Haiku at 1/minute
-- Response is the live content to classify
-- Cost: ~$1.20/day at that rate — viable for demo sessions, not for continuous background run
-- Model: Claude Haiku 3.5 (cheapest, sufficient for generating responses to test prompts)
+**Secondary: live Claude API mode** (optional, demo-only)
+- Toggle flag in config, off by default
+- Sends benign or mildly borderline prompts only — not AdvBench/JailbreakBench content
+- Demonstrates the real-time pipeline for demo purposes; not part of the analytical story
+- Cost: ~$1.20/day at 1 call/minute using Haiku 3.5; only enabled during active demos
 
 ---
 
