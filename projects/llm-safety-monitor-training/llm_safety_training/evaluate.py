@@ -82,7 +82,7 @@ def evaluate_binary(
     with torch.no_grad():
         for i in range(0, len(texts), batch_size):
             batch = texts[i : i + batch_size]
-            enc = tokenizer(batch, truncation=True, padding=True, max_length=512, return_tensors="pt")
+            enc = tokenizer(batch, truncation=True, padding=True, max_length=128, return_tensors="pt")
             logits = model(**enc).logits
             probs = torch.softmax(logits, dim=-1)[:, 1]
             preds = (probs >= 0.5).long()
@@ -127,7 +127,7 @@ def evaluate_taxonomy(
     with torch.no_grad():
         for i in range(0, len(texts), batch_size):
             batch = texts[i : i + batch_size]
-            enc = tokenizer(batch, truncation=True, padding=True, max_length=512, return_tensors="pt")
+            enc = tokenizer(batch, truncation=True, padding=True, max_length=128, return_tensors="pt")
             logits = model(**enc).logits
             probs = torch.sigmoid(logits)
             all_probs.extend(probs.tolist())

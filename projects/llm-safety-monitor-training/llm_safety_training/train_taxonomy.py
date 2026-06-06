@@ -56,7 +56,7 @@ def train(
     model.config.problem_type = "multi_label_classification"
 
     def tokenize(texts: list[str], labels: list[list[int]]) -> Dataset:
-        enc = tokenizer(texts, truncation=True, padding=True, max_length=512)
+        enc = tokenizer(texts, truncation=True, padding=True, max_length=128)
         # BCEWithLogitsLoss expects float labels
         float_labels = [[float(v) for v in row] for row in labels]
         return Dataset.from_dict({**enc, "labels": float_labels})

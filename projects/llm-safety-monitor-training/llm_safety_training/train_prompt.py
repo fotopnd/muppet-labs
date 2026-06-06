@@ -45,7 +45,7 @@ def train(
     model = AutoModelForSequenceClassification.from_pretrained(model_name, num_labels=2)
 
     def tokenize(texts: list[str], labels: list[int]) -> Dataset:
-        enc = tokenizer(texts, truncation=True, padding=True, max_length=512)
+        enc = tokenizer(texts, truncation=True, padding=True, max_length=128)
         return Dataset.from_dict({**enc, "labels": labels})
 
     train_ds = tokenize(train_texts, train_labels)
