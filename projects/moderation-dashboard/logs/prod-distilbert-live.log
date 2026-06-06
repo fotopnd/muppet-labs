@@ -283,3 +283,5 @@ ground_truth
 %4|1780694319.572|SESSTMOUT|rdkafka#consumer-1| [thrd:main]: Consumer group session timed out (in join-state steady) after 414981 ms without a successful response from the group coordinator (broker 1, last error was Success): revoking assignment and rejoining group
 %5|1780695206.471|REQTMOUT|rdkafka#consumer-1| [thrd:GroupCoordinator]: GroupCoordinator/1: Timed out JoinGroupRequest in flight (after 886896ms, timeout #0)
 %4|1780695206.471|REQTMOUT|rdkafka#consumer-1| [thrd:GroupCoordinator]: GroupCoordinator/1: Timed out 1 in-flight, 0 retry-queued, 0 out-queue, 0 partially-sent requests
+/opt/homebrew/Cellar/python@3.14/3.14.5/Frameworks/Python.framework/Versions/3.14/lib/python3.14/multiprocessing/resource_tracker.py:475: UserWarning: resource_tracker: There appear to be 1 leaked semaphore objects to clean up at shutdown: {'/mp-f7yul1pv'}
+  warnings.warn(
