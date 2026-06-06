@@ -1,115 +1,223 @@
-# Brief Output — moderation-dashboard analysis depth
+# Brief Output — llm-safety-monitor
 
 **Date:** 2026-06-06
-**Sequence:** add-feature
+**Sequence:** new-project-full (v3 of moderation-dashboard — substantial rework, existing Kafka/FastAPI/React infrastructure carries over)
 **Role executing:** brief
 
 ---
 
 ## Project Name
 
-moderation-dashboard-analysis-depth
+llm-safety-monitor
 
 ## Description
 
-Refactor the moderation-dashboard's analytical layer to surface three genuine safety insights from the data already being collected: classifier calibration on seeded data, confidence-distribution divergence between seeded and live traffic as a distribution-shift signal, and disagreement characterization by confidence band rather than random sampling.
+A streaming LLM safety classification platform that runs a continuous stream of real LLM interactions through three purpose-trained safety classifiers — a pair safety classifier, a prompt adversarial detector, and a harm taxonomy classifier — and routes flagged interactions to a human review queue based on a 2×2 prompt/response verdict matrix rather than a confidence threshold.
 
 ## Language(s)
 
-TypeScript (React frontend) + Python (new and modified API endpoints)
+Python (training, consumers, FastAPI backend) + TypeScript (React dashboard)
 
 ## Context and Motivation
 
-The adversarial portfolio review on 2026-06-06 established that the current dashboard is technically strong but analytically shallow. All the right data is being collected. The wrong questions are being asked about it. The three additions in this brief transform the project from "I built a streaming dashboard" to "I built a system that measures how toxicity classifiers degrade under domain shift" — which is a Safeguards story.
+This is a ground-up rework of the moderation-dashboard project. The streaming infrastructure (Kafka, async consumers, shadow routing, FastAPI, Postgres, React dashboard, case-queue escalation) is retained. Everything else — training data, model task, event schema, classification logic, escalation logic, and dashboard framing — is replaced.
 
-The existing seeded data (30k rows with Jigsaw ground truth and `correct` column) and live data (45k+ rows without ground truth, `correct=NULL`) are both in Postgres. No new data collection is needed.
+The prior version classified Bluesky social posts for toxicity using Jigsaw-trained models. The adversarial portfolio review on 2026-06-06 established that this task is not relevant to Anthropic Safeguards. The new version classifies LLM interactions (prompt + response pairs, and prompts alone) for safety policy violations using datasets produced specifically for LLM safety research.
+
+The key deliverable is a working system that can answer: *"Given a stream of LLM interactions, which ones violated a safety policy, what kind of violation, and how confident are we?"* — and surface the cases where classifiers disagree or fail.
+
+---
+
+## Datasets
+
+Four datasets, two classification targets.
+
+### Pair classification (prompt + response)
+
+**Anthropic HH-RLHF** (`Anthropic/hh-rlhf`, HuggingFace)
+- ~170k human-Claude conversation pairs
+- Label: `chosen` (harmless response) vs `rejected` (harmful response)
+- Binary safe/unsafe at the response level
+- Primary training data for the pair safety classifier
+- Directly from Anthropic — provenance is portfolio-relevant
+
+**WildGuard** (`allenai/wildguard`, HuggingFace)
+- ~92k prompt + response pairs
+- Label: 13 harm categories (hate, violence, sexual content, PII, copyright, etc.) + binary safe/unsafe per category
+- Dual use: contributes to pair classifier training (binary label) and trains the harm taxonomy classifier (13-category label)
+- Broadens coverage beyond HH-RLHF's harmlessness framing
+
+### Prompt classification (prompt only)
+
+**AdvBench** (`llm-attacks/AdvBench`, HuggingFace / CSV)
+- ~520 adversarial harmful instructions
+- Label: implicitly harmful (all positives — requires sampling negatives from HH-RLHF chosen prompts)
+- Covers: bioweapons instructions, malware, radicalization, fraud, self-harm facilitation
+
+**JailbreakBench** (`JailbreakBench/JailbreakBench-artifacts`, HuggingFace)
+- ~100 harmful behaviors × multiple jailbreak prompt variants = ~1,000–3,000 prompt examples
+- Label: adversarial prompt (all positives — same negative sampling approach as AdvBench)
+- Covers jailbreak techniques: role-play bypasses, prompt injection, encoding tricks
+
+**Prompt classifier training composition:**
+- Positives: AdvBench + JailbreakBench prompts + WildGuard harmful prompts (subset, ~3,000 total)
+- Negatives: HH-RLHF chosen-side conversation openers + WildGuard safe prompts (~3,000 sampled)
+- Total: ~6,000 balanced examples. Small but focused — planner to assess whether augmentation is needed.
+
+---
+
+## The Three Models
+
+**Model 1 — Pair safety classifier**
+- Base: DistilBERT (proven on this task class, fast on MPS)
+- Training data: HH-RLHF (primary) + WildGuard binary label (secondary)
+- Input: prompt + `[SEP]` + response (concatenated, max 512 tokens)
+- Output: binary (safe / unsafe response)
+- Ground truth available for all training examples → calibration analysis is fully valid
+
+**Model 2 — Prompt adversarial detector**
+- Base: DistilBERT
+- Training data: AdvBench + JailbreakBench + WildGuard harmful prompts (positives) vs HH-RLHF benign prompts (negatives)
+- Input: prompt only
+- Output: binary (benign / adversarial)
+- This model operates on the prompt before any response is generated — mirrors a real-time input filter
+
+**Model 3 — Harm taxonomy classifier**
+- Base: DistilBERT with multi-label head (BCEWithLogitsLoss, same pattern as finetuned_detoxify attempt)
+- Training data: WildGuard 13-category labels
+- Input: prompt + `[SEP]` + response
+- Output: 13 binary labels (one per harm category) — a single interaction can trigger multiple categories
+- This model answers "what kind of harm" rather than "is there harm"
+
+---
+
+## Event Schema
+
+Each stream event represents one LLM interaction:
+
+```
+{
+  "event_id": "uuid",
+  "prompt": "...",
+  "response": "..." | null,        // null for prompt-only events from AdvBench
+  "source_dataset": "hh-rlhf" | "wildguard" | "advbench" | "jailbreakbench" | "live",
+  "ground_truth_safe": true | false | null,   // null for live Claude API events
+  "ground_truth_categories": ["hate", ...] | null
+}
+```
+
+Consumers produce classification rows per model per event, same schema as existing `classifications` table with `content` = prompt text (truncated), new `response_text` column, `predicted_label` = safe(0)/unsafe(1), `confidence` = float.
+
+---
+
+## Live Data Stream
+
+**Primary: dataset replay** (zero API cost)
+- A replay producer samples from all four datasets at configurable rates, shuffling source datasets
+- Default mix: 60% HH-RLHF, 25% WildGuard, 10% AdvBench, 5% JailbreakBench
+- Rate: ~1 event/3 seconds (manageable for a demo, produces ~1,200 events/hour)
+- Ground truth labels are available → all evaluation metrics are meaningful in real time
+
+**Secondary: live Claude API mode** (optional, low-cost)
+- Toggle flag in config
+- Prompt generator sends adversarial/benign prompts to Claude Haiku at 1/minute
+- Response is the live content to classify
+- Cost: ~$1.20/day at that rate — viable for demo sessions, not for continuous background run
+- Model: Claude Haiku 3.5 (cheapest, sufficient for generating responses to test prompts)
+
+---
+
+## Escalation Logic (replaces confidence-threshold approach)
+
+The 2×2 prompt + response verdict matrix:
+
+| Prompt verdict | Response verdict | Escalation level |
+|---|---|---|
+| Benign | Safe | No escalation |
+| Adversarial | Safe | Log only — model handled correctly |
+| Benign | Unsafe | **High severity** — model introduced harm unprompted |
+| Adversarial | Unsafe | **Critical** — jailbreak succeeded |
+
+For prompt-only events (no response): escalate if adversarial with confidence > 0.7.
+
+Disagreement escalation: if pair classifier and taxonomy classifier contradict each other (pair says safe, taxonomy flags a category, or vice versa), escalate as a model disagreement case at medium severity.
+
+---
+
+## Dashboard Changes
+
+The existing five-tab dashboard structure is retained. Content changes per tab:
+
+**StreamMonitor** — now shows prompt text (truncated) + response text (truncated), source dataset badge, and real-time verdict per model as a 3-column verdict row (pair: safe/unsafe, prompt: benign/adversarial, taxonomy: category badges)
+
+**ModelPerformance** — now genuinely meaningful because ground truth is available for all streamed events (not just seeded data). F1, precision, recall computed against real labels in real time. Distribution shift framing carries over: compare live-stream F1 to held-out test-set F1 per dataset.
+
+**ModelComparison** — now compares three qualitatively different classifiers, not three variants of the same task. The comparison story is: do they agree on which interactions are dangerous, and when they disagree, which one is right?
+
+**Calibration** (new, from analysis-depth brief) — reliability diagrams, confidence distributions, agreement-confidence correlation. Now fully valid because ground truth is available for all events. This was the strongest analytical addition from the previous brief and is now properly grounded.
+
+**HumanReview** — escalation queue now receives entries with a clear escalation reason from the 2×2 matrix (not just "model disagreement" or "low confidence"). Reviewers see: prompt, response, verdict from each model, and the escalation reason. Their decision (approve safe / confirm unsafe) is now meaningful label data.
+
+---
+
+## What Carries Over Unchanged
+
+- Kafka infrastructure (topics, consumer groups, shadow routing)
+- Async consumer base class (`BaseConsumer`)
+- FastAPI application structure
+- React dashboard skeleton (routing, tab structure, TanStack Query, component library)
+- Postgres + Alembic (schema changes via new migration)
+- case-queue escalation service (escalation reason strings change, core logic unchanged)
+- All test infrastructure (pytest, vitest, conftest patterns)
+
+---
 
 ## Success Criteria
 
-### Addition 1 — Calibration Analysis tab (new tab)
+1. Three models trained and evaluated on held-out splits: pair classifier, prompt adversarial detector, harm taxonomy classifier. Each with a reported F1 on the relevant test set.
+2. Replay producer streams all four datasets through the classification pipeline at ~1 event/3 seconds. All five dashboard tabs render with real data.
+3. The 2×2 escalation matrix routes at least three distinct escalation reason codes to the human review queue.
+4. The Calibration tab shows a reliability diagram per model computed against real ground-truth labels — not a seeded-data approximation.
+5. The ModelPerformance tab shows F1 computed against live-stream ground truth, not just seeded baseline.
+6. Live Claude API mode works when toggled: sends a prompt, receives a response, classifies the pair, appears in the stream within 5 seconds.
+7. One clearly articulable finding per model. Example: *"The pair classifier achieves F1=0.87 on HH-RLHF held-out data but drops to 0.74 on WildGuard — suggesting the harmlessness frame in HH-RLHF does not fully generalize to WildGuard's broader harm taxonomy."*
 
-A new fifth tab ("Calibration") that shows, for each active model:
-
-**Panel A — Reliability diagram (seeded data only)**
-Ten confidence decile buckets (0–10%, 10–20%, … 90–100%). For each bucket: the mean confidence and the actual accuracy (fraction of `correct=true` rows). A well-calibrated model plots close to the diagonal. A miscalibrated model shows systematic over- or under-confidence. Backend: `GET /metrics/calibration` returning per-model, per-decile `{ mean_confidence, accuracy, count }`.
-
-**Panel B — Confidence distribution: seeded vs live**
-For each model, a histogram overlay showing the confidence distribution on seeded rows vs live rows (`seeded=false`). Divergence between the two distributions is the distribution shift signal — a model whose confidence distribution shifts significantly on live data has learned training-set-specific features rather than generalizable signal. Backend: same endpoint, additional `confidence_distributions` field with bucket counts.
-
-**Panel C — Agreement-confidence correlation (live data only)**
-For each confidence decile on live data, the inter-model agreement rate (fraction of events in that decile where all three models agree on the label). High-confidence predictions that have low inter-model agreement are the calibration failure signal — the model is confidently wrong relative to its peers. Backend: same endpoint, `agreement_by_confidence` field.
-
-**The tab must include one framed insight sentence per model**, not just charts. Example: *"DistilBERT zero-shot is well-calibrated on Jigsaw data (reliability curve R²=0.94) but shifts its confidence distribution rightward on live Bluesky, producing high-confidence predictions that other models disagree with at 2.3× the seeded rate."* These sentences are computed, not hardcoded.
-
-### Addition 2 — Distribution shift narrative on ModelPerformance and ModelCard
-
-Replace the current "Live flag rate: X.X%" stat with a framed two-line display:
-
-```
-Live flag rate    38.6%
-vs eval baseline  ↑3.4× (Jigsaw test: 11.4% positive rate)
-```
-
-The baseline comparison is the positive rate of the Jigsaw test set (fixed constant: ~11.4% toxic in the Jigsaw dataset). The multiplier `38.6 / 11.4 = 3.4×` is the distribution shift indicator. A model with a multiplier close to 1.0 is generalizing. A model with 3.4× is over-flagging on live content relative to its training distribution.
-
-This requires no new backend endpoint — it is a frontend-only change using the existing `live_event_count` and `live_flagged_count` fields. The Jigsaw baseline positive rate is a known constant embedded in the frontend config.
-
-### Addition 3 — Disagreement characterization by confidence band
-
-Replace the current random sample list in DisagreementPanel with:
-
-**Confidence band breakdown table**
-For model disagreements, group by confidence profile:
-- `both-uncertain` — both dissenting models have confidence < 0.6
-- `split-confidence` — one model high confidence (> 0.7), one low (< 0.5)
-- `both-confident` — both dissenting models have confidence > 0.7
-
-The count and percentage in each band. `both-confident` disagreements are the most dangerous (two models confidently disagree) and should be highlighted.
-
-**One framed insight sentence**: *"X% of disagreements are split-confidence (one model certain, one uncertain), suggesting the dissenting model is operating near its decision boundary on this content type."*
-
-**Retain the sample posts**, but sort them by confidence band (both-confident first) rather than showing random samples. This makes the samples illustrative of the analysis rather than decorative.
-
-Backend: extend `GET /metrics/disagreements` with a `by_confidence_band` field.
+---
 
 ## Constraints
 
-- No new data collection — all analysis runs on existing `classifications` and `escalations` tables
-- No model retraining or threshold changes
-- `correct` is NULL for live rows — all accuracy calculations must filter to `seeded=true` rows
-- Calibration endpoint must be fast enough for a 3-second frontend poll — use pre-aggregated SQL, not row-level Python computation
-- The framed insight sentences must be generated from real computed values, not hardcoded strings
-- Must not break any existing tests
+- Training must run on Apple M4 MPS (24GB unified memory). DistilBERT fine-tuning is confirmed safe at batch_size=128. Multi-label head follows the same pattern as train_detoxify.py.
+- No proprietary or access-controlled data. All four datasets are publicly available on HuggingFace.
+- Event schema must be backwards-compatible enough that the existing case-queue integration requires no changes.
+- Live Claude API mode uses Haiku only — no Sonnet or Opus calls in the streaming path.
+- AdvBench + JailbreakBench are small. Planner must assess whether ~6k balanced examples is sufficient for a binary prompt classifier or whether augmentation is required.
 
 ## Out of Scope
 
-- Annotation bias audit
-- Adversarial input detection or red-teaming
-- Feedback loop from human review to classifier
-- Model retraining or threshold tuning
-- Calibration post-processing (Platt scaling, isotonic regression) — analysis only, not correction
-
-## Assumptions
-
-- The Jigsaw test set positive rate (~11.4% toxic) is a stable constant usable as a baseline. Planner should confirm this is the right reference point or propose an alternative.
-- Inter-model agreement as a proxy for calibration quality on live data is methodologically valid given the absence of ground truth labels. This is a stated assumption in the UI, not a hidden claim.
-- The calibration SQL can group by `confidence` decile via `FLOOR(confidence * 10) / 10` without a materialized view — planner to assess query performance at ~50k rows.
-- The insight sentences can be generated by a simple Python function that reads the computed values and selects from a small set of templates. No LLM call needed.
+- Red-teaming or adversarial prompt generation (beyond replaying existing datasets)
+- Model output correction or refusal generation
+- Fine-tuning Claude or any generative model
+- Multi-turn conversation handling (all events treated as single-turn)
+- RLHF training loop (human review labels are collected but not used for retraining in v1)
 
 ## Open Questions for Planner
 
-1. Does the Calibration tab warrant its own route (`/calibration`) or should it live as a new panel within an existing tab? Given its analytical weight, a dedicated tab is probably correct.
-2. Should `GET /metrics/calibration` be a single merged endpoint or split into `/metrics/calibration/reliability`, `/metrics/calibration/distributions`, `/metrics/calibration/agreement`? One endpoint simplifies the frontend but may be slow; split endpoints allow progressive loading.
-3. The insight sentence generation: template-based Python function in the backend (returned as a string field in the API response) vs computed in the frontend from raw values? Backend is cleaner for testing; frontend gives more flexibility.
+1. **Prompt classifier size**: ~6k balanced training examples may be too small for a standalone DistilBERT fine-tune to be credible. Should we augment with additional adversarial prompt datasets (e.g. HarmBench, SALAD-Bench), or accept the small training set with a strong held-out eval narrative?
+
+2. **HH-RLHF input format**: the `chosen`/`rejected` field contains full conversation history as a formatted string. Does the pair classifier input use the full conversation or just the final assistant turn? Full conversation is more faithful to the dataset; final turn only is faster and easier to truncate to 512 tokens.
+
+3. **WildGuard for both models**: WildGuard contributes to both the pair classifier and the taxonomy classifier. Does it get split by use (some examples for pair, others for taxonomy), or does it appear in both training sets? Overlap risks data leakage if the eval set is not carefully stratified.
+
+4. **Replay producer mix**: the 60/25/10/5 dataset mix is an assumption. Should the mix be configurable at runtime via the dashboard (a "stream composition" control) or fixed in config? Configurable is more impressive as a demo feature but adds frontend complexity.
+
+5. **`response_text` column**: adding a new column to `classifications` requires a new Alembic migration. Confirm this is the right approach vs storing the response in a separate `interactions` table with a foreign key.
 
 ## Handoff
 
 Next role: planner
 
-Reads this file plus `_config/project-state.md`.
+Reads this file plus `_config/project-state.md` for infrastructure context.
 
-The planner should:
-1. Resolve the three open questions above
-2. Confirm SQL feasibility for calibration queries at current data volume
-3. Map exactly which files are new vs modified (the calibration tab is new; ModelCard and DisagreementPanel are modifications)
-4. Assess whether the insight sentence logic belongs in backend or frontend
+Planner must resolve all five open questions above before handing to implementer. The training pipeline order matters: pair classifier and prompt classifier should be trainable independently; taxonomy classifier depends on WildGuard allocation decision (Q3). Implementer should train in this order: pair classifier → prompt classifier → taxonomy classifier → replay producer → consumers → dashboard.
+
+Update `project_learnings.md` to log the pivot from Bluesky toxicity to LLM safety classification.

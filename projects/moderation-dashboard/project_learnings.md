@@ -5,6 +5,27 @@
 
 ---
 
+## 2026-06-06 — Pivot: Bluesky toxicity → LLM safety classification
+
+**Decision:** Full task pivot. Bluesky toxicity classification is not an Anthropic Safeguards problem. The project is reworked as `llm-safety-monitor` — a streaming LLM safety classification platform using HH-RLHF, WildGuard, AdvBench, and JailbreakBench.
+
+**What changes:** training data, models (three purpose-specific classifiers), event schema, escalation logic (2×2 prompt/response verdict matrix), dashboard framing. Everything that changes is the analysis layer.
+
+**What carries over:** Kafka infrastructure, async consumers, FastAPI/Postgres/React skeleton, case-queue integration, all test infrastructure.
+
+**Three models:**
+1. Pair safety classifier (HH-RLHF + WildGuard binary) — "Is this response harmful?"
+2. Prompt adversarial detector (AdvBench + JailbreakBench + negatives) — "Is this a jailbreak attempt?"
+3. Harm taxonomy classifier (WildGuard 13-category) — "What kind of harm?"
+
+**Live stream:** Dataset replay primary (zero cost). Live Claude Haiku mode optional (~$1.20/day at 1 call/minute).
+
+**Why this is the right pivot:** The infrastructure was always right for a safety monitoring problem. The data and task were wrong. Fixing the data and task without rebuilding the infrastructure is the efficient path.
+
+**Key risk:** AdvBench + JailbreakBench are small (~6k balanced training examples for the prompt classifier). Planner must assess whether this is sufficient or needs augmentation.
+
+---
+
 ## 2026-06-06 — Adversarial portfolio review: strong infrastructure, weak analysis
 
 ### The honest assessment
