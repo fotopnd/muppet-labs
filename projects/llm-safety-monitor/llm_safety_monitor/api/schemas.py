@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from datetime import datetime
 from uuid import UUID
 
 from pydantic import BaseModel
@@ -64,3 +65,48 @@ class DisagreementSample(BaseModel):
 class DisagreementsResponse(BaseModel):
     total: int
     samples: list[DisagreementSample]
+
+
+# --- Performance timeseries ---
+
+class MetricPoint(BaseModel):
+    bucket: datetime
+    f1: float
+    precision: float
+    recall: float
+    sample_count: int
+
+
+class ModelTimeseries(BaseModel):
+    model_name: str
+    points: list[MetricPoint]
+
+
+class TimeseriesResponse(BaseModel):
+    models: list[ModelTimeseries]
+    bucket_minutes: int
+
+
+# --- Taxonomy timeseries ---
+
+class TaxonomyBucket(BaseModel):
+    bucket: datetime
+    counts: dict[str, int]
+
+
+class TaxonomyTimeseriesResponse(BaseModel):
+    buckets: list[TaxonomyBucket]
+    categories: list[str]
+    bucket_minutes: int
+
+
+# --- Human review decision ---
+
+class ReviewDecision(BaseModel):
+    decision: str  # "approve" | "dismiss" | "escalate"
+
+
+class ReviewDecisionResponse(BaseModel):
+    case_id: UUID
+    decision: str
+    acknowledged: bool

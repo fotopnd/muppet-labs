@@ -2,8 +2,9 @@ from __future__ import annotations
 
 import json
 from collections import defaultdict
+from datetime import UTC, datetime, timedelta
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Query
 from sqlalchemy import select, text
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -14,9 +15,14 @@ from llm_safety_monitor.api.schemas import (
     CalibrationResponse,
     DisagreementSample,
     DisagreementsResponse,
+    MetricPoint,
     MetricsResponse,
     ModelCalibration,
     ModelMetrics,
+    ModelTimeseries,
+    TaxonomyBucket,
+    TaxonomyTimeseriesResponse,
+    TimeseriesResponse,
 )
 
 router = APIRouter(prefix="/metrics", tags=["metrics"])
@@ -142,6 +148,116 @@ async def get_disagreements(db: AsyncSession = Depends(get_db)) -> Disagreements
         for row in rows
     ]
     return DisagreementsResponse(total=total, samples=samples)
+
+
+@router.get("/timeseries", response_model=TimeseriesResponse)
+async def get_timeseries(
+    db: AsyncSession = Depends(get_db),
+    bucket_minutes: int = Query(default=60, ge=1, le=1440),
+) -> TimeseriesResponse:
+    """Per-model F1/precision/recall bucketed by time window."""
+    result = await db.execute(
+        select(
+            ClassificationResult.model_name,
+            ClassificationResult.predicted_label,
+            ClassificationResult.processed_at,
+            Interaction.ground_truth_safe,
+        )
+        .join(Interaction, ClassificationResult.event_id == Interaction.id)
+        .where(Interaction.ground_truth_safe.is_not(None))
+        .order_by(ClassificationResult.processed_at)
+    )
+    rows = result.all()
+
+    # Group by (model_name, time bucket) in Python — cross-dialect compatible
+    bucket_td = timedelta(minutes=bucket_minutes)
+
+    def _bucket(ts: datetime) -> datetime:
+        if ts.tzinfo is None:
+            ts = ts.replace(tzinfo=UTC)
+        epoch = datetime(1970, 1, 1, tzinfo=UTC)
+        bucket_n = int((ts - epoch).total_seconds() // bucket_td.total_seconds())
+        return epoch + bucket_n * bucket_td
+
+    by_model: dict[str, dict[datetime, list[tuple[int, int]]]] = defaultdict(lambda: defaultdict(list))
+    for model_name, predicted_label, processed_at, ground_truth_safe in rows:
+        y_true = 0 if ground_truth_safe else 1
+        by_model[model_name][_bucket(processed_at)].append((predicted_label, y_true))
+
+    models: list[ModelTimeseries] = []
+    for model_name, buckets in sorted(by_model.items()):
+        points: list[MetricPoint] = []
+        for bucket_ts in sorted(buckets):
+            pairs = buckets[bucket_ts]
+            f1, precision, recall = _compute_metrics(pairs)
+            points.append(MetricPoint(
+                bucket=bucket_ts,
+                f1=f1,
+                precision=precision,
+                recall=recall,
+                sample_count=len(pairs),
+            ))
+        models.append(ModelTimeseries(model_name=model_name, points=points))
+
+    return TimeseriesResponse(models=models, bucket_minutes=bucket_minutes)
+
+
+@router.get("/taxonomy/timeseries", response_model=TaxonomyTimeseriesResponse)
+async def get_taxonomy_timeseries(
+    db: AsyncSession = Depends(get_db),
+    bucket_minutes: int = Query(default=60, ge=1, le=1440),
+) -> TaxonomyTimeseriesResponse:
+    """Taxonomy category flag counts bucketed by time window."""
+    result = await db.execute(
+        select(
+            ClassificationResult.taxonomy_labels,
+            ClassificationResult.processed_at,
+        )
+        .where(ClassificationResult.model_name == "taxonomy_classifier")
+        .where(ClassificationResult.taxonomy_labels.is_not(None))
+        .order_by(ClassificationResult.processed_at)
+    )
+    rows = result.all()
+
+    bucket_td = timedelta(minutes=bucket_minutes)
+
+    def _bucket(ts: datetime) -> datetime:
+        if ts.tzinfo is None:
+            ts = ts.replace(tzinfo=UTC)
+        epoch = datetime(1970, 1, 1, tzinfo=UTC)
+        bucket_n = int((ts - epoch).total_seconds() // bucket_td.total_seconds())
+        return epoch + bucket_n * bucket_td
+
+    def _parse_labels(raw: object) -> list[str]:
+        if isinstance(raw, list):
+            return raw
+        if isinstance(raw, str):
+            parsed = json.loads(raw)
+            return parsed if isinstance(parsed, list) else []
+        return []
+
+    by_bucket: dict[datetime, dict[str, int]] = defaultdict(lambda: defaultdict(int))
+    all_categories: set[str] = set()
+
+    for taxonomy_labels, processed_at in rows:
+        labels = _parse_labels(taxonomy_labels)
+        if not labels:
+            continue
+        b = _bucket(processed_at)
+        for label in labels:
+            by_bucket[b][label] += 1
+            all_categories.add(label)
+
+    buckets: list[TaxonomyBucket] = [
+        TaxonomyBucket(bucket=b, counts=dict(counts))
+        for b, counts in sorted(by_bucket.items())
+    ]
+
+    return TaxonomyTimeseriesResponse(
+        buckets=buckets,
+        categories=sorted(all_categories),
+        bucket_minutes=bucket_minutes,
+    )
 
 
 def _compute_metrics(pairs: list[tuple[int, int]]) -> tuple[float, float, float]:

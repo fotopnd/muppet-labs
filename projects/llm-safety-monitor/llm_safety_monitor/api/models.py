@@ -26,6 +26,7 @@ class Interaction(Base):
     )
     escalated: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
     escalation_reason: Mapped[str | None] = mapped_column(String(50), nullable=True)
+    reviewed: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
 
     classifications: Mapped[list[ClassificationResult]] = relationship(
         back_populates="interaction", lazy="select"

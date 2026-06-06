@@ -1,18 +1,27 @@
 from __future__ import annotations
 
-from fastapi import APIRouter, Depends
+from uuid import UUID
+
+from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from llm_safety_monitor.api.database import get_db
-from llm_safety_monitor.api.schemas import DisagreementSample, DisagreementsResponse
+from llm_safety_monitor.api.schemas import (
+    DisagreementSample,
+    DisagreementsResponse,
+    ReviewDecision,
+    ReviewDecisionResponse,
+)
 
 router = APIRouter(prefix="/cases", tags=["review"])
+
+_VALID_DECISIONS = {"approve", "dismiss", "escalate"}
 
 
 @router.get("", response_model=DisagreementsResponse)
 async def get_escalated_cases(db: AsyncSession = Depends(get_db)) -> DisagreementsResponse:
-    """Return escalated events for human review."""
+    """Return unreviewed escalated events for human review."""
     rows = (
         await db.execute(
             text("""
@@ -26,6 +35,7 @@ async def get_escalated_cases(db: AsyncSession = Depends(get_db)) -> Disagreemen
                     ON tax_c.event_id = i.id AND tax_c.model_name = 'taxonomy_classifier'
                 WHERE i.escalation_reason IS NOT NULL
                   AND i.escalation_reason != 'LOG_ONLY'
+                  AND i.reviewed = FALSE
                 ORDER BY i.created_at DESC
                 LIMIT 100
             """)
@@ -35,7 +45,9 @@ async def get_escalated_cases(db: AsyncSession = Depends(get_db)) -> Disagreemen
     total_row = await db.execute(
         text("""
             SELECT COUNT(*) FROM interactions
-            WHERE escalation_reason IS NOT NULL AND escalation_reason != 'LOG_ONLY'
+            WHERE escalation_reason IS NOT NULL
+              AND escalation_reason != 'LOG_ONLY'
+              AND reviewed = FALSE
         """)
     )
     total = total_row.scalar() or 0
@@ -51,3 +63,25 @@ async def get_escalated_cases(db: AsyncSession = Depends(get_db)) -> Disagreemen
         for row in rows
     ]
     return DisagreementsResponse(total=total, samples=samples)
+
+
+@router.post("/{case_id}/decide", response_model=ReviewDecisionResponse)
+async def decide_case(
+    case_id: UUID,
+    body: ReviewDecision,
+    db: AsyncSession = Depends(get_db),
+) -> ReviewDecisionResponse:
+    """Record a human review decision and remove the case from the queue."""
+    if body.decision not in _VALID_DECISIONS:
+        raise HTTPException(status_code=422, detail=f"decision must be one of {_VALID_DECISIONS}")
+
+    result = await db.execute(
+        text("UPDATE interactions SET reviewed = TRUE WHERE id = :id"),
+        {"id": case_id},
+    )
+    await db.commit()
+
+    if result.rowcount == 0:
+        raise HTTPException(status_code=404, detail="Case not found")
+
+    return ReviewDecisionResponse(case_id=case_id, decision=body.decision, acknowledged=True)
