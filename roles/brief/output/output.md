@@ -1,32 +1,30 @@
-# Brief Output — system-prompt-injection-detector
+# Brief Output — red-team-platform
 
 **Role:** brief
 **Sequence:** `new-project-full` (step 1)
-**Date:** 2026-06-06
+**Date:** 2026-06-07
 
 ---
 
 ## Project Name
 
-`system-prompt-injection-detector`
+`red-team-platform`
 
 ---
 
 ## Description
 
-A DistilBERT binary classifier and FastAPI middleware service that detects prompt injection attacks in AI agent pipelines, with a proxy endpoint that blocks flagged requests before they reach a downstream LLM, plus a React dashboard showing detection logs and model confidence distributions.
+A local automated red-team evaluation system that fires jailbreak attack prompts at a local Ollama model (qwen2.5-coder:7b), scores responses with a fine-tuned pair classifier, and surfaces results in a 6-tab React dashboard. The corpus is seeded from `sevdeawesome/jailbreak_success` (35 jailbreak strategies × 300 harm goals); harm categories are assigned at seed time by the trained taxonomy classifier. A failure clustering step auto-groups successful jailbreaks by semantic similarity and produces a visual "weakness map" showing where the monitor breaks down systematically.
 
 ---
 
 ## Language(s)
 
-- **Primary:** Python (classifier training + FastAPI service)
+- **Primary:** Python (corpus seeder, attack runner, clustering CLI, FastAPI backend)
 - **Frontend:** TypeScript (React SPA)
 - **Tooling:** uv, ruff, pnpm, prettier, eslint
 
-Two separate Python projects:
-- `injection-detector-training/` — standalone uv project for dataset preparation, synthetic data generation, and HuggingFace Trainer fine-tuning
-- `injection-detector/` — FastAPI service with Postgres logging and React dashboard
+Single Python project at `projects/red-team-platform/`. React SPA at `projects/red-team-platform/web/`.
 
 ---
 
@@ -34,69 +32,51 @@ Two separate Python projects:
 
 The project is done when all of the following are true:
 
-1. **Classifier training** — DistilBERT fine-tuned on SPML-Chatbot Prompt Injection benchmark (HuggingFace: `reshabhs/SPML_Chatbot_Prompt_Injection`) augmented with 5000 synthetic benign examples generated via Ollama (qwen2.5-coder:7b); saves best checkpoint by val F1.
-2. **Synthetic data generation** — CLI command `uv run generate-negatives --count 5000` calls Ollama and saves JSONL file; runs independently before training.
-3. **Eval metrics** — F1, precision, recall, AUC-ROC, and calibration bins (10 equal-width bins) reported and saved to eval JSON file.
-4. **Detection API** — `POST /detect` accepts `{system_prompt, user_message, tool_outputs}`, runs classifier on each field independently, returns per-field probabilities, overall flag, and max probability.
-5. **Proxy endpoint** — `POST /proxy` blocks requests where `overall_flagged=True` (returns HTTP 400 with DetectionResponse body) and forwards clean requests to a downstream LLM URL via httpx.
-6. **Postgres logging** — every `/detect` call logged to `detection_log` table; threshold configurable via `INJECTION_THRESHOLD=0.7` env var.
-7. **Dashboard** — 4-tab React SPA: Detection Log (paginated), Field Analysis (bar chart by field flag rate), Confidence Distribution (histogram of injection probabilities for flagged vs benign), Model Card (eval metrics + calibration chart).
-8. **Tests** — pytest for Python (training utilities, API endpoints); vitest for React components.
-9. **Runs locally on Apple M4 MPS** — training uses MPS; service runs locally against a Postgres instance on port 5438.
+1. **Corpus seeded** — `uv run seed-corpus` ingests `sevdeawesome/jailbreak_success` from HuggingFace, assigns `harm_category` to each attack by running the taxonomy classifier on the harm goal text, and upserts into the `attacks` table. Idempotent (re-running is safe).
+
+2. **Attack runner** — `uv run attack` fires each attack prompt at Ollama (qwen2.5-coder:7b), scores the response with the pair classifier, writes one `runs` row per attempt, and refreshes the `coverage_summary` materialised view on session close. Optional `--source`, `--harm-category`, `--strategy` filters.
+
+3. **Failure clustering** — `uv run cluster` reads all `jailbreak_success=True` runs from the DB, vectorises attack texts with TF-IDF, clusters with K-means (k=8 default, configurable via `CLUSTER_K` env var), writes cluster assignments to `failure_clusters` and summaries to `cluster_summaries`. Idempotent (overwrites existing cluster data for the same run of the command).
+
+4. **FastAPI backend** — six endpoints: `/coverage`, `/strategy-comparison`, `/regression`, `/attacks`, `/sessions`, `/clusters` (summaries + members). Pair classifier loaded at startup; fails fast if path invalid.
+
+5. **Dashboard** — 6-tab React SPA: Attack Browser, Coverage Heatmap, Strategy Comparison, Regression Tracker, Sample Review, Failure Clusters. Failure Clusters tab shows cluster summary cards with representative text, top category/strategy, cluster size, and an expandable members list.
+
+6. **Empirical benchmark report** — `benchmarks/results.md` with metrics table: attack success rate by strategy, by category, top 3 failure clusters, and timing (p50 latency_ms). This is the artifact that makes the portfolio piece credible, not just the code.
+
+7. **Tests** — pytest suite (mocked HuggingFace, mocked Ollama, mocked classifier); vitest suite (MSW-mocked API responses). All tests pass.
+
+8. **Runs locally** — Docker Compose brings up Postgres on port 5435. Backend on port 8003. Frontend on 5173.
 
 ---
 
 ## Constraints
 
-- **MPS only for training:** Apple M4 24GB; no CUDA. HuggingFace Trainer with MPS device.
-- **Synchronous detection:** no Kafka, no message queue — direct HTTP call to `/detect` per request.
-- **Postgres port 5438** (non-default; avoids conflict with other local services).
-- **Ollama must be running locally** for synthetic negative generation — documented prerequisite, not an automated fallback.
-- **Independent of llm-safety-monitor:** no shared code, no checkpoint dependencies, can be built in parallel.
-- **No real-time streaming:** dashboard is polling/query-based, not WebSocket.
+- **Classifiers are read-only.** `resources/models/llm-safety-monitor/pair-2026-06-07` and `resources/models/llm-safety-monitor/taxonomy-2026-06-07` are loaded as-is. No training occurs in this project.
+- **Ollama local only.** qwen2.5-coder:7b at `http://localhost:11434`. No cloud model calls.
+- **Postgres port 5435** — shared convention with llm-safety-monitor; use DB name `redteam` to avoid collision.
+- **No real-time streaming.** Dashboard polls; no WebSocket.
+- **Cluster computation is a CLI step**, not triggered automatically by the attack runner. Human runs `uv run cluster` after one or more attack sessions.
 
 ---
 
 ## Out of Scope
 
-- Multi-label injection classification (binary: injection=1, benign=0 only)
-- CUDA / cloud training (MPS local only)
-- Kafka or async queuing (synchronous service)
-- Fine-tuning beyond DistilBERT (one model; portfolio signal is the full pipeline, not model comparison)
-- Model A/B comparison dashboard tab (single model card is sufficient)
-- Automated Ollama dataset download (manual prerequisite; CLI assumes Ollama is running)
-- Browser extension or SDK wrapper (detection is via HTTP API only)
-- Authentication / rate limiting on the detection service (out of scope for v1)
+- Multi-model comparison (single Ollama model per run; regression chart shows history across runs)
+- Automated jailbreak generation (corpus is static; no LLM-generated attack augmentation in v1)
+- Authentication on the API
+- Cloud deployment
+- AdvBench or JailbreakBench (both unavailable on Hub; sevdeawesome is the replacement)
 
-## Open Questions for Planner
-
-1. **Prompt classifier size**: ~6k balanced training examples may be too small for a standalone DistilBERT fine-tune to be credible. Should we augment with additional adversarial prompt datasets (e.g. HarmBench, SALAD-Bench), or accept the small training set with a strong held-out eval narrative?
-
-1. **SPML dataset field names** — assumed to be `prompt` and `label` (or `text` and `label`); implementer must inspect the HuggingFace dataset card to confirm exact column names before writing the data loader.
-2. **Synthetic negatives generation** — Ollama prompt template produces plain-text user messages; outputs saved as JSONL with fields `{"text": "...", "label": 0}` matching the injection examples schema.
-3. **Label convention** — injection=1, benign=0 (consistent with pair_classifier convention used in other workspace projects).
-4. **Threshold default** — `INJECTION_THRESHOLD=0.7` in `.env`; lower values = more sensitive. Trade-off documented in README.
-5. **Proxy endpoint** — v1 (not deferred); small addition that provides the key production-realism signal.
-6. **Dashboard is a separate React SPA** — not served by FastAPI; same pattern as other workspace projects.
-7. **Checkpoint stored at** `resources/models/injection-detector-training/<model-key>-<YYYY-MM-DD>/` per workspace convention.
-8. **Eval JSON stored at** `resources/evals/injection-detector-training/<model-key>-<timestamp>.json` per workspace convention.
-9. **HuggingFace Trainer** — same training pattern as other projects; warmup_steps (integer) not warmup_ratio; no `no_cuda`; eval_strategy and save_strategy both set to `"epoch"`.
-10. **Tool outputs treated as independent fields** — each element of `tool_outputs` list is scored separately; field name in results is `tool_output_0`, `tool_output_1`, etc.
-
-3. **WildGuard for both models**: WildGuard contributes to both the pair classifier and the taxonomy classifier. Does it get split by use (some examples for pair, others for taxonomy), or does it appear in both training sets? Overlap risks data leakage if the eval set is not carefully stratified.
-
-4. **Replay producer mix**: the 60/25/10/5 dataset mix is an assumption. Should the mix be configurable at runtime via the dashboard (a "stream composition" control) or fixed in config? Configurable is more impressive as a demo feature but adds frontend complexity.
-
-5. **`response_text` column**: adding a new column to `classifications` requires a new Alembic migration. Confirm this is the right approach vs storing the response in a separate `interactions` table with a foreign key.
+---
 
 ## Handoff
 
 **Next role:** planner
 
-The planner reads this file to define functional requirements, confirm tech stack, map top-level file structure, and list open questions for the architect.
+The planner reads this file to define functional requirements, confirm the tech stack, map the full file/module structure, and raise any open questions for the architect.
 
 **Flags for planner:**
-- Assumption 1 (SPML dataset field names) — planner should note this as an open question for the architect; the implementer must inspect the dataset before writing the data loader.
-- Assumption 5 (proxy endpoint in v1) — confirm this is v1 scope; it adds one endpoint and one env var (`DOWNSTREAM_LLM_URL`).
-- Assumption 6 (separate React SPA) — confirm dashboard deployment pattern matches other workspace projects.
-- Assumption 10 (tool_outputs field naming in detection_log) — confirm JSONB schema can accommodate variable-length tool_outputs list.
+- The sevdeawesome dataset field names are unverified — planner should note this as an open question for the architect; the implementer must inspect before writing the data loader.
+- Cluster k=8 is a default. Planner should decide whether this is hardcoded or an env var (proposed: env var `CLUSTER_K`, default 8).
+- Port 8003 for the backend — confirm no existing workspace service uses this port.

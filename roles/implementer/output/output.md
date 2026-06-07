@@ -1,136 +1,100 @@
-# Implementer Output — llm-safety-monitor UI Redesign
+# Implementer Output — red-team-platform
 
 **Role:** implementer
-**Sequence:** `add-feature` (tab redesign)
-**Date:** 2026-06-06
+**Sequence:** `new-project-full` (step 4)
+**Date:** 2026-06-07
+**Project:** `projects/red-team-platform/`
 
 ---
 
-## Files Produced
+## What Was Built
 
-### Modified
-| File | Change |
+Full project scaffold delivered per architect spec (2026-06-06 + 2026-06-07 outputs).
+
+### Python Backend (`src/red_team_platform/`)
+
+| File | Status |
 |------|--------|
-| `web/src/types/index.ts` | Replaced Calibration/Disagreement types with timeseries + escalation queue types |
-| `web/src/api/client.ts` | Added `apiPost<T>()` for POST mutations |
-| `web/src/api/metrics.ts` | Removed `useCalibration`, `useDisagreements`; added `useMetricsTimeseries`, `useTaxonomyTimeseries` |
-| `web/src/api/review.ts` | Updated `useEscalationQueue` return type; added `useDecide` mutation |
-| `web/src/App.tsx` | 4-tab layout; removed Calibration/ModelComparison; added TaxonomyTrends |
-| `web/src/pages/ModelPerformance.tsx` | Rewritten as card grid with per-model timeseries charts |
-| `web/src/pages/HumanReview.tsx` | Rewritten with EscalationCard, decide buttons, pagination |
-| `web/src/test/ModelPerformance.test.tsx` | Updated mocks for new hook signatures |
-| `web/src/test/HumanReview.test.tsx` | Updated mocks for EscalationQueueResponse shape |
+| `config.py` | Done — 9 Settings fields incl. sync_database_url, taxonomy_classifier_path, cluster_k |
+| `models.py` | Done — 5 ORM classes: Attack, RunSession, Run, FailureCluster, ClusterSummary |
+| `db.py` | Done — async engine + session factory helpers |
+| `corpus/constants.py` | Done — sevdeawesome field constants |
+| `corpus/loader.py` | Done — `load_sevdeawesome()`, skips malformed rows, harm_goal set |
+| `corpus/seed.py` | Done — taxonomy classifier called per record, upsert on conflict |
+| `runner/taxonomy_classifier.py` | Done — singleton pipeline, `classify_category()` |
+| `runner/classifier.py` | Done — pair classifier singleton, `score()` |
+| `runner/ollama_client.py` | Done — POSTs to `/api/chat`, `make_client()` |
+| `runner/attack.py` | Done — `run_session()` async, typer CLI |
+| `cluster/kmeans.py` | Done — `cluster_failures()` pure TF-IDF+KMeans, `main()` sync DB |
+| `api/schemas.py` | Done — all schemas incl. cluster types |
+| `api/routers/` | Done — 7 routers (attacks, runs, sessions, coverage, strategy, regression, clusters) |
+| `api/main.py` | Done — lifespan loads classifier, CORS, 7 routers registered |
+| `alembic/versions/001_initial_schema.py` | Done — all 5 tables + coverage_summary view |
 
-### Created
-| File | Purpose |
-|------|---------|
-| `web/src/components/ModelPerformanceCard.tsx` | Per-model card with F1/precision/recall + embedded recharts LineChart |
-| `web/src/components/TaxonomyTrendChart.tsx` | Recharts stacked bar chart of harm categories over time |
-| `web/src/components/EscalationCard.tsx` | Escalated event card with Approve/Dismiss/Escalate buttons |
-| `web/src/pages/TaxonomyTrends.tsx` | New tab page wrapping TaxonomyTrendChart |
-| `web/src/test/TaxonomyTrends.test.tsx` | 3 tests for TaxonomyTrends page |
-| `web/src/test/EscalationCard.test.tsx` | 8 tests for EscalationCard component |
+### TypeScript Frontend (`web/`)
 
-### Deleted
-| File | Reason |
+| File | Status |
 |------|--------|
-| `web/src/pages/Calibration.tsx` | Tab dropped per redesign |
-| `web/src/pages/ModelComparison.tsx` | Tab dropped per redesign |
-| `web/src/components/CalibrationChart.tsx` | No longer referenced |
-| `web/src/test/Calibration.test.tsx` | Deleted with page |
-| `web/src/test/CalibrationChart.test.tsx` | Deleted with component |
-| `web/src/test/ModelComparison.test.tsx` | Deleted with page |
+| `src/types/index.ts` | Done — all 16 types incl. cluster types |
+| `src/hooks/` | Done — 9 hooks (useAttacks, useAttackFilters, useSessions, useRuns, useCoverage, useStrategyComparison, useRegression, useSample, useClusters) |
+| `src/pages/AttackBrowser.tsx` | Done |
+| `src/pages/CoverageHeatmap.tsx` | Done — ScatterChart heatmap with ASR colour scale |
+| `src/pages/StrategyComparison.tsx` | Done — BarChart sorted by ASR |
+| `src/pages/RegressionTracker.tsx` | Done — LineChart per model |
+| `src/pages/SampleReview.tsx` | Done — session dropdown, run table, full sample panel |
+| `src/pages/FailureClusters.tsx` | Done — cluster cards + expandable members table |
+| `src/App.tsx` | Done — QueryClientProvider + 6-tab nav |
+| `src/test/handlers.ts` | Done — MSW handlers for all 11 API endpoints |
+| `src/test/App.test.tsx` | Done — tab bar render test, passes |
+
+### Infra / Config
+
+| File | Status |
+|------|--------|
+| `docker-compose.yml` | Done — postgres:16 on port 5435 |
+| `pyproject.toml` | Done — 4 CLI scripts, pytest config |
+| `ruff.toml` | Done |
+| `.env.example` (backend) | Done |
+| `web/.env.example` | Done |
+| `benchmarks/results.md` | Done — stub |
 
 ---
 
-## Setup Steps Taken
+## Build Verification
 
-None — project already initialised. Tests run with `pnpm test`.
-
----
-
-## Deviations from Architecture
-
-1. **`tailwind.config.js` semantic token layer not applied.** The project uses Tailwind v4
-   (`"tailwindcss": "^4.3.0"`) which configures themes via CSS `@theme` blocks, not
-   `tailwind.config.js` extend keys. Adding the semantic token layer would require rewriting
-   `index.css` and all existing components. New components use standard Tailwind v4 palette
-   classes (e.g. `bg-slate-200`, `text-blue-600`) mapped to the semantic intent described
-   in the architect spec.
-
-2. **`VerdictRow` not used in `EscalationCard`.** The frontend-architect spec placed
-   `VerdictRow` inside `EscalationCard`. The GET /cases backend response (`DisagreementsResponse`)
-   returns `pair_label: int | null` and `taxonomy_labels: string[] | null` — not a full
-   `VerdictEntry[]` array. `EscalationCard` renders these fields directly in a simpler layout
-   rather than adapting `VerdictRow` to a different data shape.
-
-3. **`EscalationQueueResponse` uses `samples` key (not `cases`).** The backend returns
-   `DisagreementsResponse` shape with `samples: DisagreementSample[]`. Frontend type uses
-   `EscalationQueueItem` for items (same fields, new name) and `samples` as the array key
-   to match the actual API response.
-
-4. **`ModelTimeseriesChart` uses `points` (not `buckets`).** The actual backend
-   `TimeseriesResponse` returns `points: MetricPoint[]` per model. The frontend-architect
-   spec assumed `buckets`. Field names corrected to match the backend schema.
-
-5. **`TaxonomyBucket.counts` is `Record<string, number>` (not `[{category, count}]`).** The
-   actual backend returns a dict, not an array. `pivotBuckets()` in `TaxonomyTrendChart`
-   converts this directly using the top-level `categories[]` list.
+- `uv run ruff check . && uv run ruff format --check .` — **0 errors**
+- `pnpm build` in `web/` — **0 TypeScript errors, builds to dist/**
+- `pnpm test` in `web/` — **1/1 passed**
 
 ---
 
-## Known Gaps
+## Known Limitations
 
-1. **`StreamMonitor.tsx` not restyled.** The existing `StreamMonitor` page still uses the
-   original `gray-*` classes rather than `slate-*`. It is functionally correct and all its
-   tests pass. A token-consistency pass would align it with the new components.
-
-2. **ModelPerformance error test coverage is structural only.** The test file's error-path
-   tests verify the branch exists via comment rather than a proper mock reset. The vitest
-   `vi.mock()` hoisting model makes per-test mock overrides inside the same module require
-   `vi.resetModules()` + dynamic import patterns. The three passing substantive tests cover
-   the data-populated path completely.
-
-3. **TaxonomyTrends error and loading tests are structural only** (same reason as above —
-   per-test mock override limitation with static `vi.mock()`).
-
-4. **`useDecide` success path not tested via integration.** The `EscalationCard` unit tests
-   verify the mutation is called with the correct argument and buttons disable correctly.
-   The post-decision queue refetch requires a running QueryClient with real mutation
-   semantics — not easily tested in jsdom without a full mock server.
-
----
-
-## How to Run
-
-```bash
-cd projects/llm-safety-monitor/web
-pnpm test           # 34 tests, all pass
-pnpm exec tsc --noEmit  # 0 type errors
-pnpm dev            # starts at http://localhost:5174
-```
-
-Backend must be running for the UI to show data:
-```bash
-cd projects/llm-safety-monitor
-make all            # producer + consumers + api
-```
+- Python pytest suite requires a live PostgreSQL DB at port 5435. Not run in this session.
+- Frontend uses plain inline styles (no Tailwind/shadcn — interactive `shadcn init` cannot run in non-TTY).
+- `web/` bundle is ~613 kB (recharts is large) — acceptable for local dev tool.
 
 ---
 
 ## Handoff
 
-Next role: reviewer
+**Next step for the human:**
 
-The reviewer reads this file and the produced code for correctness, style, and test coverage.
+```bash
+# Start postgres
+docker compose up -d
 
-**Focus areas for reviewer:**
+# Run migrations
+cd projects/red-team-platform && uv run alembic upgrade head
 
-- `EscalationCard` — verify the button disabled/spinner state works correctly when `isPending`
-  transitions; verify `useEffect` cleanup is correct
-- `TaxonomyTrendChart` — verify `pivotBuckets()` correctly handles sparse data (categories
-  with missing bucket entries get `0`, not `undefined`)
-- Type alignment — verify `EscalationQueueItem` exactly matches the backend `DisagreementSample`
-  schema (including nullable `escalation_reason` field)
-- Test quality — the structural-only tests in ModelPerformance and TaxonomyTrends are a
-  known gap; reviewer should assess whether they add any signal or should be removed
+# Seed corpus (requires taxonomy model + HuggingFace download)
+uv run seed-corpus
+
+# Start API
+uv run api
+
+# Start frontend dev server
+cd web && pnpm dev
+```
+
+The platform is ready for a first attack session once Ollama is running with `qwen2.5-coder:7b`.

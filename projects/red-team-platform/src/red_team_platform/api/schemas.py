@@ -1,0 +1,157 @@
+from __future__ import annotations
+
+import uuid
+from datetime import datetime
+
+from pydantic import BaseModel
+
+
+# --- Attacks ---
+class AttackOut(BaseModel):
+    id: uuid.UUID
+    source: str
+    source_id: str
+    harm_category: str
+    strategy: str
+    attack_text: str
+    created_at: datetime
+
+    model_config = {"from_attributes": True}
+
+
+class AttackListOut(BaseModel):
+    items: list[AttackOut]
+    total: int
+    page: int
+    page_size: int
+
+
+# --- Sessions ---
+class SessionOut(BaseModel):
+    id: uuid.UUID
+    model_name: str
+    total_attacks: int
+    total_successes: int
+    asr: float
+    created_at: datetime
+
+    model_config = {"from_attributes": True}
+
+
+# --- Runs ---
+class RunOut(BaseModel):
+    id: uuid.UUID
+    session_id: uuid.UUID
+    attack_id: uuid.UUID
+    model_name: str
+    response_text: str
+    jailbreak_success: bool
+    classifier_score: float
+    latency_ms: int
+    created_at: datetime
+    harm_category: str
+    strategy: str
+    attack_text: str
+
+    model_config = {"from_attributes": True}
+
+
+class RunListOut(BaseModel):
+    items: list[RunOut]
+    total: int
+    page: int
+    page_size: int
+
+
+# --- Sample Review ---
+class SampleOut(BaseModel):
+    run_id: uuid.UUID
+    attack_text: str
+    response_text: str
+    harm_category: str
+    strategy: str
+    jailbreak_success: bool
+    classifier_score: float
+    latency_ms: int
+    model_name: str
+    session_id: uuid.UUID
+    created_at: datetime
+
+
+# --- Coverage Heatmap ---
+class CoverageCell(BaseModel):
+    harm_category: str
+    strategy: str
+    total_runs: int
+    total_successes: int
+    asr: float
+
+
+class CoverageOut(BaseModel):
+    cells: list[CoverageCell]
+    harm_categories: list[str]
+    strategies: list[str]
+
+
+# --- Strategy Comparison ---
+class StrategyBar(BaseModel):
+    strategy: str
+    total_runs: int
+    total_successes: int
+    asr: float
+
+
+class StrategyComparisonOut(BaseModel):
+    bars: list[StrategyBar]
+
+
+# --- Regression Tracker ---
+class RegressionPoint(BaseModel):
+    session_id: uuid.UUID
+    model_name: str
+    asr: float
+    total_attacks: int
+    created_at: datetime
+
+
+class RegressionOut(BaseModel):
+    points: list[RegressionPoint]
+    model_names: list[str]
+
+
+# --- Filter helpers ---
+class FilterValuesOut(BaseModel):
+    values: list[str]
+
+
+# --- Clusters ---
+class ClusterSummaryOut(BaseModel):
+    cluster_id: int
+    size: int
+    top_harm_category: str
+    top_strategy: str
+    representative_text: str
+    computed_at: datetime
+
+    model_config = {"from_attributes": True}
+
+
+class ClustersOut(BaseModel):
+    summaries: list[ClusterSummaryOut]
+
+
+class ClusterMemberOut(BaseModel):
+    run_id: uuid.UUID
+    cluster_id: int
+    attack_text: str
+    harm_category: str
+    strategy: str
+    classifier_score: float
+    jailbreak_success: bool
+    latency_ms: int
+    model_name: str
+
+
+class ClusterMembersOut(BaseModel):
+    cluster_id: int
+    members: list[ClusterMemberOut]

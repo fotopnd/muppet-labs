@@ -1,0 +1,159 @@
+from __future__ import annotations
+
+import asyncio
+import logging
+import uuid
+from typing import Annotated
+
+import typer
+from sqlalchemy import select, text, update
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from red_team_platform.models import Attack, Run, RunSession
+from red_team_platform.runner.classifier import get_classifier, score
+from red_team_platform.runner.ollama_client import chat, make_client
+
+logger = logging.getLogger(__name__)
+
+app = typer.Typer()
+
+
+async def run_session(
+    session: AsyncSession,
+    model_name: str,
+    source_filter: str | None,
+    harm_category_filter: str | None,
+    strategy_filter: str | None,
+    ollama_base_url: str,
+    ollama_model: str,
+    ollama_timeout_s: int,
+) -> uuid.UUID:
+    """
+    Creates a RunSession row, iterates over filtered attacks, fires each at Ollama,
+    scores with pair_classifier, writes Run rows, closes session with aggregate stats,
+    refreshes coverage_summary materialised view.
+    Returns the session UUID.
+    """
+    # Build attack query
+    stmt = select(Attack)
+    if source_filter:
+        stmt = stmt.where(Attack.source == source_filter)
+    if harm_category_filter:
+        stmt = stmt.where(Attack.harm_category == harm_category_filter)
+    if strategy_filter:
+        stmt = stmt.where(Attack.strategy == strategy_filter)
+
+    result = await session.execute(stmt)
+    attacks = result.scalars().all()
+
+    if not attacks:
+        logger.warning("No attacks found matching filters. Exiting.")
+        raise SystemExit(1)
+
+    logger.info("Found %d attacks to run", len(attacks))
+
+    # Create run session
+    run_session_obj = RunSession(model_name=model_name)
+    session.add(run_session_obj)
+    await session.flush()
+    session_id = run_session_obj.id
+
+    total_attacks = 0
+    total_successes = 0
+
+    async with make_client(ollama_base_url, ollama_timeout_s) as client:
+        for i, attack in enumerate(attacks):
+            try:
+                response_text, latency_ms = await chat(client, ollama_model, attack.attack_text)
+            except Exception as exc:
+                logger.warning(
+                    "Attack %s timed out or failed: %s",
+                    attack.id,
+                    exc,
+                    exc_info=True,
+                )
+                continue
+
+            jailbreak_success, classifier_score = score(response_text)
+
+            run = Run(
+                session_id=session_id,
+                attack_id=attack.id,
+                model_name=model_name,
+                response_text=response_text,
+                jailbreak_success=jailbreak_success,
+                classifier_score=classifier_score,
+                latency_ms=latency_ms,
+            )
+            session.add(run)
+
+            total_attacks += 1
+            if jailbreak_success:
+                total_successes += 1
+
+            if (i + 1) % 10 == 0:
+                logger.info(
+                    "Progress: %d / %d attacks | successes: %d",
+                    i + 1,
+                    len(attacks),
+                    total_successes,
+                )
+                await session.flush()
+
+    # Update session stats
+    asr = total_successes / total_attacks if total_attacks > 0 else 0.0
+    await session.execute(
+        update(RunSession)
+        .where(RunSession.id == session_id)
+        .values(total_attacks=total_attacks, total_successes=total_successes, asr=asr)
+    )
+    await session.commit()
+
+    # Refresh coverage materialised view
+    await session.execute(text("REFRESH MATERIALIZED VIEW coverage_summary"))
+    await session.commit()
+
+    logger.info(
+        "Session %s complete. Attacks: %d, Successes: %d, ASR: %.3f",
+        session_id,
+        total_attacks,
+        total_successes,
+        asr,
+    )
+    return session_id
+
+
+@app.command()
+def main(
+    source: Annotated[str | None, typer.Option("--source")] = None,
+    harm_category: Annotated[str | None, typer.Option("--harm-category")] = None,
+    strategy: Annotated[str | None, typer.Option("--strategy")] = None,
+) -> None:
+    logging.basicConfig(
+        level=logging.INFO,
+        format="%(asctime)s %(name)s %(levelname)s %(message)s",
+    )
+
+    from red_team_platform.config import get_settings
+    from red_team_platform.db import create_engine, create_session_factory
+
+    settings = get_settings()
+    get_classifier(settings.pair_classifier_path)
+
+    async def _run() -> None:
+        engine = create_engine(settings.database_url)
+        factory = create_session_factory(engine)
+        async with factory() as db_session:
+            await run_session(
+                session=db_session,
+                model_name=settings.ollama_model,
+                source_filter=source,
+                harm_category_filter=harm_category,
+                strategy_filter=strategy,
+                ollama_base_url=settings.ollama_base_url,
+                ollama_model=settings.ollama_model,
+                ollama_timeout_s=settings.ollama_timeout_s,
+            )
+        await engine.dispose()
+
+    asyncio.run(_run())

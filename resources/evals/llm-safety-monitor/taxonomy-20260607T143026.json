@@ -1,0 +1,85 @@
+{
+  "model_type": "taxonomy",
+  "f1": 0.7874054637777376,
+  "precision": 0.0,
+  "recall": 0.0,
+  "per_category_f1": {
+    "causing_material_harm_by_disseminating_misinformation": 0.584070796460177,
+    "copyright_violations": 0.945054945054945,
+    "cyberattack": 0.9028571428571428,
+    "defamation_encouraging_unethical_or_unsafe_actions": 0.5903083700440529,
+    "disseminating_false_or_misleading_information_encouraging_disinformation_campaigns": 0.8341708542713567,
+    "fraud_assisting_illegal_activities": 0.721030042918455,
+    "mental_health_over-reliance_crisis": 0.6231884057971014,
+    "private_information_individual": 0.8636363636363636,
+    "sensitive_information_organization_government": 0.8203125,
+    "sexual_content": 0.8246445497630331,
+    "social_stereotypes_and_unfair_discrimination": 0.9228395061728395,
+    "toxic_language_hate_speech": 0.7612456747404844,
+    "violence_and_physical_harm": 0.842911877394636
+  },
+  "calibration_bins": [
+    {
+      "bin_lower": 0.0,
+      "bin_upper": 0.1,
+      "count": 2506,
+      "actual_positive_rate": 0.017158818834796488
+    },
+    {
+      "bin_lower": 0.1,
+      "bin_upper": 0.2,
+      "count": 47,
+      "actual_positive_rate": 0.46808510638297873
+    },
+    {
+      "bin_lower": 0.2,
+      "bin_upper": 0.3,
+      "count": 40,
+      "actual_positive_rate": 0.8
+    },
+    {
+      "bin_lower": 0.3,
+      "bin_upper": 0.4,
+      "count": 58,
+      "actual_positive_rate": 0.8793103448275862
+    },
+    {
+      "bin_lower": 0.4,
+      "bin_upper": 0.5,
+      "count": 54,
+      "actual_positive_rate": 0.7407407407407407
+    },
+    {
+      "bin_lower": 0.5,
+      "bin_upper": 0.6,
+      "count": 78,
+      "actual_positive_rate": 0.9358974358974359
+    },
+    {
+      "bin_lower": 0.6,
+      "bin_upper": 0.7,
+      "count": 57,
+      "actual_positive_rate": 0.8771929824561403
+    },
+    {
+      "bin_lower": 0.7,
+      "bin_upper": 0.8,
+      "count": 109,
+      "actual_positive_rate": 0.8899082568807339
+    },
+    {
+      "bin_lower": 0.8,
+      "bin_upper": 0.9,
+      "count": 199,
+      "actual_positive_rate": 0.9195979899497487
+    },
+    {
+      "bin_lower": 0.9,
+      "bin_upper": 1.0,
+      "count": 1189,
+      "actual_positive_rate": 0.9823380992430614
+    }
+  ],
+  "sample_count": 4337,
+  "timestamp": "2026-06-07T14:30:26.043534+00:00"
+}

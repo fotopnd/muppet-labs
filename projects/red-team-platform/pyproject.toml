@@ -1,0 +1,49 @@
+[project]
+name = "red-team-platform"
+version = "0.1.0"
+description = "Automated red-team evaluation platform with jailbreak corpus, attack runner, failure clustering, and dashboard"
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = [
+    "alembic>=1.18.4",
+    "asyncpg>=0.31.0",
+    "datasets>=5.0.0",
+    "fastapi>=0.136.3",
+    "httpx>=0.28.1",
+    "psycopg2-binary>=2.9.12",
+    "pydantic>=2.13.4",
+    "pydantic-settings>=2.14.1",
+    "scikit-learn>=1.9.0",
+    "scipy>=1.17.1",
+    "sqlalchemy>=2.0.50",
+    "transformers>=5.10.2",
+    "uvicorn[standard]>=0.49.0",
+]
+
+[project.scripts]
+seed-corpus = "red_team_platform.corpus.seed:main"
+attack      = "red_team_platform.runner.attack:main"
+cluster     = "red_team_platform.cluster.kmeans:main"
+api         = "red_team_platform.api.main:run_server"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/red_team_platform"]
+
+[tool.uv]
+package = true
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+
+[dependency-groups]
+dev = [
+    "pytest>=9.0.3",
+    "pytest-asyncio>=1.4.0",
+    "pytest-httpserver>=1.1.5",
+    "pytest-mock>=3.15.1",
+    "ruff>=0.15.16",
+]
