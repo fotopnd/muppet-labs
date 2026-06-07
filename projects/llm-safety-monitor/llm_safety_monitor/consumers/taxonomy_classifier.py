@@ -33,7 +33,7 @@ class HarmTaxonomyClassifier(BaseConsumer):
         import torch  # deferred
 
         start = time.perf_counter()
-        enc = self._tokenizer(text, truncation=True, max_length=512, return_tensors="pt")
+        enc = self._tokenizer(text, truncation=True, max_length=128, return_tensors="pt")
         with torch.no_grad():
             logits = self._model(**enc).logits
         probs = torch.sigmoid(logits[0]).tolist()

@@ -34,7 +34,7 @@ class PromptAdversarialDetector(BaseConsumer):
 
     def classify(self, text: str) -> ClassifyResult:
         start = time.perf_counter()
-        enc = self._tokenizer(text, truncation=True, max_length=512, return_tensors="pt")
+        enc = self._tokenizer(text, truncation=True, max_length=128, return_tensors="pt")
         with torch.no_grad():
             logits = self._model(**enc).logits
         probs = torch.softmax(logits[0], dim=-1)
