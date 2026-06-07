@@ -1,8 +1,8 @@
-# Design Brief Output — llm-safety-monitor (UI Redesign)
+# Design Brief Output — error-hide-seek
 
 **Role:** design-brief
-**Sequence:** `add-feature` (tab redesign — post-implementer amendment)
-**Date:** 2026-06-06
+**Sequence:** `new-project-full` (step 4)
+**Date:** 2026-06-07
 
 ---
 
@@ -10,126 +10,64 @@
 
 **Application Dashboard.**
 
-This is a real-time LLM safety monitoring tool — three purpose-trained classifiers processing a
-continuous replay of LLM interaction datasets, surfacing escalations, calibration state, and
-harm taxonomy trends to a technical operator. The use is entirely operational: no marketing
-intent, no documentation purpose. Application Dashboard context applies: high data density,
-monospace metric display, sticky tab navigation, real-time polling throughout.
+error-hide-seek is a single-user research tool — a researcher runs experiments, reviews abstracts one-by-one, and reads detection rates. There is no marketing intent and no documentation purpose. The review page is task-focused (action surface for flagging errors); the results page is data-dense (metric table with computed uplift). Both pages call for the Application Dashboard register: clean structure, monospace for metrics, operational clarity over decoration.
 
 ---
 
 ## Primary Interaction
 
-**Understand what the classifiers are catching right now and act on escalated cases.**
+**Read an altered AI safety abstract (with optional blue team annotation highlights), flag suspected planted errors by selecting text, and submit detections.**
 
-The user arrives to answer two questions in sequence: (1) Is the live stream producing flagged
-events at the expected rate, and what are the three classifiers saying about them? (2) Which
-escalated events need a human decision? The StreamMonitor and HumanReview panels are the
-operational core. ModelPerformance and Taxonomy Trends are the diagnostic layer — a user who
-sees an unexpected F1 drop or a taxonomy spike navigates there to investigate.
+The ReviewPage is where the experiment runs. Everything else — experiment setup, results — is secondary. A user arrives at `/review/:sessionId`, reads the abstract, uses the Selection API to highlight and flag suspicious text, and submits. The ResultsPage is a read-out, not an action surface.
 
 ---
 
 ## Key Visual Components
 
-1. **EventFeedItem** — the content unit for the StreamMonitor tab. Each item displays:
-   prompt text (truncated), `SourceBadge`, `VerdictRow` (three classifier verdicts inline),
-   and `EscalationReasonBadge` (only rendered when `escalation_reason` is non-null). Items
-   are stacked vertically; the feed scrolls. No interaction — read-only.
+1. **`AnnotatedAbstract`** — the abstract text rendered with inline highlighted `<mark>` spans for each blue team annotation. Highlight colour varies by confidence: amber for high, yellow-100 for medium, slate-100 for low. Hovering a span shows a tooltip with the confidence badge and reason text. Absent for `unaided` sessions (abstract renders as plain text). The most visually distinctive component in the interface.
 
-2. **VerdictRow** — a 3-column inline display shared by `EventFeedItem` and `EscalationCard`.
-   Column 1: pair classifier verdict (Safe/Unsafe badge). Column 2: prompt detector verdict
-   (Benign/Adversarial badge). Column 3: taxonomy classifier output (one chip per active
-   HarmCategory, or muted "none" text when `taxonomy_labels` is empty).
+2. **`SelectionFloater`** — a floating button that appears near the user's text selection when the selection is ≥15 characters. Label: "Flag selection". Clicking appends `{text_excerpt, note: ""}` to the detection list and clears the browser selection. Invisible and non-interactive below the 15-character threshold.
 
-3. **ModelPerformanceCard** — one card per classifier. Displays F1, precision, recall as
-   monospace numeric values sourced from `GET /metrics`. Embeds a recharts `LineChart`
-   showing the F1 timeseries from `GET /metrics/timeseries?bucket_minutes=60`. The chart
-   renders with the model name as its heading; time on x-axis, F1 (0–1) on y-axis.
+3. **`DetectionList`** — the staged list of flagged excerpts below the abstract. Each item: a monospace excerpt chip (truncated to 60 chars), an optional note `<input>`, and a remove ×  button. Empty state: "No errors flagged yet — select text above to flag." Submit button at the bottom, disabled while mutation is in-flight. An empty detection list is valid (the human found nothing).
 
-4. **TaxonomyTrendChart** — recharts chart for the Taxonomy Trends tab. X-axis: time
-   bucket timestamps from `GET /metrics/taxonomy/timeseries?bucket_minutes=60`. Y-axis:
-   event count. One series per harm category present in the response. Renders a
-   "No taxonomy data yet" placeholder when the dataset is empty.
+4. **`UpliftHero`** — the headline metric on ResultsPage. Large numeric display: `+X.X%` (emerald) when uplift > 0, `-X.X%` (destructive/red) when uplift < 0, "Results incomplete" (muted, smaller) when any required condition is still in progress.
 
-5. **EscalationCard** — the content unit for the HumanReview tab. Displays: prompt text
-   (truncated), response text (truncated, or "(no response)"), `VerdictRow`, and
-   `EscalationReasonBadge`. Includes three action buttons: **Approve**, **Dismiss**,
-   **Escalate** — each POSTs `{"decision": "approve"|"dismiss"|"escalate"}` to
-   `POST /cases/{id}/decide`. Buttons are disabled while a submission is in-flight.
+5. **`ConditionResultsTable`** — a three-column table (Unaided / Agent Only / Human + Agent). Rows: True Positive Rate, False Positive Rate, Sessions Complete. The Human + Agent TPR cell is background-highlighted — emerald-50 if uplift > 0, rose-50 if negative, default if null. All numeric values render in monospace. Below the main table: a per-category breakdown table (rows = error categories, columns = conditions, cells = TPR % or "—" if condition incomplete).
 
 ---
 
 ## Done Criteria
 
-1. `PanelTabBar` has exactly 4 tabs: **Stream Monitor | Model Performance | Taxonomy Trends |
-   Human Review**. Active tab has a visible primary-accent bottom border (`border-b-2
-   border-primary`); inactive tabs have no underline or background accent.
+1. `AnnotatedAbstract` renders: highlighted spans have visually distinct background (amber, yellow-100, or slate-100 by confidence level); hovering a span reveals a tooltip containing a confidence badge and one-sentence reason; plain text renders with no highlights for `unaided` sessions.
 
-2. StreamMonitor renders `EventFeedItem` entries correctly: prompt text is visibly truncated,
-   `SourceBadge` renders with a distinct color for each of the 5 `SourceDataset` values
-   (hh-rlhf=blue, wildguard=purple, advbench=red, jailbreakbench=orange, live=green),
-   `VerdictRow` renders all three classifier verdicts in separate columns, and
-   `EscalationReasonBadge` is absent (not an empty element) when `escalation_reason` is null.
+2. `SelectionFloater` appears when the user highlights ≥15 characters of abstract text; does **not** appear for selections shorter than 15 characters. Clicking "Flag selection" adds the excerpt to the detection list and the selection is cleared.
 
-3. `VerdictRow` renders correctly across all verdict states: pair=Safe (neutral badge),
-   pair=Unsafe (red/destructive badge), taxonomy with 0 active categories ("none" in muted
-   text), taxonomy with ≥1 active categories (one chip per category).
+3. `DetectionList` renders: each detection item shows a monospace truncated excerpt, an optional note field, and a remove button; the empty state message is shown (not an empty container) when no detections are staged; the submit button is disabled while the review mutation is in-flight.
 
-4. ModelPerformance renders one `ModelPerformanceCard` per classifier. Each card shows
-   F1/precision/recall as numeric values in the monospace font. The embedded `LineChart`
-   renders with ≥1 data point and shows a "No timeseries data" placeholder when the
-   timeseries response returns an empty bins array.
+4. ReviewPage shows a "Session already completed" banner (not the detection form) when `session.status === 'completed'`. The abstract and any annotations remain visible in read-only form.
 
-5. Taxonomy Trends renders `TaxonomyTrendChart` with: time buckets on the x-axis, counts on
-   the y-axis, and one rendered series per harm category present in the response data.
-   When the endpoint returns empty data, the tab shows "No taxonomy data yet" — no broken
-   empty chart axes.
+5. `UpliftHero` renders the correct semantic state: emerald text for positive uplift, destructive/red for negative, muted "Results incomplete" text when `uplift === null`. The numeric format is always `+X.X%` or `-X.X%` (one decimal, sign explicit).
 
-6. HumanReview renders one `EscalationCard` per pending case. Approve/Dismiss/Escalate
-   buttons are visible and enabled when idle; disabled while a submission is in-flight. After
-   a successful decision, the card is removed from the view. When the queue is empty, the
-   panel shows an explicit "No pending cases" message — not an empty list.
+6. `ConditionResultsTable` renders: three columns are present regardless of condition completeness; the Human + Agent TPR cell has an emerald-50 background when uplift > 0 and rose-50 when negative; incomplete conditions show "—" (not 0% or blank) in all cells; all percentage values are in the monospace font.
 
-7. Every panel shows a `Skeleton` loading state while its API call is in-flight. Each panel
-   independently renders a named error state (e.g. "Stream unavailable — retrying") when its
-   call fails, without affecting sibling panels.
+7. The per-category breakdown table below `ConditionResultsTable` renders: one row per error category present in the experiment, three columns (one per condition), each cell showing the category TPR % or "—". The table has a visible header row with condition labels.
 
-8. All metric values (F1, precision, recall, confidence) render in the monospace font. All
-   category labels, model names, and headings render in the primary sans-serif.
+8. Both pages show named loading skeletons while their primary API call is in-flight, and a named error message (e.g. "Session unavailable — check API") on failure. Error state does not render partial data.
 
-9. No arbitrary pixel values appear in any `className` string (no `h-[13px]`, `w-[342px]`,
-   no `style=""`); all spacing uses Tailwind scale tokens.
+9. No arbitrary pixel values appear in any `className` string (`h-[13px]`, `w-[342px]`, `style=""` are all banned). All spacing uses Tailwind scale tokens.
 
 ---
 
 ## Handoff
 
-The `frontend-architect` reads this file alongside `roles/architect/output/output.md` and
-`resources/design_style.md`.
+The `frontend-architect` reads this file alongside `roles/architect/output/output.md` and `resources/design_style.md`.
 
 **Open decisions for frontend-architect to resolve:**
 
-- **TaxonomyTrendChart chart type:** With up to 13 harm categories (most sparse), the
-  architect should choose between grouped bar, stacked bar, and multi-line. Grouped bar is
-  readable for few active categories; stacked bar communicates total volume; multi-line
-  handles sparse data cleanly. Decide before specifying the component.
+- **`SelectionFloater` positioning strategy:** The floating "Flag selection" button must appear near the user's text selection. Two options: (a) use `window.getSelection().getRangeAt(0).getBoundingClientRect()` to position with `position: fixed`, rendered via a React portal; (b) position relative to the abstract container using a ref. Option (a) is more accurate across scroll positions; (b) is simpler. Frontend-architect decides.
 
-- **`ModelPerformanceCard` timeseries bucket:** The `/metrics/timeseries` endpoint accepts
-  `bucket_minutes` as a query param. Decide whether this is fixed at 60 in the hook
-  (simple, no UI control) or configurable via a UI dropdown (adds a filter control to the
-  ModelPerformance tab). If configurable, specify the dropdown component and values.
+- **Overlapping annotation highlights:** If two `AnnotatedAbstract` annotations cover overlapping text ranges, the substring-search segmentation algorithm may produce nested or crossed highlights. Frontend-architect should specify the tiebreaker — proposed: first annotation wins (process in index order, skip annotations whose text is already inside a prior highlighted segment).
 
-- **EscalationCard list management:** After a decision is submitted, decide between
-  optimistic removal (remove immediately on button click, rollback on error) vs
-  refetch-on-success (re-query the queue; card disappears when queue response updates).
-  Optimistic is snappier; refetch is simpler and safer.
+- **ResultsPage polling:** Should `useResults` poll at an interval while any condition is incomplete? This would let the page update live as sessions are completed without a manual refresh. Proposed: poll every 30s if `uplift === null` (conditions incomplete), stop polling once all conditions complete. Frontend-architect confirms or drops.
 
-- **HumanReview pagination:** If the escalation queue grows large, decide between paginated
-  list (a fixed page size with prev/next controls) or scroll-based rendering. Pagination
-  is easier to implement and avoids DOM cost; frontend-architect to choose based on expected
-  queue depth.
-
-- **Tabs dropped from original design:** `Calibration` and `Model Comparison` tabs are
-  explicitly removed in this redesign. Frontend-architect should not re-introduce these
-  or reference their components in the new spec.
+- **Category breakdown table placement:** The per-category breakdown could be a separate collapsible section below `ConditionResultsTable`, or always-visible. Frontend-architect decides based on how many rows are typically expected (5 error categories max — always-visible is cleaner).

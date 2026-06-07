@@ -1,37 +1,29 @@
-# Frontend-Architect Output — llm-safety-monitor (UI Redesign)
+# Frontend-Architect Output — error-hide-seek
 
 **Role:** frontend-architect
-**Sequence:** `add-feature` (tab redesign)
-**Date:** 2026-06-06
+**Sequence:** `new-project-full` (step 5)
+**Date:** 2026-06-07
 
 ---
 
 ## Open Decision Resolutions (from design-brief)
 
-- **TaxonomyTrendChart chart type:** Stacked bar chart. With up to 13 harm categories (most
-  sparse at any bucket), stacked bars communicate total flagged volume and per-category
-  composition simultaneously. Render only categories that appear in the response — no zero-count
-  series. Legend is auto-generated from active category names.
+- **SelectionFloater positioning:** React portal (`createPortal` into `document.body`) with `position: fixed` computed from `window.getSelection().getRangeAt(0).getBoundingClientRect()`. More accurate than container-relative positioning across scroll. The `style` prop is necessary for dynamic computed coordinates — this is an explicit exception to the no-inline-style rule (see Constraints Applied §1).
 
-- **ModelPerformanceCard timeseries bucket:** Fixed at `bucket_minutes=60` in the hook. No UI
-  control. Adds no portfolio value; keeps the tab layout clean.
+- **Overlapping annotation highlights:** First occurrence wins. Before segmenting, sort annotations by `abstract.toLowerCase().indexOf(ann.text_excerpt.toLowerCase())` ascending. During segmentation, track `coveredUntil: number`; skip any annotation whose `indexOf` result falls within `[pos, coveredUntil)`.
 
-- **EscalationCard list management:** Refetch-on-success. After `POST /cases/{id}/decide`
-  returns 200, call `queryClient.invalidateQueries(['escalation-queue'])`. Simpler than
-  optimistic removal and avoids rollback complexity.
+- **ResultsPage polling:** `refetchInterval: (query) => query.state.data?.uplift === null ? 30_000 : false`. Polls every 30s while `uplift` is null; stops automatically once all conditions are complete.
 
-- **HumanReview pagination:** Client-side pagination, page size 20. The API returns the full
-  queue; the page component slices it. If the queue regularly exceeds 100 items, move
-  pagination to the API layer in a follow-up.
+- **Category breakdown table:** Always-visible directly below `ConditionResultsTable`, separated by `border-t border-border pt-6`. Five categories max — no collapse needed.
 
 ---
 
 ## Token Layer
 
-**Carried over from moderation-dashboard.** The `tailwind.config.js` below is identical —
-accent hue is Blue. Copy it verbatim into `projects/llm-safety-monitor/web/tailwind.config.js`.
+**Accent hue: Blue** — consistent with all workspace projects (case-queue, moderation-dashboard, red-team-platform, llm-safety-monitor). Assumption noted; override if a different hue is needed.
 
 ```js
+// tailwind.config.js — error-hide-seek
 module.exports = {
   content: ['./src/**/*.{ts,tsx}'],
   theme: {
@@ -61,499 +53,410 @@ module.exports = {
 
 ---
 
-## Frontend Types (New — Timeseries Endpoints)
-
-These endpoints were added post-architect. Define in `web/src/types/index.ts` alongside
-the architect-specified types. **Implementer: verify field names against actual API responses
-before wiring hooks.**
-
-```typescript
-// GET /metrics/timeseries?bucket_minutes=60
-type MetricsBucket = {
-  bucket_start: string    // ISO 8601 timestamp
-  f1: number
-  precision: number
-  recall: number
-  sample_count: number
-}
-
-type ModelTimeseries = {
-  model_name: string
-  buckets: MetricsBucket[]
-}
-
-type TimeseriesResponse = { models: ModelTimeseries[] }
-
-// GET /metrics/taxonomy/timeseries?bucket_minutes=60
-type TaxonomyCategoryCount = {
-  category: string        // HarmCategory value
-  count: number
-}
-
-type TaxonomyBucket = {
-  bucket_start: string    // ISO 8601 timestamp
-  categories: TaxonomyCategoryCount[]
-}
-
-type TaxonomyTimeseriesResponse = { buckets: TaxonomyBucket[] }
-
-// POST /cases/{id}/decide — mutation payload
-type DecisionPayload = {
-  decision: 'approve' | 'dismiss' | 'escalate'
-}
-
-// EscalationEntry — response shape for GET /cases (escalation queue)
-// Verify against actual API; likely matches the existing case-queue CaseListItem shape
-// enriched with verdicts and escalation_reason.
-type EscalationEntry = {
-  id: string
-  event_id: string
-  prompt_text: string
-  response_text: string | null
-  escalation_reason: EscalationReason | null
-  verdicts: VerdictEntry[]
-  created_at: string
-}
-
-type EscalationQueueResponse = {
-  cases: EscalationEntry[]
-  total: number
-}
-```
-
----
-
 ## Page Layout
 
+Two independent pages. No global tab bar — routes are navigated programmatically (after session creation, after review submission).
+
+### Global Shell (both pages)
+
 ```
-┌──────────────────────────────────────────────────────────┐
-│  Header: "LLM Safety Monitor" (left)                     │  h-14 bg-surface border-b border-border
-├──────────────────────────────────────────────────────────┤
-│  PanelTabBar: 4 tabs flush left                          │  border-b border-border
-├──────────────────────────────────────────────────────────┤
-│                                                          │
-│  Panel content area: max-w-7xl mx-auto px-6 py-6        │  bg-background min-h-screen
-│                                                          │
-└──────────────────────────────────────────────────────────┘
+┌─────────────────────────────────────────────────────┐
+│ Header: h-14 bg-surface border-b border-border      │
+│   "Error-Hide-Seek" (left) | breadcrumb (right)     │
+├─────────────────────────────────────────────────────┤
+│ Content area: bg-background min-h-screen            │
+└─────────────────────────────────────────────────────┘
 ```
 
 - Global wrapper: `min-h-screen bg-background font-interface`
-- Header: `h-14 bg-surface border-b border-border flex items-center px-6`
-  - App name: `text-base font-semibold text-text-intense font-interface`
-- Content: `max-w-7xl mx-auto px-6 py-6`
-- Dev port: 5174 (`server: { port: 5174 }` in `vite.config.ts`)
+- Header: `h-14 bg-surface border-b border-border flex items-center justify-between px-6`
+  - Logo: `font-interface text-sm font-semibold text-text-intense`
+  - Breadcrumb (page-specific text): `font-interface text-xs text-text-muted`
 
-**Panel layouts per tab:**
+### ReviewPage layout (`/review/:sessionId`)
 
-| Tab | Layout |
-|-----|--------|
-| Stream Monitor | Single column feed (`flex flex-col`) |
-| Model Performance | 3-column card grid (`grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4`) |
-| Taxonomy Trends | Full-width chart (`w-full`) |
-| Human Review | Single column card stack (`flex flex-col gap-4`) + pagination bar |
+Narrow column — abstract reading requires comfortable line length.
+
+```
+max-w-3xl mx-auto px-6 py-8 flex flex-col gap-6
+├── PaperHeader (title + condition badge)
+├── AnnotatedAbstract            ← abstract content area
+├── SelectionFloater             ← portal, no layout footprint
+└── DetectionList                ← flagged items + submit
+    [OR CompletionBanner if session.status === 'completed']
+```
+
+### ResultsPage layout (`/results/:experimentId`)
+
+Wider to accommodate 4-column table.
+
+```
+max-w-5xl mx-auto px-6 py-8 flex flex-col gap-8
+├── UpliftHero                  ← centered hero metric
+└── ConditionResultsTable       ← includes category breakdown
+```
+
+Dev port: `5174` (`server: { port: 5174 }` in `vite.config.ts`).
 
 ---
 
 ## Component Specs
 
-### PanelTabBar
-
-- **Hierarchy:** `nav > ul > li > button` — one `button` per tab
-- **Layout:** `flex border-b border-border` on `nav`; tabs sit flush, no gaps
-- **Tokens:**
-  - Active: `border-b-2 border-accent text-text-intense font-medium`
-  - Inactive: `text-text-muted hover:text-text-default border-b-2 border-transparent`
-  - Item: `px-4 py-3 text-sm font-interface transition-colors`
-- **States:** inactive, hover (inactive), active
-- **Data:** `activeTab: string`, `onTabChange: (tab: string) => void`; tab list is a
-  static constant — 4 tabs in order:
-  `'stream-monitor' | 'model-performance' | 'taxonomy-trends' | 'human-review'`
-
----
-
-### EventFeedItem
+### `AnnotatedAbstract`
 
 - **Hierarchy:**
   ```
-  li.flex.flex-col.gap-2.py-4.border-b.border-border.last:border-0
-  ├── div.flex.items-center.gap-2.flex-wrap    ← badge row
-  │   ├── SourceBadge
-  │   └── EscalationReasonBadge (render nothing when reason is null)
-  ├── p.font-data.text-sm.text-text-default.break-words    ← prompt_text
-  ├── p.font-data.text-xs.text-text-muted.break-words      ← response_text (or "(no response)")
-  └── VerdictRow(verdicts)
+  div.font-data.text-sm.leading-relaxed.text-text-default.whitespace-pre-wrap
+    [plain spans + annotated spans interspersed]
   ```
-- **Layout:** `flex flex-col gap-2 py-4 border-b border-border last:border-0`
-- **Tokens:**
-  - Prompt: `font-data text-sm text-text-default`
-  - Response: `font-data text-xs text-text-muted`
-  - "(no response)" label: `font-interface text-xs text-text-muted italic`
+
+- **Layout:** `font-data text-sm leading-relaxed text-text-default whitespace-pre-wrap bg-surface rounded-lg border border-border p-6`
+
+- **Segmentation algorithm:**
+  1. Filter out annotations where `abstract.toLowerCase().indexOf(ann.text_excerpt.toLowerCase()) === -1`.
+  2. Sort remaining by `indexOf` result ascending.
+  3. Walk through abstract: track `pos = 0`, `coveredUntil = 0`.
+  4. For each annotation: `idx = abstract.toLowerCase().indexOf(ann.text_excerpt.toLowerCase(), pos)`. If `idx < coveredUntil`, skip. Push plain `abstract.slice(pos, idx)`. Push highlighted segment `{text: abstract.slice(idx, idx + ann.text_excerpt.length), annotation}`. Set `pos = idx + ann.text_excerpt.length`; `coveredUntil = pos`.
+  5. Push final plain segment `abstract.slice(pos)`.
+
+- **Tokens — highlighted span:**
+  ```
+  <span className="relative group inline">
+    <span className={highlightClass}>
+      {text}
+    </span>
+    <span className="absolute bottom-full left-0 z-10 mb-1 hidden group-hover:block
+      bg-slate-800 text-slate-50 text-xs rounded px-2 py-1.5 max-w-xs whitespace-normal
+      shadow-lg pointer-events-none">
+      <span className={confidenceBadgeClass}>{confidence}</span>
+      {" "}{reason}
+    </span>
+  </span>
+  ```
+
+  Highlight backgrounds by confidence:
+  - `high`: `bg-amber-200 text-amber-900 cursor-help rounded px-0.5`
+  - `medium`: `bg-yellow-100 text-yellow-800 cursor-help rounded px-0.5`
+  - `low`: `bg-slate-100 text-slate-600 cursor-help rounded px-0.5`
+
+  Confidence badge inside tooltip:
+  - `high`: `inline-block bg-amber-500 text-white text-xs px-1 rounded`
+  - `medium`: `inline-block bg-yellow-400 text-yellow-900 text-xs px-1 rounded`
+  - `low`: `inline-block bg-slate-400 text-white text-xs px-1 rounded`
+
 - **States:**
-  - Default: full render (badge row + texts + VerdictRow)
-  - Escalated: `EscalationReasonBadge` visible in badge row
-  - No distinct hover state — feed is read-only
+  - No annotations (unaided condition): renders abstract as a single plain `<span>`. No visual difference from plain text.
+  - Empty abstract (should not occur): renders nothing.
+
 - **Data:**
   ```ts
-  type EventFeedItemProps = {
-    event: RecentEvent
-  }
-  ```
-- **Skeleton:** `li.flex.flex-col.gap-2.py-4.border-b.border-border`
-  ```
-  div.flex.gap-2: Skeleton(h-5 w-16) + Skeleton(h-5 w-24)
-  Skeleton(h-4 w-full)
-  Skeleton(h-4 w-3/4)
-  div.grid.grid-cols-3.gap-4: Skeleton(h-6 w-20) × 3
-  ```
-  Render 5 `EventFeedItemSkeleton` rows while loading.
-
----
-
-### VerdictRow
-
-Shared by `EventFeedItem` and `EscalationCard`. Consumes `VerdictEntry[]` from the
-verdicts array; finds each model by `model_name`.
-
-- **Hierarchy:**
-  ```
-  div.grid.grid-cols-3.gap-4
-  ├── div.flex.flex-col.gap-1         ← pair_classifier column
-  │   ├── span.font-interface.text-xs.text-text-muted  "Pair"
-  │   └── VerdictBadge(predicted_label, type="pair")
-  ├── div.flex.flex-col.gap-1         ← prompt_detector column
-  │   ├── span.font-interface.text-xs.text-text-muted  "Prompt"
-  │   └── VerdictBadge(predicted_label, type="prompt")
-  └── div.flex.flex-col.gap-1         ← taxonomy_classifier column
-      ├── span.font-interface.text-xs.text-text-muted  "Taxonomy"
-      └── div.flex.flex-wrap.gap-1
-          ← HarmCategoryChip × N, or "none" text
-  ```
-- **Layout:** `grid grid-cols-3 gap-4`
-- **Tokens — VerdictBadge (inline sub-component):**
-  - pair, label=0 (Safe): `bg-success/10 text-success font-data text-xs px-2 py-0.5 rounded`
-  - pair, label=1 (Unsafe): `bg-danger/10 text-danger font-data text-xs px-2 py-0.5 rounded`
-  - prompt, label=0 (Benign): `bg-border text-text-muted font-data text-xs px-2 py-0.5 rounded`
-  - prompt, label=1 (Adversarial): `bg-danger/10 text-danger font-data text-xs px-2 py-0.5 rounded`
-- **Tokens — HarmCategoryChip (inline sub-component):**
-  - `bg-accent-subtle text-accent font-data text-xs px-2 py-0.5 rounded`
-- **Tokens — "none" text:**
-  - `font-interface text-xs text-text-muted`
-- **States:**
-  - VerdictRow renders nothing if `verdicts` array is empty (guard with `if (!verdicts.length) return null`)
-  - taxonomy column with `taxonomy_labels = []`: renders "none" (not an empty div)
-  - taxonomy column with missing `taxonomy_classifier` verdict (model not yet classified): renders "—" in `text-text-muted`
-- **Data:**
-  ```ts
-  type VerdictRowProps = {
-    verdicts: VerdictEntry[]
+  type AnnotatedAbstractProps = {
+    abstract: string
+    annotations: Annotation[]  // [] for unaided sessions
   }
   ```
 
 ---
 
-### SourceBadge
+### `SelectionFloater`
 
-Shared by `EventFeedItem` and `EscalationCard`. Five categorical color variants.
-These colors use named Tailwind palette classes (not semantic tokens) — categorical data
-distinctions, not UI state. See Constraints Applied §4.
+- **Hierarchy:** Rendered via `createPortal(button, document.body)`. No DOM footprint in the ReviewPage component tree.
 
-- **Hierarchy:** `span` with conditional class set
-- **Tokens per source:**
-  - `hh-rlhf`: `bg-blue-100 text-blue-700 font-data text-xs px-2 py-0.5 rounded`
-  - `wildguard`: `bg-purple-100 text-purple-700 font-data text-xs px-2 py-0.5 rounded`
-  - `advbench`: `bg-danger/10 text-danger font-data text-xs px-2 py-0.5 rounded`
-  - `jailbreakbench`: `bg-amber-100 text-amber-700 font-data text-xs px-2 py-0.5 rounded`
-  - `live`: `bg-success/10 text-success font-data text-xs px-2 py-0.5 rounded`
-- **Data:** `{ source: SourceDataset }`
-
----
-
-### EscalationReasonBadge
-
-Renders nothing (`return null`) when `reason` is null. Five color variants.
-`LOG_ONLY` uses muted styling — it is informational, not actionable.
-
-- **Tokens per reason:**
-  - `JAILBREAK`: `bg-danger/10 text-danger font-data text-xs px-2 py-0.5 rounded`
-  - `BENIGN_HARMFUL`: `bg-warning/10 text-warning font-data text-xs px-2 py-0.5 rounded`
-  - `MODEL_DISAGREEMENT`: `bg-amber-100 text-amber-700 font-data text-xs px-2 py-0.5 rounded`
-  - `ADVERSARIAL_PROMPT_FLAGGED`: `bg-purple-100 text-purple-700 font-data text-xs px-2 py-0.5 rounded`
-  - `LOG_ONLY`: `bg-border text-text-muted font-data text-xs px-2 py-0.5 rounded`
-- **Data:** `{ reason: EscalationReason | null }`
-
----
-
-### ModelPerformanceCard
-
-One card per classifier (3 cards total in a `grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4`).
-
-- **Hierarchy:**
-  ```
-  article.bg-surface.rounded-lg.border.border-border.p-5.flex.flex-col.gap-4
-  ├── header.flex.items-center.justify-between
-  │   ├── h3: model name
-  │   └── span: sample count
-  ├── div.grid.grid-cols-3.gap-4           ← metric row
-  │   ├── MetricCell(label="F1", value)
-  │   ├── MetricCell(label="Precision", value)
-  │   └── MetricCell(label="Recall", value)
-  └── div.flex.flex-col.gap-1
-      ├── span.font-interface.text-xs.text-text-muted.uppercase.tracking-wide  "F1 over time"
-      └── ModelTimeseriesChart(buckets)     ← empty state handled inside
-  ```
-- **Layout:** `bg-surface rounded-lg border border-border p-5 flex flex-col gap-4`
-- **Tokens:**
-  - Model name: `font-interface text-sm font-semibold text-text-intense`
-  - Sample count: `font-data text-xs text-text-muted`
-  - Metric label (inside MetricCell): `font-interface text-xs text-text-muted uppercase tracking-wide`
-  - Metric value (inside MetricCell): `font-data text-lg font-medium text-text-intense`
-  - Value when null/0: `font-data text-lg text-text-muted` — render `"—"`
-- **States:**
-  - Loading: replaced by `ModelPerformanceCardSkeleton`:
+- **Behaviour:**
+  - `ReviewPage` attaches `onMouseUp={handleMouseUp}` to a wrapper `div` containing the `AnnotatedAbstract`.
+  - `handleMouseUp`:
+    ```ts
+    const sel = window.getSelection()
+    const text = sel?.toString().trim() ?? ''
+    if (text.length >= 15) {
+      const rect = sel!.getRangeAt(0).getBoundingClientRect()
+      setFloaterPos({ top: rect.bottom + 8, left: rect.left })
+      setPendingExcerpt(text)
+    } else {
+      setFloaterPos(null)
+      setPendingExcerpt(null)
+    }
     ```
-    article (same outer classes)
-    ├── div.flex.justify-between: Skeleton(h-4 w-32) + Skeleton(h-4 w-20)
-    ├── div.grid.grid-cols-3.gap-4: Skeleton(h-10 w-full) × 3
-    └── Skeleton(h-32 w-full)
-    ```
-  - Error: card renders with metric values as `"—"` and `p.text-xs.text-danger` error note below metric row
-  - No timeseries data: `ModelTimeseriesChart` renders inline placeholder (see below)
+  - State lives in `ReviewPage`: `floaterPos: { top: number; left: number } | null`, `pendingExcerpt: string | null`.
+  - Clicking the button: calls `onFlag(pendingExcerpt)`, then `window.getSelection()?.removeAllRanges()`, then `setFloaterPos(null)`.
+  - Dismiss: `onMouseDown` outside the button clears state (use a `useEffect` listening for `mousedown` on `document`).
+
+- **Tokens:**
+  ```
+  style={{ position: 'fixed', top: floaterPos.top, left: floaterPos.left }}
+  className="bg-accent text-white font-interface text-sm px-3 py-1.5 rounded shadow-lg z-50
+             hover:bg-blue-700 transition-colors cursor-pointer"
+  ```
+  Note: `style` prop is required for dynamic coordinates — explicit exception to no-inline-style (Constraints §1).
+
+- **States:**
+  - Visible: `floaterPos !== null && pendingExcerpt !== null`
+  - Hidden: renders `null`
+
 - **Data:**
   ```ts
-  type ModelPerformanceCardProps = {
-    metrics: ModelMetrics            // from /metrics
-    timeseries: ModelTimeseries      // from /metrics/timeseries; matching model_name
+  type SelectionFloaterProps = {
+    floaterPos: { top: number; left: number } | null
+    pendingExcerpt: string | null
+    onFlag: (excerpt: string) => void
   }
   ```
 
-**ModelTimeseriesChart (embedded sub-component):**
-
-```
-div.h-32.w-full                        ← fixed height div; ResponsiveContainer fills it
-├── [if buckets.length === 0]:
-│     div.h-32.flex.items-center.justify-center
-│       span.font-interface.text-xs.text-text-muted  "No timeseries data"
-└── [if buckets.length > 0]:
-      ResponsiveContainer(width="100%", height="100%")
-      └── LineChart(data=buckets, margin={top:4, right:4, bottom:4, left:0})
-          ├── XAxis(dataKey="bucket_start", tickFormatter=formatBucketTime, tick={fontSize:10})
-          ├── YAxis(domain=[0,1], tick={fontSize:10}, tickCount=3)
-          ├── Tooltip(formatter=(v) => v.toFixed(3))
-          └── Line(dataKey="f1", stroke="#2563eb", dot=false, strokeWidth=1.5)
-```
-
-`formatBucketTime`: parses ISO string → `HH:mm` using `Intl.DateTimeFormat`.
-recharts `stroke` is a raw hex value — cannot read CSS variables (see Constraints §3).
-
 ---
 
-### TaxonomyTrendChart
-
-Full-width chart on the Taxonomy Trends tab. Stacked bar chart.
+### `DetectionList`
 
 - **Hierarchy:**
   ```
   div.flex.flex-col.gap-4
-  ├── div.flex.items-center.justify-between
-  │   ├── h2.font-interface.text-base.font-semibold.text-text-intense  "Harm Category Trends"
-  │   └── span.font-interface.text-xs.text-text-muted  "60-min buckets"
-  └── [if no data]:
-        div.h-64.flex.items-center.justify-center.bg-surface.rounded-lg.border.border-border
-          span.font-interface.text-sm.text-text-muted  "No taxonomy data yet"
-      [if data]:
-        div.h-64.w-full.bg-surface.rounded-lg.border.border-border.p-4
-          ResponsiveContainer(width="100%", height="100%")
-          └── BarChart(data=pivoted_buckets, margin={top:4,right:4,bottom:24,left:0})
-              ├── XAxis(dataKey="bucket_start", tickFormatter=formatBucketTime,
-              │         tick={fontSize:10}, angle=-30, textAnchor="end")
-              ├── YAxis(tick={fontSize:10})
-              ├── Tooltip
-              ├── Legend(wrapperStyle={fontSize:10})
-              └── Bar × N  (one per active category, stackId="a")
+  ├── h3.font-interface.text-sm.font-semibold.text-text-intense  "Flagged errors"
+  ├── [if detections.length === 0]:
+  │     p.font-interface.text-sm.text-text-muted.italic
+  │       "No errors flagged yet — select text above to flag."
+  ├── [if detections.length > 0]:
+  │     ul.flex.flex-col.gap-2
+  │       li × N: DetectionItem
+  └── div.pt-4.border-t.border-border.flex.flex-col.gap-2
+        p.font-interface.text-xs.text-text-muted
+          "Submitting with no flags means you found nothing suspicious."
+        button[submit]
   ```
-- **Layout:** `flex flex-col gap-4 w-full`
-- **Data pivoting:** The API returns `{ buckets: [{ bucket_start, categories: [{category, count}] }] }`.
-  Before passing to recharts, pivot to a flat array where each row is a bucket and each
-  category is a key:
-  ```ts
-  // [{ bucket_start: "...", hate: 3, harassment: 1, violence: 0, ... }, ...]
-  type PivotedBucket = { bucket_start: string } & Record<string, number>
+
+- **`DetectionItem` layout:**
   ```
-  Collect all distinct category names across all buckets to know which `Bar` components to render.
-- **Colors:** Fixed hex palette, one per category slot (recharts cannot use CSS variables):
-  ```ts
-  const CATEGORY_COLORS = [
-    '#2563eb', '#059669', '#f59e0b', '#dc2626', '#7c3aed',
-    '#0891b2', '#db2777', '#65a30d', '#ea580c', '#0284c7',
-    '#9333ea', '#16a34a', '#d97706',
-  ]
-  // Map category name → CATEGORY_COLORS[index % 13] using sorted category list for stable assignment
+  div.flex.items-start.gap-3.p-3.bg-surface.rounded.border.border-border
+  ├── div.flex-1.flex.flex-col.gap-1.min-w-0
+  │   ├── span.font-data.text-xs.text-text-intense.break-all.block
+  │   │     "{excerpt.length > 60 ? excerpt.slice(0, 60) + '…' : excerpt}"
+  │   └── input[type=text].w-full.font-interface.text-xs.bg-transparent.border-0
+  │         .border-b.border-border.pb-0.5.text-text-default
+  │         .placeholder-text-muted.focus:outline-none.focus:border-accent
+  │         placeholder="Add note (optional)"
+  └── button.text-text-muted.hover:text-danger.transition-colors.shrink-0
+        aria-label="Remove"
+        "×"  (font-data text-base)
   ```
+
+- **Submit button tokens:**
+  ```
+  px-4 py-2 bg-accent text-white font-interface text-sm rounded
+  hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors
+  ```
+  Label: "Submit" when idle; `div.w-4.h-4.rounded-full.border-2.border-white.border-t-transparent.animate-spin` when in-flight.
+
 - **States:**
-  - Loading: `div.h-64.animate-pulse.bg-surface.rounded-lg.border.border-border`
-  - Empty data: placeholder div (see hierarchy above)
-  - Error: parent `TaxonomyTrends` page renders `ErrorMessage` component; chart not rendered
+  - Empty: empty state message (not a blank div)
+  - Has items: list renders
+  - Submitting: submit button shows spinner, is `disabled`
+
 - **Data:**
   ```ts
-  type TaxonomyTrendChartProps = {
-    data: TaxonomyTimeseriesResponse
+  type DetectionListProps = {
+    detections: DetectionIn[]
+    onAdd: (excerpt: string) => void       // called by SelectionFloater via ReviewPage
+    onRemove: (index: number) => void
+    onNoteChange: (index: number, note: string) => void
+    onSubmit: () => void
+    submitting: boolean
+  }
+  ```
+  State managed in `ReviewPage`. `DetectionList` is presentational.
+
+---
+
+### `UpliftHero`
+
+- **Hierarchy:**
+  ```
+  div.flex.flex-col.items-center.py-10.gap-3
+  ├── span.font-interface.text-xs.text-text-muted.uppercase.tracking-widest  "Human Uplift"
+  ├── [uplift === null]:
+  │     p.font-interface.text-xl.font-medium.text-text-muted  "Results incomplete"
+  │     p.font-interface.text-xs.text-text-muted  "Review all conditions to see uplift"
+  └── [uplift !== null]:
+        p.font-data.text-5xl.font-bold.[colorClass]  formatUplift(uplift)
+        p.font-interface.text-xs.text-text-muted.mt-1
+          "TPR(human+agent) − TPR(unaided)"
+  ```
+
+- **Layout:** `flex flex-col items-center py-10 gap-3`
+
+- **Tokens:**
+  - `uplift > 0`: `text-success` (emerald-600)
+  - `uplift < 0`: `text-danger` (red-600)
+  - `uplift === 0`: `text-text-muted`
+  - `uplift === null`: `text-text-muted`, smaller size (`text-xl`)
+
+- **Format function:**
+  ```ts
+  function formatUplift(uplift: number): string {
+    const pct = (uplift * 100).toFixed(1)
+    return uplift >= 0 ? `+${pct}%` : `${pct}%`
+  }
+  ```
+
+- **States:**
+  - Loading: `div.flex.flex-col.items-center.py-10.gap-3`: `Skeleton(h-4 w-24)` + `Skeleton(h-14 w-32)` + `Skeleton(h-4 w-48)`
+  - Error: `p.font-interface.text-sm.text-danger  "Could not load results — check API"`
+
+- **Data:**
+  ```ts
+  type UpliftHeroProps = { uplift: number | null }
+  ```
+
+---
+
+### `ConditionResultsTable`
+
+- **Hierarchy:**
+  ```
+  div.flex.flex-col.gap-0
+  ├── section (main metrics table)
+  │   ├── h2.font-interface.text-base.font-semibold.text-text-intense.mb-4
+  │   │     "Detection Rates by Condition"
+  │   └── div.overflow-x-auto.rounded-lg.border.border-border
+  │         table.w-full.text-sm.bg-surface
+  │           thead: tr (4 th)
+  │           tbody:
+  │             tr (True Positive Rate)
+  │             tr (False Positive Rate)
+  │             tr (Sessions)
+  │
+  └── section.border-t.border-border.pt-8.mt-2 (category breakdown)
+      ├── h3.font-interface.text-sm.font-medium.text-text-muted.mb-4
+      │     "By Error Category"
+      └── div.overflow-x-auto.rounded-lg.border.border-border
+            table.w-full.text-sm.bg-surface
+              thead: tr (4 th)
+              tbody: tr × N (one per category)
+  ```
+
+- **Table token conventions:**
+  - `th`: `font-interface text-xs text-text-muted uppercase tracking-wide text-left px-4 py-3 border-b border-border bg-slate-50`
+  - `td` default: `font-data text-sm text-text-intense px-4 py-3 border-b border-border last:border-0`
+  - Row label `td` (first column, e.g. "True Positive Rate"): `font-interface text-xs text-text-muted px-4 py-3 border-b border-border`
+  - Incomplete cell value: `text-text-muted` with `"—"` content
+  - `human_agent` TPR cell when `uplift > 0`: add `bg-emerald-50 text-success font-semibold`
+  - `human_agent` TPR cell when `uplift < 0`: add `bg-rose-50 text-danger font-semibold`
+  - `human_agent` TPR cell when `uplift === null`: default (no highlight)
+
+- **Value formatting:**
+  - TPR/FPR: `condition.true_positive_rate !== null ? (condition.true_positive_rate * 100).toFixed(1) + '%' : '—'`
+  - Sessions: `condition.true_positive_rate !== null ? `${condition.sessions_complete} / ${condition.sessions_total}` : `0 / ${condition.sessions_total}``
+
+- **Column order:** Unaided | Agent Only | Human + Agent (matches `Condition` enum order)
+
+- **Category breakdown:** Rows = error categories from `conditions[0].by_category` (any condition). Category label in first column (formatted: `inverted_conclusion` → "Inverted Conclusion"). Subsequent columns = TPR per condition, formatted same as main table. If a condition has no `by_category` entry for that category (missing), render "—".
+
+- **States:**
+  - Loading: `div.animate-pulse.space-y-2`: `Skeleton(h-8 w-full)` × 4
+  - Any condition incomplete: that condition's cells render "—"; table still renders (not blocked)
+
+- **Data:**
+  ```ts
+  type ConditionResultsTableProps = {
+    results: ExperimentResults
   }
   ```
 
 ---
 
-### EscalationCard
+## Supplementary Component Specs
 
-One card per case in the HumanReview queue. Decision buttons trigger a mutation.
+### `PaperHeader` (ReviewPage only)
 
-- **Hierarchy:**
-  ```
-  article.bg-surface.rounded-lg.border.border-border.p-5.flex.flex-col.gap-4
-  ├── header.flex.items-center.justify-between.gap-2
-  │   ├── EscalationReasonBadge(reason)
-  │   └── span.font-data.text-xs.text-text-muted  "{id.slice(-8)}"  ← last 8 chars of id
-  ├── div.flex.flex-col.gap-2
-  │   ├── p.font-data.text-sm.text-text-default.break-words   prompt_text
-  │   └── p.font-data.text-xs.text-text-muted.break-words     response_text | "(no response)"
-  ├── VerdictRow(verdicts)
-  └── footer.flex.items-center.gap-3.pt-3.border-t.border-border
-      ├── button.approve   "Approve"
-      ├── button.dismiss   "Dismiss"
-      └── button.escalate  "Escalate"
-  ```
-- **Layout:** `bg-surface rounded-lg border border-border p-5 flex flex-col gap-4`
-- **Button tokens:**
-  - Approve: `px-3 py-1.5 rounded text-sm font-interface bg-success/10 text-success
-    hover:bg-success/20 disabled:opacity-50 disabled:cursor-not-allowed transition-colors`
-  - Dismiss: `px-3 py-1.5 rounded text-sm font-interface bg-border text-text-muted
-    hover:bg-slate-200 disabled:opacity-50 disabled:cursor-not-allowed transition-colors`
-  - Escalate: `px-3 py-1.5 rounded text-sm font-interface bg-danger/10 text-danger
-    hover:bg-danger/20 disabled:opacity-50 disabled:cursor-not-allowed transition-colors`
-- **States:**
-  - Default: all buttons enabled
-  - In-flight: all three buttons disabled (`disabled` attribute); clicked button renders
-    an inline spinner (a simple `animate-spin` border div, 12px) in place of its label
-  - Decided: card removed from view via invalidation + refetch
-- **Data:**
-  ```ts
-  type EscalationCardProps = {
-    caseItem: EscalationEntry
-    onDecide: (caseId: string, decision: 'approve' | 'dismiss' | 'escalate') => void
-    isPending: boolean   // true while mutation is in-flight for this caseId
-  }
-  ```
-- **Skeleton:**
-  ```
-  article (same outer classes)
-  ├── div.flex.justify-between: Skeleton(h-5 w-24) + Skeleton(h-4 w-16)
-  ├── Skeleton(h-16 w-full)
-  ├── div.grid.grid-cols-3.gap-4: Skeleton(h-6 w-20) × 3
-  └── div.flex.gap-3.pt-3.border-t.border-border: Skeleton(h-8 w-20) × 3
-  ```
+```
+div.flex.flex-col.gap-2
+├── div.flex.items-center.gap-2.flex-wrap
+│   ├── span (condition badge)
+│   └── span.font-interface.text-xs.text-text-muted  "{arxiv_id}"
+└── h1.font-interface.text-lg.font-semibold.text-text-intense.leading-snug
+      {paper_title}
+```
+
+Condition badge tokens:
+- `unaided`: `bg-slate-100 text-slate-600 font-interface text-xs px-2 py-0.5 rounded`
+- `agent_only`: `bg-accent-subtle text-accent font-interface text-xs px-2 py-0.5 rounded`
+- `human_agent`: `bg-amber-50 text-amber-700 font-interface text-xs px-2 py-0.5 rounded`
+
+### `CompletionBanner` (ReviewPage — completed session state)
+
+```
+div.rounded-lg.border.border-border.bg-slate-50.p-4.flex.items-center.gap-3
+├── span.text-success  "✓"  (font-data text-lg)
+└── p.font-interface.text-sm.text-text-default  "Session submitted. Results are being compiled."
+```
+
+Renders in place of `DetectionList` when `session.status === 'completed'`.
 
 ---
 
 ## Hook Specs
 
 ```typescript
-// api/stream.ts — carried over (no changes)
-function useRecentEvents(limit = 50): UseQueryResult<StreamResponse>
-// refetchInterval: 5000
+// src/hooks/useSession.ts
+function useSession(id: number | null): UseQueryResult<Session>
+// GET /sessions/{id}; enabled: id !== null; refetchInterval: false (session state is set once)
 
-// api/metrics.ts — updated + new hooks
-function useModelMetrics(): UseQueryResult<MetricsResponse>
-// refetchInterval: 30000
+// src/hooks/useSubmitReview.ts
+function useSubmitReview(): UseMutationResult<ReviewConfirmOut, Error, ReviewSubmitBody>
+// POST /reviews; body: { session_id, detections }
+// onSuccess: navigate to /results/{session.experiment_id}
 
-function useMetricsTimeseries(): UseQueryResult<TimeseriesResponse>
-// GET /metrics/timeseries?bucket_minutes=60; refetchInterval: 60000
+// src/hooks/useResults.ts
+function useResults(experimentId: number | null): UseQueryResult<ExperimentResults>
+// GET /results/{experimentId}; enabled: experimentId !== null
+// refetchInterval: (query) => query.state.data?.uplift === null ? 30_000 : false
 
-function useTaxonomyTimeseries(): UseQueryResult<TaxonomyTimeseriesResponse>
-// GET /metrics/taxonomy/timeseries?bucket_minutes=60; refetchInterval: 60000
+// src/hooks/useExperiments.ts
+function useExperiments(): UseQueryResult<ExperimentSummary[]>
+// GET /experiments; used by any experiment listing view (not strictly required for v1 UI)
 
-// api/review.ts — updated
-function useEscalationQueue(): UseQueryResult<EscalationQueueResponse>
-// GET /cases (with escalated=true filter if supported); refetchInterval: 10000
-
-function useDecide(): UseMutationResult<
-  void,
-  Error,
-  { caseId: string; decision: 'approve' | 'dismiss' | 'escalate' }
->
-// POST /cases/{caseId}/decide; body: { decision }
-// onSuccess: queryClient.invalidateQueries({ queryKey: ['escalation-queue'] })
+// src/hooks/usePapers.ts
+function usePapers(params?: { q?: string }): UseQueryResult<PapersPage>
+// GET /papers?q=&limit=20; not used in v1 UI (papers managed via CLI)
 ```
 
 ---
 
 ## Constraints Applied
 
-1. **No arbitrary px values in recharts wrappers:** recharts `ResponsiveContainer` requires
-   its parent `div` to have an explicit height via Tailwind class (`h-32`, `h-64`). Never
-   pass a raw pixel value to `ResponsiveContainer`'s `height` prop.
+1. **`style` prop exception for `SelectionFloater`:** `position: fixed` with computed `top`/`left` from `getBoundingClientRect()` requires the React `style` prop. This is dynamic computed layout — not an arbitrary hardcoded pixel value. The ban in `design_style.md` targets hardcoded `style=""` overrides like `style="margin-left: 13px"`. This usage is correct and unavoidable for a floating element anchored to a text selection.
 
-2. **60-30-10 rule with many badge colors:** `SourceBadge`, `EscalationReasonBadge`,
-   `VerdictBadge`, and `HarmCategoryChip` all appear simultaneously in `EventFeedItem`.
-   Resolution: all badge backgrounds are at low opacity (`/10`) or light tints (`-100`)
-   so they read as tinted neutrals. The full accent color is confined to `HarmCategoryChip`
-   and the `PanelTabBar` active state only.
+2. **`whitespace-pre-wrap` for abstract text:** arXiv abstracts contain intentional newlines. Using `whitespace-pre-wrap` preserves the original line breaks without displaying them as visual noise. This is a reading-comfort decision, not a layout deviation.
 
-3. **recharts stroke cannot use CSS variables:** All `stroke` and `fill` props in recharts
-   components use raw hex values (`#2563eb`, etc.). If the accent hue changes, update these
-   values in `ModelTimeseriesChart.tsx` and `TaxonomyTrendChart.tsx`. Add a comment in
-   each file marking the hardcoded values.
+3. **`group-hover:block` for annotation tooltips:** The `group`/`group-hover` pattern produces `position: absolute` tooltip positioning. This is the correct Tailwind approach — no arbitrary pixel values involved. The `z-10` ensures the tooltip renders above the abstract text.
 
-4. **SourceBadge categorical colors exceed semantic token set:** Five dataset sources map to
-   five distinct colors; only two (danger=advbench, success=live) align with semantic tokens.
-   The others (blue-100/blue-700, purple-100/purple-700, amber-100/amber-700) use named
-   Tailwind palette classes directly. This is an explicit exception for categorical data
-   distinction — not arbitrary, not hex-coded.
+4. **Emerald-50 / rose-50 as named Tailwind palette classes:** The highlighted TPR cell uses `bg-emerald-50` and `bg-rose-50`. These are not mapped to semantic tokens in the `tailwind.config.js`. They are used for a specific data-state highlight (not general UI state), making them acceptable named palette references rather than semantic token violations — consistent with the `SourceBadge` categorical-color precedent in other projects.
 
-5. **"Subtle contrast over heavy shapes" for stacked cards (HumanReview):** `EscalationCard`
-   cards on `bg-background`. Card surface is `bg-surface` (white), providing contrast via
-   background tint shift. The `border border-border` (slate-200) is structural, not
-   decorative — cards need a visible boundary to separate stacked items.
+5. **`rounded-lg border border-border` on tables:** Design style prefers "subtle background tint shifts over thick solid borders." Tables use a single outer `border border-border` with `rounded-lg` — this provides structure without heavy lines. Row separators use `border-b border-border` (slate-200) which is the Muted Boundary token — not a harsh decorative border.
 
 ---
 
 ## Open Questions
 
-The following are intentionally left to the implementer:
+1. **`paper_title` in `SessionOut`:** The architect spec notes this field must be added to `SessionOut` (via a join in the sessions router). The implementer must verify this field is present in the API response before wiring `PaperHeader`. If not present, fetch via `GET /papers/{paper_id}` as a separate query in `ReviewPage`.
 
-1. **EscalationQueueResponse shape:** Verify the actual GET /cases response schema against
-   the case-queue API or the llm-safety-monitor `/cases` router. The `EscalationEntry` type
-   in this spec is a projection — field names may differ. Update the type if needed.
+2. **Navigation from session creation to ReviewPage:** In v1, review sessions are created via `POST /sessions`. There is no UI for creating sessions — this is CLI or API-level setup. `ReviewPage` is navigated to directly by ID. If a "start session" UI is needed, scope it as a v2 addition.
 
-2. **Spinner implementation:** The in-flight button spinner is a simple `animate-spin` border
-   div (`w-3 h-3 rounded-full border-2 border-current border-t-transparent`). If shadcn/ui
-   has a `Spinner` or `Loader` component already in the project, use that instead.
-
-3. **Relative timestamp for EventFeedItem:** No timestamp is shown in the current spec.
-   If the implementer adds one (e.g., "3s ago" below the badge row), use
-   `Intl.RelativeTimeFormat` — do not pull in a date library for this alone.
-
-4. **HumanReview empty queue badge:** The tab label can optionally show a count badge
-   (e.g., "Human Review (4)") when cases are pending. This is out of scope for this spec
-   but easy to wire — `useEscalationQueue().data?.total` is available. Implementer's call.
+3. **`useExperiments`/`usePapers` hooks:** Defined in spec but not used by v1 UI pages. Implementer may stub them (export the hook, no component uses it) or omit entirely. Include in MSW handlers to avoid future 404 noise.
 
 ---
 
 ## Handoff
 
-The implementer reads this file alongside `roles/architect/output/output.md`.
+The implementer (phase 6b — frontend) reads this file alongside `roles/architect/output/output.md` and `roles/implementer/output/backend-output.md`.
 
 Deviations from this spec must be documented in `roles/implementer/output/output.md` with a reason.
 
 **Implementation sequence:**
-1. Extend `web/src/types/index.ts` with timeseries types defined in this file.
-2. Add new hooks to `api/metrics.ts` and `api/review.ts` per hook specs above.
-3. Implement shared components in dependency order:
-   `SourceBadge` → `EscalationReasonBadge` → `VerdictRow` → `EventFeedItem` → `EscalationCard`
-   → `ModelTimeseriesChart` → `ModelPerformanceCard` → `TaxonomyTrendChart`
-4. Update `PanelTabBar` to 4 tabs; remove Calibration and ModelComparison tab entries.
-5. Implement pages: `StreamMonitor` (update) → `ModelPerformance` (rework) →
-   `TaxonomyTrends` (new) → `HumanReview` (rework).
-6. Write vitest tests for each new/updated component covering: loading skeleton, empty state,
-   data-populated state, error state. For `EscalationCard`, test button disabled state
-   during mutation in-flight.
-7. Remove `Calibration.tsx`, `ModelComparison.tsx` and their test files. Remove imports from
-   `App.tsx`. Remove `useCalibration()` and `useDisagreements()` hooks if no longer referenced.
+1. `web/` scaffold via `setup-ts-pnpm.md` — `pnpm create vite`, install deps, write `tailwind.config.js` from Token Layer above
+2. `src/types/index.ts` — all types from architect output
+3. `src/api/client.ts` — `apiFetch` wrapper
+4. Hooks: `useSession`, `useSubmitReview`, `useResults`
+5. Shared components (dependency order): `AnnotatedAbstract` → `SelectionFloater` → `DetectionList` → `UpliftHero` → `ConditionResultsTable` → `PaperHeader` → `CompletionBanner`
+6. Pages: `ReviewPage` → `ResultsPage`
+7. `App.tsx` — `BrowserRouter` + two routes + minimal header shell
+8. `src/test/handlers.ts` — MSW handlers for all endpoints
+9. `ReviewPage.test.tsx` + `ResultsPage.test.tsx` — per done criteria
+10. `pnpm build` — must exit 0 with 0 TypeScript errors

@@ -1,0 +1,18 @@
+services:
+  db:
+    image: postgres:16
+    environment:
+      POSTGRES_USER: ehs
+      POSTGRES_PASSWORD: ehs
+      POSTGRES_DB: error_hide_seek
+    ports:
+      - "5436:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ehs -d error_hide_seek"]
+      interval: 5s
+      retries: 5
+
+volumes:
+  pgdata:
