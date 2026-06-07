@@ -54,14 +54,20 @@ its output feeds back into the workspace itself (`resources/`, `skills/`, `routi
 | 3 | `architect` | `planner/output.md` | `[lang]-conventions.md` | — | `roles/architect/output/output.md` |
 | 4 | `design-brief` *(if project has frontend)* | `planner/output.md`, `architect/output.md` | `design_style.md`, `vibecoding-style.md` | — | `roles/design-brief/output/output.md` |
 | 5 | `frontend-architect` *(if project has frontend)* | `design-brief/output.md`, `architect/output.md` | `design_style.md`, `[lang]-conventions.md` | `setup-design-tokens.md` (new projects) | `roles/frontend-architect/output/output.md` |
-| 6 | `implementer` | `frontend-architect/output.md` + `architect/output.md`, or `architect/output.md` only if no frontend | `[lang]-conventions.md`, `vibecoding-style.md` | `setup-[lang]-project.md` | `roles/implementer/output/output.md` |
+| 6a | `implementer` **(backend phase)** *(full-stack projects only)* | `architect/output.md` | `python-conventions.md`, `vibecoding-style.md` | `setup-uv-project.md` | `roles/implementer/output/backend-output.md` |
+| 6b | `implementer` **(frontend phase)** *(full-stack projects only)* | `implementer/output/backend-output.md`, `frontend-architect/output.md` or `architect/output.md` | `typescript-conventions.md`, `vibecoding-style.md` | `setup-ts-pnpm.md` | `roles/implementer/output/output.md` |
+| 6 | `implementer` **(single-language projects)** | `architect/output.md` | `[lang]-conventions.md`, `vibecoding-style.md` | `setup-[lang]-project.md` | `roles/implementer/output/output.md` |
 | 7 | `ui-reviewer` *(if project has frontend)* | `implementer/output.md`, `frontend-architect/output.md`, `design-brief/output.md` | `design_style.md` | — | `roles/ui-reviewer/output/output.md` |
 | 8 | `reviewer` | `implementer/output.md` | `[lang]-conventions.md`, `prompt-design.md` (if project includes LLM prompts) | — | `roles/reviewer/output/output.md` |
 | 9 | `retro` | `reviewer/output.md`, `implementer/output.md`, `project-state.md` | `vibecoding-style.md`, `routing.md` | — | `roles/retro/output/output.md` |
 
+> **Full-stack implementer phasing (steps 6a/6b):** For projects with both a Python backend and a TypeScript frontend, run step 6a first. The backend phase ends when `backend-output.md` is written and linting is clean. Human reviews and signs off. Then step 6b runs — frontend only — reading `backend-output.md` as its primary input. The final `output.md` (written by 6b) summarises both phases and is the file the reviewer reads. Step 6 (single row) applies to single-language projects only.
+
 > **UI debug loop:** If `ui-reviewer` returns REWORK NEEDED, `ui-debugger` applies fixes, then `ui-reviewer` runs a second pass before `reviewer` proceeds.
 
 > **Plan mode note:** If plan mode ran before the sequence and produced a detailed architecture, the `architect` role may treat the plan file as pre-resolved planner output. It confirms decisions rather than re-deriving them. The architect should not duplicate what the plan already settled — validate and resolve open questions only.
+
+> **Architect consolidation rule:** If this is a delta architect pass (extending a prior output), the architect must consolidate the prior output and the delta into a single complete spec in `roles/architect/output/output.md` before archiving. The implementer reads one file — never a diff + base. Diffs belong in the architect's working notes; the handoff file must be self-contained.
 
 > **Planner open questions convention:** When the planner raises open questions, each question should include a `Proposed answer:` inline. This lets the architect confirm or override rather than design from scratch.
 

@@ -105,7 +105,7 @@ class ClusterSummary(Base):
     __tablename__ = "cluster_summaries"
 
     id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    cluster_id: Mapped[int] = mapped_column(Integer, nullable=False, unique=True)
+    cluster_id: Mapped[int] = mapped_column(Integer, nullable=False)
     size: Mapped[int] = mapped_column(Integer, nullable=False)
     top_harm_category: Mapped[str] = mapped_column(String(100), nullable=False)
     top_strategy: Mapped[str] = mapped_column(String(100), nullable=False)

@@ -78,6 +78,7 @@
 
 - Never filter in Python what can be filtered in SQL. Push `WHERE` conditions to the query.
 - `total` / `count` fields in API responses must come from a SQL `COUNT(*)` against the full table, not from `len()` on a Python-filtered slice of a `LIMIT`-ed result. A Python count is wrong as soon as there are more rows than the limit.
+- **PostgreSQL does not support `avg(boolean)`**. To compute a success rate from a boolean column: use `func.sum(case((col == True, 1), else_=0)).label("successes")` and `func.count().label("total")` (both valid integer aggregates), then divide in Python: `successes / total if total > 0 else 0.0`. Do not use `func.avg(boolean_col)` — it raises a PostgreSQL type error at runtime, not at query-build time.
 
 ## HuggingFace Trainer (fine-tuning projects)
 
