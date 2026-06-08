@@ -9,11 +9,33 @@ Detailed GPU setup in `resources/runpod-plan.md`. GPU pricing in `resources/runp
 
 | Layer | Code | Migrations | Data / execution |
 |---|---|---|---|
-| `llm-safety-monitor` | ✓ complete | ✓ written — needs `upgrade head` | needs `uv sync` |
-| `llm-safety-classifier` (shared) | ✓ complete | — | needs `uv sync` in both projects |
-| `red-team-platform` | ✓ complete | ✓ written — needs `upgrade head` | **attack sweep not yet run** |
-| `error-hide-seek` | ✓ complete | ✓ written — needs `upgrade head` | **experiment not yet run** |
-| Model checkpoints | ✓ trained — pair/prompt/taxonomy at `resources/models/` | — | — |
+| `llm-safety-monitor` | ✓ complete | ✓ applied (001–004) | tests 25/25 ✓ |
+| `llm-safety-classifier` (shared) | ✓ complete | — | uv workspace ✓ |
+| `red-team-platform` | ✓ complete | ✓ applied (001–002) | 10,800 attacks seeded ✓ — **sweep pending** |
+| `error-hide-seek` | ✓ complete | ✓ applied (001–002) | pilot-01 complete ✓ — exp-2 (Claude) pending |
+| Model checkpoints | ✓ trained — pair/prompt/taxonomy at `resources/models/` | — | ✓ loaded |
+
+### EHS pilot-01 results (2026-06-08, gemma2:9b, n=10)
+
+| Condition | TPR | FPR |
+|---|---|---|
+| unaided | 0.67 | 0.00 |
+| agent_only | 0.33 | 0.83 |
+| human_agent | 0.50 | 0.67 |
+| **uplift** | **−0.17** | |
+
+Finding: weak agent (high FPR) injects noise that degrades human judgment. `causal_inversion` and `scope_extension` missed by both. Motivates experiment 2 with Claude as agent.
+
+### Pending jobs
+
+| Job | Where | Time | Cost | Priority |
+|---|---|---|---|---|
+| Attack sweep (6 strategies) | RunPod RTX 4090 | ~45 min | ~$0.35 | **1** |
+| `cluster` + `outbox-publisher` | local (after sweep) | ~10 min | free | 1 (same session) |
+| EHS exp-2: Claude agent | local + Anthropic API | ~30 min | ~$1–2 | **2** |
+| Model retrain RoBERTa | RunPod A10G | ~33 min | ~$0.25 | 3 (optional) |
+| Model retrain DeBERTa | RunPod A100 | ~23 min | ~$0.48 | 3 (optional) |
+| Hetzner CX33 deploy | Hetzner | ~1 hr setup | €6.49/mo | 4 |
 
 ---
 
