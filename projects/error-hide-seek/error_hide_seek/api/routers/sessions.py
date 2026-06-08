@@ -127,14 +127,14 @@ async def create_session(body: SessionCreate, db: AsyncSession = Depends(get_db)
         # the blue-team prompt), not a numeric comparison.
         trustworthy = [a for a in ann_result.annotations if a.confidence != "low"]
         excerpts = [a.text_excerpt for a in trustworthy]
-        planted_detected, fp_count = score_detections(excerpts, pe.original_text)
+        planted_detected, fp_count = score_detections(excerpts, pe.original_text, pe.altered_text)
 
         for ann in trustworthy:
             db.add(
                 HumanDetection(
                     review_session_id=session_row.id,
                     text_excerpt=ann.text_excerpt,
-                    is_true_positive=is_true_positive(ann.text_excerpt, pe.original_text),
+                    is_true_positive=is_true_positive(ann.text_excerpt, pe.original_text, pe.altered_text),
                 )
             )
 

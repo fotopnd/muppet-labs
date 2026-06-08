@@ -38,7 +38,7 @@ async def submit_review(body: ReviewSubmit, db: AsyncSession = Depends(get_db)) 
         raise HTTPException(500, "Planted error missing for session")
 
     for det in body.detections:
-        tp = is_true_positive(det.text_excerpt, pe.original_text)
+        tp = is_true_positive(det.text_excerpt, pe.original_text, pe.altered_text)
         db.add(
             HumanDetection(
                 review_session_id=body.session_id,

@@ -18,18 +18,24 @@ from error_hide_seek.models import (
 )
 
 
-def is_true_positive(detection_excerpt: str, planted_original: str) -> bool:
+def is_true_positive(detection_excerpt: str, planted_original: str, planted_altered: str = "") -> bool:
     d = detection_excerpt.lower().strip()
     p = planted_original.lower().strip()
-    return d in p or p in d
+    a = planted_altered.lower().strip()
+    # A detection is a TP if the excerpt overlaps the original OR the altered span
+    # (reviewers see the altered abstract, so they naturally flag altered text)
+    orig_match = d in p or p in d
+    alt_match = bool(a) and (d in a or a in d)
+    return orig_match or alt_match
 
 
 def score_detections(
     detections: list[str],
     planted_original: str,
+    planted_altered: str = "",
 ) -> tuple[bool, int]:
-    planted_detected = any(is_true_positive(d, planted_original) for d in detections)
-    false_positive_count = sum(1 for d in detections if not is_true_positive(d, planted_original))
+    planted_detected = any(is_true_positive(d, planted_original, planted_altered) for d in detections)
+    false_positive_count = sum(1 for d in detections if not is_true_positive(d, planted_original, planted_altered))
     return planted_detected, false_positive_count
 
 
