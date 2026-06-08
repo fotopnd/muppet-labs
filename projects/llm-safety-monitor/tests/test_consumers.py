@@ -14,10 +14,13 @@ def _make_settings(tmp_path: Path):
 
     pair_path = tmp_path / "pair"
     pair_path.mkdir()
+    (pair_path / "config.json").write_text('{"model_type":"roberta"}')
     prompt_path = tmp_path / "prompt"
     prompt_path.mkdir()
+    (prompt_path / "config.json").write_text('{"model_type":"roberta"}')
     taxonomy_path = tmp_path / "taxonomy"
     taxonomy_path.mkdir()
+    (taxonomy_path / "config.json").write_text('{"model_type":"roberta"}')
 
     return Settings(
         PAIR_CLASSIFIER_PATH=pair_path,

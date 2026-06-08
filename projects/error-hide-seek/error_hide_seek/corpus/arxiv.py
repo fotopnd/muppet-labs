@@ -6,7 +6,7 @@ from dataclasses import dataclass
 import httpx
 
 NS = {"atom": "http://www.w3.org/2005/Atom"}
-_BASE_URL = "http://export.arxiv.org/api/query"
+_BASE_URL = "https://export.arxiv.org/api/query"
 _PAGE_SIZE = 100
 
 
@@ -26,7 +26,7 @@ async def fetch_abstracts(client: httpx.AsyncClient, limit: int) -> list[ArxivPa
         start = page * _PAGE_SIZE
         max_results = min(_PAGE_SIZE, limit - len(results))
         params = {
-            "search_query": "cat:cs.AI+OR+cat:cs.LG",
+            "search_query": "cat:cs.AI OR cat:cs.LG",
             "start": start,
             "max_results": max_results,
             "sortBy": "submittedDate",

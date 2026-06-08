@@ -14,12 +14,12 @@ logger = logging.getLogger(__name__)
 async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     from red_team_platform.config import get_settings
     from red_team_platform.db import create_engine, create_session_factory
-    from red_team_platform.runner.classifier import get_classifier
+    import llm_safety_classifier
 
     settings = get_settings()
 
     # Fail fast: load pair classifier at startup
-    get_classifier(settings.pair_classifier_path)
+    llm_safety_classifier.load(settings.pair_classifier_path)
 
     engine = create_engine(settings.database_url)
     app.state.session_factory = create_session_factory(engine)

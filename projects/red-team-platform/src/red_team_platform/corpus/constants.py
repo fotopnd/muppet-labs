@@ -8,7 +8,7 @@ from __future__ import annotations
 # Update these constants if field names differ.
 SEV_DATASET_NAME = "sevdeawesome/jailbreak_success"
 SEV_SPLIT = "train"
-SEV_ATTACK_TEXT_FIELD = "jailbreak_query"
-SEV_STRATEGY_FIELD = "strategy"
-SEV_HARM_GOAL_FIELD = "behavior"
+SEV_ATTACK_TEXT_FIELD = "jailbreak_prompt_text"
+SEV_STRATEGY_FIELD = "jailbreak_prompt_name"
+SEV_HARM_GOAL_FIELD = "prompt_name"
 SEV_SOURCE_KEY = "sevdeawesome"

@@ -10,13 +10,16 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_asyn
 
 from red_team_platform.models import Attack, Base, Run, RunSession
 
-TEST_DB_URL = "postgresql+asyncpg://redteam:redteam@localhost:5435/redteam_test"
+TEST_DB_URL = "postgresql+asyncpg://redteam:redteam@localhost:5433/redteam_test"
 
 
-@pytest_asyncio.fixture(scope="session")
+@pytest_asyncio.fixture
 async def engine():
     eng = create_async_engine(TEST_DB_URL, pool_pre_ping=True)
     async with eng.begin() as conn:
+        await conn.execute(__import__("sqlalchemy").text(
+            "DROP MATERIALIZED VIEW IF EXISTS coverage_summary"
+        ))
         await conn.run_sync(Base.metadata.drop_all)
         await conn.run_sync(Base.metadata.create_all)
         # Create coverage_summary view manually (not in metadata)
@@ -29,9 +32,13 @@ async def engine():
                 SUM(CASE WHEN r.jailbreak_success THEN 1 ELSE 0 END) AS total_successes,
                 AVG(r.jailbreak_success::int)::float AS asr
             FROM runs r JOIN attacks a ON r.attack_id = a.id
-            GROUP BY a.harm_category, a.strategy;
-            CREATE UNIQUE INDEX IF NOT EXISTS uix_cov ON coverage_summary (harm_category, strategy);
+            GROUP BY a.harm_category, a.strategy
             """)
+        )
+        await conn.execute(
+            __import__("sqlalchemy").text(
+                "CREATE UNIQUE INDEX IF NOT EXISTS uix_cov ON coverage_summary (harm_category, strategy)"
+            )
         )
     yield eng
     await eng.dispose()
@@ -81,10 +88,6 @@ async def seeded_run(db_session: AsyncSession, seeded_attack: Attack) -> tuple[R
 
 @pytest.fixture
 def mock_classifier(mocker):
-    mocker.patch(
-        "red_team_platform.runner.classifier.get_classifier",
-        return_value=lambda text: [{"label": "LABEL_1", "score": 0.9}],
-    )
     mocker.patch(
         "red_team_platform.runner.classifier.score",
         return_value=(True, 0.9),
