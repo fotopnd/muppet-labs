@@ -1,19 +1,11 @@
 import json
-from unittest.mock import AsyncMock, MagicMock
+from unittest.mock import AsyncMock
 
 import pytest
 
 from error_hide_seek.agents.blue_team import AnnotateResult, annotate
 from error_hide_seek.agents.red_team import PlantResult, plant_error
 from error_hide_seek.models import ErrorCategory
-
-
-def _make_message(text: str) -> MagicMock:
-    content_block = MagicMock()
-    content_block.text = text
-    msg = MagicMock()
-    msg.content = [content_block]
-    return msg
 
 
 @pytest.mark.asyncio
@@ -26,9 +18,8 @@ async def test_plant_error_success():
             "rationale": "Inverted the direction of the improvement claim.",
         }
     )
-    client = MagicMock()
-    client.messages.create = AsyncMock(return_value=_make_message(response_json))
-    result = await plant_error(client, abstract, ErrorCategory.INVERTED_CONCLUSION)
+    llm = AsyncMock(return_value=response_json)
+    result = await plant_error(llm, abstract, ErrorCategory.INVERTED_CONCLUSION)
     assert isinstance(result, PlantResult)
     assert result.original_text == "improves alignment by 30%"
     assert result.altered_text == "degrades alignment by 30%"
@@ -37,7 +28,6 @@ async def test_plant_error_success():
 @pytest.mark.asyncio
 async def test_plant_error_retries_on_bad_json():
     abstract = "We show that RLHF improves alignment by 30% on standard benchmarks."
-    bad_response = "not json at all"
     good_json = json.dumps(
         {
             "original_text": "improves alignment by 30%",
@@ -45,22 +35,18 @@ async def test_plant_error_retries_on_bad_json():
             "rationale": "Fixed.",
         }
     )
-    client = MagicMock()
-    client.messages.create = AsyncMock(
-        side_effect=[_make_message(bad_response), _make_message(good_json)]
-    )
-    result = await plant_error(client, abstract, ErrorCategory.INVERTED_CONCLUSION)
+    llm = AsyncMock(side_effect=["not json at all", good_json])
+    result = await plant_error(llm, abstract, ErrorCategory.INVERTED_CONCLUSION)
     assert result.original_text == "improves alignment by 30%"
-    assert client.messages.create.call_count == 2
+    assert llm.call_count == 2
 
 
 @pytest.mark.asyncio
 async def test_plant_error_raises_on_double_failure():
     abstract = "We show that RLHF improves alignment by 30% on standard benchmarks."
-    client = MagicMock()
-    client.messages.create = AsyncMock(return_value=_make_message("bad json"))
+    llm = AsyncMock(return_value="bad json")
     with pytest.raises((ValueError, json.JSONDecodeError, KeyError)):
-        await plant_error(client, abstract, ErrorCategory.INVERTED_CONCLUSION)
+        await plant_error(llm, abstract, ErrorCategory.INVERTED_CONCLUSION)
 
 
 @pytest.mark.asyncio
@@ -77,9 +63,8 @@ async def test_annotate_success():
             ]
         }
     )
-    client = MagicMock()
-    client.messages.create = AsyncMock(return_value=_make_message(response_json))
-    result = await annotate(client, abstract)
+    llm = AsyncMock(return_value=response_json)
+    result = await annotate(llm, abstract)
     assert isinstance(result, AnnotateResult)
     assert len(result.annotations) == 1
     assert result.annotations[0].text_excerpt == "improves alignment by 30%"
@@ -90,41 +75,34 @@ async def test_annotate_success():
 @pytest.mark.asyncio
 async def test_annotate_empty_list():
     response_json = json.dumps({"annotations": []})
-    client = MagicMock()
-    client.messages.create = AsyncMock(return_value=_make_message(response_json))
-    result = await annotate(client, "some abstract")
+    llm = AsyncMock(return_value=response_json)
+    result = await annotate(llm, "some abstract")
     assert result.annotations == []
     assert result.parse_failures == 0
 
 
 @pytest.mark.asyncio
 async def test_annotate_counts_single_parse_failure():
-    """First attempt fails, second succeeds → parse_failures=1."""
-    bad_msg = _make_message("not json at all")
-    good_msg = _make_message(
-        json.dumps(
-            {
-                "annotations": [
-                    {
-                        "text_excerpt": "suspicious claim here",
-                        "confidence": "medium",
-                        "reason": "Unusual phrasing.",
-                    }
-                ]
-            }
-        )
+    good_json = json.dumps(
+        {
+            "annotations": [
+                {
+                    "text_excerpt": "suspicious claim here",
+                    "confidence": "medium",
+                    "reason": "Unusual phrasing.",
+                }
+            ]
+        }
     )
-    client = MagicMock()
-    client.messages.create = AsyncMock(side_effect=[bad_msg, good_msg])
-    result = await annotate(client, "abstract text")
+    llm = AsyncMock(side_effect=["not json at all", good_json])
+    result = await annotate(llm, "abstract text")
     assert len(result.annotations) == 1
     assert result.parse_failures == 1
 
 
 @pytest.mark.asyncio
 async def test_annotate_returns_empty_on_double_failure():
-    client = MagicMock()
-    client.messages.create = AsyncMock(return_value=_make_message("bad json"))
-    result = await annotate(client, "some abstract")
+    llm = AsyncMock(return_value="bad json")
+    result = await annotate(llm, "some abstract")
     assert result.annotations == []
-    assert result.parse_failures == 2
+    assert result.parse_failures == 3

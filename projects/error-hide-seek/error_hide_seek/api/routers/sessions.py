@@ -1,11 +1,11 @@
 from datetime import UTC, datetime
 
-import anthropic
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from error_hide_seek.agents.blue_team import annotate
+from error_hide_seek.agents.llm import make_caller
 from error_hide_seek.api.deps import get_db
 from error_hide_seek.api.schemas import AnnotationOut, AutoScoredResult, SessionCreate, SessionOut
 from error_hide_seek.config import settings
@@ -81,8 +81,8 @@ async def create_session(body: SessionCreate, db: AsyncSession = Depends(get_db)
     scored_result: AutoScoredResult | None = None
 
     if ep.condition == Condition.HUMAN_AGENT:
-        client = anthropic.AsyncAnthropic(api_key=settings.anthropic_api_key)
-        ann_result = await annotate(client, pe.altered_abstract)
+        llm = make_caller(max_tokens=1024, temperature=0.3)
+        ann_result = await annotate(llm, pe.altered_abstract)
         session_row.parse_failures = ann_result.parse_failures
         session_row.agent_run_status = (
             AgentRunStatus.PARSE_FAILED
@@ -113,8 +113,8 @@ async def create_session(body: SessionCreate, db: AsyncSession = Depends(get_db)
         ]
 
     elif ep.condition == Condition.AGENT_ONLY:
-        client = anthropic.AsyncAnthropic(api_key=settings.anthropic_api_key)
-        ann_result = await annotate(client, pe.altered_abstract)
+        llm = make_caller(max_tokens=1024, temperature=0.3)
+        ann_result = await annotate(llm, pe.altered_abstract)
         session_row.parse_failures = ann_result.parse_failures
         session_row.agent_run_status = (
             AgentRunStatus.PARSE_FAILED

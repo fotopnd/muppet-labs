@@ -2,9 +2,9 @@ import argparse
 import asyncio
 import logging
 
-import anthropic
 from sqlalchemy import select
 
+from error_hide_seek.agents.llm import make_caller
 from error_hide_seek.agents.red_team import plant_error
 from error_hide_seek.config import settings
 from error_hide_seek.db import AsyncSessionLocal, init_db
@@ -14,11 +14,10 @@ log = logging.getLogger(__name__)
 
 
 async def _run(experiment_id: int, category_override: ErrorCategory | None) -> None:
-    if not settings.anthropic_api_key:
-        raise SystemExit("ANTHROPIC_API_KEY not set")
-
     await init_db()
-    client = anthropic.AsyncAnthropic(api_key=settings.anthropic_api_key)
+    llm = make_caller(max_tokens=512, temperature=0.7)
+    backend = "anthropic" if settings.anthropic_api_key else f"ollama/{settings.ollama_model}"
+    log.info("Using LLM backend: %s", backend)
 
     async with AsyncSessionLocal() as session:
         rows = (
@@ -50,8 +49,6 @@ async def _run(experiment_id: int, category_override: ErrorCategory | None) -> N
                 skipped += 1
                 continue
 
-            # Use the category stored at experiment creation time.
-            # Fall back to round-robin cycle for legacy rows where intended_category is NULL.
             if category_override:
                 category = category_override
             elif ep.intended_category:
@@ -63,7 +60,13 @@ async def _run(experiment_id: int, category_override: ErrorCategory | None) -> N
                 "[%d/%d] paper_id=%d category=%s — planting", idx + 1, total, paper.id, category
             )
 
-            result = await plant_error(client, paper.abstract, category)
+            try:
+                result = await plant_error(llm, paper.abstract, category)
+            except Exception as exc:
+                log.warning("[%d/%d] paper_id=%d — skipped after retries: %s", idx + 1, total, paper.id, exc)
+                skipped += 1
+                continue
+
             altered_abstract = paper.abstract.replace(result.original_text, result.altered_text, 1)
 
             session.add(

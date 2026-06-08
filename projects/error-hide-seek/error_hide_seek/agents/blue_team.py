@@ -1,14 +1,13 @@
+from __future__ import annotations
+
 import json
 import logging
 from dataclasses import dataclass
 
-import anthropic
-
+from error_hide_seek.agents.llm import LLMCaller
 from error_hide_seek.agents.prompts import build_blue_team_prompt
 
 log = logging.getLogger(__name__)
-
-_MODEL = "claude-sonnet-4-6"
 
 
 @dataclass
@@ -37,36 +36,22 @@ def _parse_annotations(text: str) -> list[Annotation]:
 
 
 async def annotate(
-    client: anthropic.AsyncAnthropic,
+    llm: LLMCaller,
     abstract: str,
 ) -> AnnotateResult:
     prompt = build_blue_team_prompt(abstract)
     failures = 0
 
-    msg = await client.messages.create(
-        model=_MODEL,
-        max_tokens=1024,
-        temperature=0.3,
-        messages=[{"role": "user", "content": prompt}],
-    )
-    raw = msg.content[0].text  # type: ignore[union-attr]
+    for _ in range(3):
+        raw = await llm(prompt)
+        text = raw.strip()
+        if text.startswith("```"):
+            lines = text.splitlines()
+            text = "\n".join(l for l in lines if not l.startswith("```")).strip()
+        try:
+            return AnnotateResult(annotations=_parse_annotations(text), parse_failures=failures)
+        except (json.JSONDecodeError, KeyError) as exc:
+            log.warning("Blue team attempt failed (%s), retrying", exc)
+            failures += 1
 
-    try:
-        return AnnotateResult(annotations=_parse_annotations(raw), parse_failures=failures)
-    except (json.JSONDecodeError, KeyError) as exc:
-        log.warning("Blue team agent first attempt failed (%s), retrying", exc)
-        failures += 1
-
-    msg2 = await client.messages.create(
-        model=_MODEL,
-        max_tokens=1024,
-        temperature=0.3,
-        messages=[{"role": "user", "content": prompt}],
-    )
-    raw2 = msg2.content[0].text  # type: ignore[union-attr]
-    try:
-        return AnnotateResult(annotations=_parse_annotations(raw2), parse_failures=failures)
-    except (json.JSONDecodeError, KeyError) as exc2:
-        log.warning("Blue team agent second attempt failed (%s), returning empty list", exc2)
-        failures += 1
-        return AnnotateResult(annotations=[], parse_failures=failures)
+    return AnnotateResult(annotations=[], parse_failures=failures)
