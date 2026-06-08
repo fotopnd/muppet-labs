@@ -294,14 +294,21 @@ Hetzner is 28–40% cheaper than Hostinger for equivalent specs and significantl
 
 Hetzner requires an account verification step (ID upload) that can take 1–2 business days — create the account before you need it. EU data residency only (closest to London: Falkenstein, Germany).
 
-**Which plan to choose:**
+**CX33 handles both RoBERTa and DeBERTa.**
 
-| Scenario | Plan | Price |
-|---|---|---|
-| RoBERTa (current checkpoint) | CX33 — 8 GB | €6.49/mo |
-| DeBERTa upgrade | CX43 — 16 GB | €11.99/mo |
+DeBERTa-v3-base is ~750 MB on disk and loads to roughly the same in RAM for CPU inference (float32). RoBERTa-base is ~500 MB. The difference is ~250 MB — not meaningful on an 8 GB machine. Full stack peak usage with DeBERTa is ~4.3 GB, leaving ~3.7 GB headroom on CX33.
 
-DeBERTa-v3-base loaded in memory adds ~2.5 GB. On CX33 (8 GB) it is tight alongside Kafka + 3× Postgres. CX43 is recommended after the DeBERTa retrain.
+| Component | RAM |
+|---|---|
+| DeBERTa-v3-base (CPU float32) | ~800 MB |
+| Postgres × 3 (tuned) | ~600 MB |
+| Kafka (heap capped to 512 m) | ~700 MB |
+| ZooKeeper | ~200 MB |
+| FastAPI × 3 | ~450 MB |
+| nginx + OS | ~1.5 GB |
+| **Total** | **~4.3 GB** |
+
+CX43 (16 GB) is only justified if you load all three classifiers (pair + prompt + taxonomy) as DeBERTa simultaneously in the same process (~2.4 GB for models alone). In the current architecture each consumer loads one classifier, so CX33 is the right choice for both model variants.
 
 ---
 
@@ -383,11 +390,9 @@ cd projects/error-hide-seek/web     && pnpm install && pnpm build
 
 | Item | Cost |
 |---|---|
-| Hetzner CX33 (RoBERTa stack) | €6.49/mo |
-| Hetzner CX43 (after DeBERTa upgrade) | €11.99/mo |
+| Hetzner CX33 (both RoBERTa and DeBERTa) | €6.49/mo |
 | Domain (optional, e.g. safeguards.dev) | ~€1/mo amortised |
-| **Total (RoBERTa)** | **~€7.50/mo** |
-| **Total (DeBERTa)** | **~€13/mo** |
+| **Total** | **~€7.50/mo** |
 
 ---
 
@@ -399,9 +404,8 @@ cd projects/error-hide-seek/web     && pnpm install && pnpm build
 | error-hide-seek plant + annotate | Anthropic API one-time | ~20 min | ~$1.07 |
 | RoBERTa retrain on A10G (optional) | RunPod one-time | ~31 min GPU | ~$0.36 |
 | DeBERTa retrain on A100 (optional) | RunPod one-time | ~34 min GPU | ~$0.63 |
-| Hetzner CX33 hosting (RoBERTa) | Monthly recurring | — | €6.49/mo |
-| Hetzner CX43 hosting (DeBERTa) | Monthly recurring | — | €11.99/mo |
+| Hetzner CX33 hosting (RoBERTa or DeBERTa) | Monthly recurring | — | €6.49/mo |
 | **Total one-time (RoBERTa path)** | | **~86 min** | **~$1.78** |
 | **Total one-time (DeBERTa path)** | | **~89 min** | **~$2.05** |
 | **First month all-in (RoBERTa + hosting)** | | | **~$9.30** |
-| **First month all-in (DeBERTa + hosting)** | | | **~$15.10** |
+| **First month all-in (DeBERTa + hosting)** | | | **~$9.55** |
