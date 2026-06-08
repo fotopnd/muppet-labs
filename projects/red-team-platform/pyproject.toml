@@ -40,7 +40,7 @@ packages = ["src/red_team_platform"]
 package = true
 
 [tool.uv.sources]
-llm-safety-classifier = { path = "../../packages/llm-safety-classifier", editable = true }
+llm-safety-classifier = { workspace = true }
 
 [tool.pytest.ini_options]
 asyncio_mode = "auto"

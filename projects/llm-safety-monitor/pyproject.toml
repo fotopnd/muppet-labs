@@ -38,7 +38,7 @@ packages = ["llm_safety_monitor"]
 package = true
 
 [tool.uv.sources]
-llm-safety-classifier = { path = "../../packages/llm-safety-classifier", editable = true }
+llm-safety-classifier = { workspace = true }
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

@@ -1,0 +1,73 @@
+services:
+
+  # ── Shared streaming layer ────────────────────────────────────────────────
+  zookeeper:
+    image: confluentinc/cp-zookeeper:7.6.0
+    environment:
+      ZOOKEEPER_CLIENT_PORT: 2181
+    ports:
+      - "2181:2181"
+
+  kafka:
+    image: confluentinc/cp-kafka:7.6.0
+    depends_on: [zookeeper]
+    environment:
+      KAFKA_BROKER_ID: 1
+      KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://localhost:9092
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+    ports:
+      - "9092:9092"
+
+  # ── llm-safety-monitor (port 5434) ────────────────────────────────────────
+  monitor-postgres:
+    image: postgres:16
+    environment:
+      POSTGRES_DB: llm_safety_monitor
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+    ports:
+      - "5434:5432"
+    volumes:
+      - monitor_pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d llm_safety_monitor"]
+      interval: 5s
+      retries: 5
+
+  # ── red-team-platform (port 5433) ─────────────────────────────────────────
+  redteam-postgres:
+    image: postgres:16
+    environment:
+      POSTGRES_USER: redteam
+      POSTGRES_PASSWORD: redteam
+      POSTGRES_DB: redteam
+    ports:
+      - "5433:5432"
+    volumes:
+      - redteam_pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U redteam -d redteam"]
+      interval: 5s
+      retries: 5
+
+  # ── error-hide-seek (port 5436) ───────────────────────────────────────────
+  ehs-postgres:
+    image: postgres:16
+    environment:
+      POSTGRES_USER: ehs
+      POSTGRES_PASSWORD: ehs
+      POSTGRES_DB: error_hide_seek
+    ports:
+      - "5436:5432"
+    volumes:
+      - ehs_pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ehs -d error_hide_seek"]
+      interval: 5s
+      retries: 5
+
+volumes:
+  monitor_pgdata:
+  redteam_pgdata:
+  ehs_pgdata:

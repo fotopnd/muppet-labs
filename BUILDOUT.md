@@ -268,3 +268,140 @@ rsync -avz root@<pod-ip>:/workspace/pair/ \
 - [ ] RunPod account funded (minimum $10 deposit covers all runs above)
 - [ ] `uv sync` done in both projects (step 0)
 - [ ] Migrations applied (step 1)
+
+---
+
+## 5. Live deployment
+
+### Hosting recommendation: Hetzner CX33
+
+**Hetzner CX33 — 4 vCPU / 8 GB RAM / 80 GB NVMe / x86_64 / €6.49/month**
+
+Hetzner is 28–40% cheaper than Hostinger for equivalent specs and significantly cheaper than DigitalOcean or Render. The CX33 comfortably runs the full portfolio stack with Kafka heap capped and classifiers lazy-loaded.
+
+#### Provider comparison
+
+| Provider | Plan | RAM | vCPU | Storage | Price/mo | vs CX33 |
+|---|---|---|---|---|---|---|
+| **Hetzner** | **CX33** | **8 GB** | **4 (x86)** | **80 GB NVMe** | **€6.49** | **baseline** |
+| Hetzner | CX43 | 16 GB | 8 (x86) | 160 GB NVMe | €11.99 | +85% — safe headroom for DeBERTa |
+| Hostinger | KVM 2 | 8 GB | 2 | 100 GB NVMe | $8.99 | +28%; half the vCPU |
+| Hostinger | KVM 4 | 16 GB | 4 | 200 GB NVMe | $14.99 | +131% |
+| DigitalOcean | Basic 2 vCPU | 4 GB | 2 | 80 GB NVMe | $24.00 | +3.7× |
+| Render | Pro web service | 4 GB | 2 | — | $85.00 | +13×; each service billed separately |
+| Railway | Hobby | varies | varies | varies | $5+usage | Unpredictable for multi-service stacks |
+| Fly.io | shared-cpu-2x | 4 GB | 2 | per-GB | ~$20.00 | Complex for Kafka + 3-DB topology |
+
+Hetzner requires an account verification step (ID upload) that can take 1–2 business days — create the account before you need it. EU data residency only (closest to London: Falkenstein, Germany).
+
+**Which plan to choose:**
+
+| Scenario | Plan | Price |
+|---|---|---|
+| RoBERTa (current checkpoint) | CX33 — 8 GB | €6.49/mo |
+| DeBERTa upgrade | CX43 — 16 GB | €11.99/mo |
+
+DeBERTa-v3-base loaded in memory adds ~2.5 GB. On CX33 (8 GB) it is tight alongside Kafka + 3× Postgres. CX43 is recommended after the DeBERTa retrain.
+
+---
+
+#### Stack adjustments for Hetzner
+
+**1. Cap Kafka heap (mandatory on 8 GB):**
+
+In the root `docker-compose.yml`, add to the `kafka` service environment:
+
+```yaml
+KAFKA_HEAP_OPTS: "-Xmx512m -Xms256m"
+```
+
+This drops Kafka from its default ~1 GB JVM heap to ~512 MB.
+
+**2. Serve React frontends via nginx (no Node.js in prod):**
+
+Build each frontend locally and rsync the `dist/` folder to the server. nginx serves static files for all three frontends with essentially zero memory overhead.
+
+**3. Transfer model weights:**
+
+Model checkpoints are not committed to git (too large). rsync them directly:
+
+```bash
+rsync -avz --progress \
+  resources/models/llm-safety-monitor/ \
+  user@<hetzner-ip>:/opt/safeguards/resources/models/llm-safety-monitor/
+```
+
+RoBERTa checkpoint: ~500 MB. DeBERTa-v3-base checkpoint: ~750 MB. Transfer takes ~2–4 min on a home connection.
+
+---
+
+#### Deployment steps
+
+```bash
+# 1. Provision Hetzner CX33 (Ubuntu 24.04) via console or hcloud CLI
+hcloud server create --name safeguards --type cx33 --image ubuntu-24.04 --ssh-key <key-name>
+
+# 2. On the server
+ssh root@<ip>
+apt update && apt install -y docker.io docker-compose-plugin nginx python3-pip
+curl -LsSf https://astral.sh/uv/install.sh | sh
+
+# 3. Clone repo
+git clone <repo-url> /opt/safeguards
+cd /opt/safeguards
+
+# 4. Copy .env files (never commit these — transfer manually)
+# From local machine:
+scp projects/llm-safety-monitor/.env  root@<ip>:/opt/safeguards/projects/llm-safety-monitor/.env
+scp projects/red-team-platform/.env   root@<ip>:/opt/safeguards/projects/red-team-platform/.env
+scp projects/error-hide-seek/.env     root@<ip>:/opt/safeguards/projects/error-hide-seek/.env
+
+# 5. Transfer model weights
+rsync -avz resources/models/ root@<ip>:/opt/safeguards/resources/models/
+
+# 6. Start infrastructure
+docker compose up -d
+make migrate
+
+# 7. Install Python packages and start APIs
+make setup
+# Run each API as a systemd service or docker container
+make monitor-api &
+make redteam-api &
+make ehs-api &
+
+# 8. Build and serve frontends
+cd projects/llm-safety-monitor/web  && pnpm install && pnpm build
+cd projects/red-team-platform/web   && pnpm install && pnpm build
+cd projects/error-hide-seek/web     && pnpm install && pnpm build
+# Copy dist/ folders to nginx root and configure server blocks
+```
+
+---
+
+#### Monthly running cost
+
+| Item | Cost |
+|---|---|
+| Hetzner CX33 (RoBERTa stack) | €6.49/mo |
+| Hetzner CX43 (after DeBERTa upgrade) | €11.99/mo |
+| Domain (optional, e.g. safeguards.dev) | ~€1/mo amortised |
+| **Total (RoBERTa)** | **~€7.50/mo** |
+| **Total (DeBERTa)** | **~€13/mo** |
+
+---
+
+## Total cost: RunPod + hosting (first month)
+
+| Item | Type | Wall clock | Cost |
+|---|---|---|---|
+| Attack sweep (RTX 4090 spot) | RunPod one-time | ~35 min GPU | ~$0.35 |
+| error-hide-seek plant + annotate | Anthropic API one-time | ~20 min | ~$1.07 |
+| RoBERTa retrain on A10G (optional) | RunPod one-time | ~31 min GPU | ~$0.36 |
+| DeBERTa retrain on A100 (optional) | RunPod one-time | ~34 min GPU | ~$0.63 |
+| Hetzner CX33 hosting (RoBERTa) | Monthly recurring | — | €6.49/mo |
+| Hetzner CX43 hosting (DeBERTa) | Monthly recurring | — | €11.99/mo |
+| **Total one-time (RoBERTa path)** | | **~86 min** | **~$1.78** |
+| **Total one-time (DeBERTa path)** | | **~89 min** | **~$2.05** |
+| **First month all-in (RoBERTa + hosting)** | | | **~$9.30** |
+| **First month all-in (DeBERTa + hosting)** | | | **~$15.10** |

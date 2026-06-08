@@ -1,0 +1,17 @@
+[project]
+name = "safeguards-portfolio"
+version = "0.0.0"
+description = "Workspace root — not a distributable package."
+requires-python = ">=3.12"
+
+[tool.uv.workspace]
+members = [
+    "packages/llm-safety-classifier",
+    "projects/llm-safety-monitor",
+    "projects/red-team-platform",
+    "projects/error-hide-seek",
+    "projects/llm-safety-monitor-training",
+]
+
+[tool.uv.sources]
+llm-safety-classifier = { workspace = true }
