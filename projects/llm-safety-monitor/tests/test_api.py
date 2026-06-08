@@ -16,7 +16,7 @@ async def _seed_events(db_session, n: int = 10) -> list[Interaction]:
             id=uuid4(),
             prompt_text=f"Test prompt {i}",
             response_text=f"Test response {i}",
-            source_dataset="hh-rlhf",
+            source_dataset="wildguard",
             ground_truth_safe=(i % 2 == 0),  # alternating safe/unsafe
             ground_truth_categories=None,
             created_at=datetime.now(UTC),

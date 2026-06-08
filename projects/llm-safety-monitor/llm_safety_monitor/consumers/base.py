@@ -1,11 +1,9 @@
 from __future__ import annotations
 
 import logging
-import time
 from abc import abstractmethod
 from datetime import UTC, datetime
 from typing import Literal, TypedDict
-from uuid import UUID
 
 from llm_safety_monitor.config import Settings
 from llm_safety_monitor.types import LLMInteractionEvent
@@ -22,6 +20,8 @@ class ClassifyResult(TypedDict):
 
 class BaseConsumer:
     model_name: str
+    # Overridden in Phase 2 when classifiers delegate to the shared llm-safety-classifier package.
+    classifier_version: str = "legacy"
 
     def __init__(self, mode: Literal["production", "shadow"], model_name: str, settings: Settings) -> None:
         from sqlalchemy import create_engine
@@ -42,6 +42,7 @@ class BaseConsumer:
         """Classify text and return result dict."""
 
     def _write_classification(self, event: LLMInteractionEvent, result: ClassifyResult) -> None:
+        from sqlalchemy.exc import IntegrityError
         from sqlalchemy.orm import Session
 
         from llm_safety_monitor.api.models import ClassificationResult
@@ -57,14 +58,24 @@ class BaseConsumer:
                 seeded=False,
                 event_id=event.event_id,
                 taxonomy_labels=result.get("taxonomy_labels"),
+                classifier_version=self.classifier_version,
             )
-            session.add(row)
-            session.commit()
+            try:
+                session.add(row)
+                session.commit()
+            except IntegrityError:
+                session.rollback()
+                logger.debug(
+                    "Duplicate classification skipped: event_id=%s model=%s version=%s",
+                    event.event_id,
+                    self.model_name,
+                    self.classifier_version,
+                )
 
     def _build_input_text(self, event: LLMInteractionEvent) -> str:
-        if event.response:
-            return f"{event.prompt} [SEP] {event.response}"
-        return event.prompt
+        from llm_safety_classifier import build_input_text
+
+        return build_input_text(event.prompt, event.response)
 
     def run(self) -> None:
         from confluent_kafka import Consumer, KafkaError  # deferred

@@ -11,6 +11,7 @@ from error_hide_seek.api.schemas import AnnotationOut, AutoScoredResult, Session
 from error_hide_seek.config import settings
 from error_hide_seek.models import (
     AgentAnnotation,
+    AgentRunStatus,
     Condition,
     ExperimentPaper,
     HumanDetection,
@@ -40,6 +41,8 @@ async def _build_session_out(
         abstract_text=abstract_text,
         annotations=annotations,
         scored_result=scored_result,
+        agent_run_status=session_row.agent_run_status,
+        parse_failures=session_row.parse_failures,
     )
 
 
@@ -79,8 +82,15 @@ async def create_session(body: SessionCreate, db: AsyncSession = Depends(get_db)
 
     if ep.condition == Condition.HUMAN_AGENT:
         client = anthropic.AsyncAnthropic(api_key=settings.anthropic_api_key)
-        raw_annotations = await annotate(client, pe.altered_abstract)
-        for ann in raw_annotations:
+        ann_result = await annotate(client, pe.altered_abstract)
+        session_row.parse_failures = ann_result.parse_failures
+        session_row.agent_run_status = (
+            AgentRunStatus.PARSE_FAILED
+            if not ann_result.annotations and ann_result.parse_failures > 0
+            else AgentRunStatus.SUCCESS
+        )
+
+        for ann in ann_result.annotations:
             ann_row = AgentAnnotation(
                 review_session_id=session_row.id,
                 text_excerpt=ann.text_excerpt,
@@ -90,7 +100,6 @@ async def create_session(body: SessionCreate, db: AsyncSession = Depends(get_db)
             db.add(ann_row)
         await db.flush()
 
-        # Reload to get IDs
         saved = (
             await db.scalars(
                 select(AgentAnnotation).where(AgentAnnotation.review_session_id == session_row.id)
@@ -105,11 +114,22 @@ async def create_session(body: SessionCreate, db: AsyncSession = Depends(get_db)
 
     elif ep.condition == Condition.AGENT_ONLY:
         client = anthropic.AsyncAnthropic(api_key=settings.anthropic_api_key)
-        raw_annotations = await annotate(client, pe.altered_abstract)
-        excerpts = [a.text_excerpt for a in raw_annotations]
+        ann_result = await annotate(client, pe.altered_abstract)
+        session_row.parse_failures = ann_result.parse_failures
+        session_row.agent_run_status = (
+            AgentRunStatus.PARSE_FAILED
+            if not ann_result.annotations and ann_result.parse_failures > 0
+            else AgentRunStatus.SUCCESS
+        )
+
+        # Low-confidence annotations are excluded from auto-scoring to reduce
+        # false positives. The threshold is confidence == "low" (string enum from
+        # the blue-team prompt), not a numeric comparison.
+        trustworthy = [a for a in ann_result.annotations if a.confidence != "low"]
+        excerpts = [a.text_excerpt for a in trustworthy]
         planted_detected, fp_count = score_detections(excerpts, pe.original_text)
 
-        for ann in raw_annotations:
+        for ann in trustworthy:
             db.add(
                 HumanDetection(
                     review_session_id=session_row.id,
@@ -128,6 +148,11 @@ async def create_session(body: SessionCreate, db: AsyncSession = Depends(get_db)
             tpr=tpr,
             fpr=fpr,
         )
+
+    else:
+        # UNAIDED — no agent involved
+        session_row.agent_run_status = AgentRunStatus.SKIPPED
+        session_row.parse_failures = 0
 
     await db.commit()
     return await _build_session_out(

@@ -18,6 +18,12 @@ class Annotation:
     reason: str
 
 
+@dataclass
+class AnnotateResult:
+    annotations: list[Annotation]
+    parse_failures: int
+
+
 def _parse_annotations(text: str) -> list[Annotation]:
     data = json.loads(text)
     return [
@@ -33,8 +39,10 @@ def _parse_annotations(text: str) -> list[Annotation]:
 async def annotate(
     client: anthropic.AsyncAnthropic,
     abstract: str,
-) -> list[Annotation]:
+) -> AnnotateResult:
     prompt = build_blue_team_prompt(abstract)
+    failures = 0
+
     msg = await client.messages.create(
         model=_MODEL,
         max_tokens=1024,
@@ -44,9 +52,10 @@ async def annotate(
     raw = msg.content[0].text  # type: ignore[union-attr]
 
     try:
-        return _parse_annotations(raw)
+        return AnnotateResult(annotations=_parse_annotations(raw), parse_failures=failures)
     except (json.JSONDecodeError, KeyError) as exc:
         log.warning("Blue team agent first attempt failed (%s), retrying", exc)
+        failures += 1
 
     msg2 = await client.messages.create(
         model=_MODEL,
@@ -56,7 +65,8 @@ async def annotate(
     )
     raw2 = msg2.content[0].text  # type: ignore[union-attr]
     try:
-        return _parse_annotations(raw2)
+        return AnnotateResult(annotations=_parse_annotations(raw2), parse_failures=failures)
     except (json.JSONDecodeError, KeyError) as exc2:
         log.warning("Blue team agent second attempt failed (%s), returning empty list", exc2)
-        return []
+        failures += 1
+        return AnnotateResult(annotations=[], parse_failures=failures)

@@ -11,6 +11,7 @@ dependencies = [
     "datasets>=5.0.0",
     "fastapi>=0.136.3",
     "httpx>=0.28.1",
+    "llm-safety-classifier",
     "psycopg2-binary>=2.9.12",
     "pydantic>=2.13.4",
     "pydantic-settings>=2.14.1",
@@ -35,6 +36,9 @@ packages = ["llm_safety_monitor"]
 
 [tool.uv]
 package = true
+
+[tool.uv.sources]
+llm-safety-classifier = { path = "../../packages/llm-safety-classifier", editable = true }
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

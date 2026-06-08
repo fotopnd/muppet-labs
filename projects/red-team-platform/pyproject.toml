@@ -7,9 +7,11 @@ requires-python = ">=3.12"
 dependencies = [
     "alembic>=1.18.4",
     "asyncpg>=0.31.0",
+    "confluent-kafka>=2.14.2",
     "datasets>=5.0.0",
     "fastapi>=0.136.3",
     "httpx>=0.28.1",
+    "llm-safety-classifier",
     "psycopg2-binary>=2.9.12",
     "pydantic>=2.13.4",
     "pydantic-settings>=2.14.1",
@@ -21,10 +23,11 @@ dependencies = [
 ]
 
 [project.scripts]
-seed-corpus = "red_team_platform.corpus.seed:main"
-attack      = "red_team_platform.runner.attack:main"
-cluster     = "red_team_platform.cluster.kmeans:main"
-api         = "red_team_platform.api.main:run_server"
+seed-corpus      = "red_team_platform.corpus.seed:main"
+attack           = "red_team_platform.runner.attack:main"
+cluster          = "red_team_platform.cluster.kmeans:main"
+api              = "red_team_platform.api.main:run_server"
+outbox-publisher = "red_team_platform.outbox.publisher:main"
 
 [build-system]
 requires = ["hatchling"]
@@ -35,6 +38,9 @@ packages = ["src/red_team_platform"]
 
 [tool.uv]
 package = true
+
+[tool.uv.sources]
+llm-safety-classifier = { path = "../../packages/llm-safety-classifier", editable = true }
 
 [tool.pytest.ini_options]
 asyncio_mode = "auto"

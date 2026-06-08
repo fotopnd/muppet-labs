@@ -10,7 +10,7 @@ from sqlalchemy import select, text, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from red_team_platform.models import Attack, Run, RunSession
-from red_team_platform.runner.classifier import get_classifier, score
+from red_team_platform.runner.classifier import score, warm_up
 from red_team_platform.runner.ollama_client import chat, make_client
 
 logger = logging.getLogger(__name__)
@@ -74,7 +74,7 @@ async def run_session(
                 )
                 continue
 
-            jailbreak_success, classifier_score = score(response_text)
+            jailbreak_success, classifier_score = score(attack.attack_text, response_text)
 
             run = Run(
                 session_id=session_id,
@@ -86,6 +86,24 @@ async def run_session(
                 latency_ms=latency_ms,
             )
             session.add(run)
+            await session.flush()  # get run.id before outbox write
+
+            # Outbox row is written atomically with the Run row so the publisher
+            # only sees results that are fully committed.
+            await session.execute(
+                text("""
+                    INSERT INTO synthetic_events_outbox
+                        (run_id, prompt_text, response_text, jailbreak_success, classifier_score)
+                    VALUES (:run_id, :prompt, :response, :jailbreak, :score)
+                """),
+                {
+                    "run_id": run.id,
+                    "prompt": attack.attack_text,
+                    "response": response_text,
+                    "jailbreak": jailbreak_success,
+                    "score": classifier_score,
+                },
+            )
 
             total_attacks += 1
             if jailbreak_success:
@@ -138,7 +156,14 @@ def main(
     from red_team_platform.db import create_engine, create_session_factory
 
     settings = get_settings()
-    get_classifier(settings.pair_classifier_path)
+
+    if settings.ollama_model != "gemma2:9b":
+        raise SystemExit(
+            f"Preflight failed: ollama_model is '{settings.ollama_model}', expected 'gemma2:9b'. "
+            "Set OLLAMA_MODEL=gemma2:9b in .env or override with the environment variable."
+        )
+
+    warm_up(settings.pair_classifier_path)
 
     async def _run() -> None:
         engine = create_engine(settings.database_url)

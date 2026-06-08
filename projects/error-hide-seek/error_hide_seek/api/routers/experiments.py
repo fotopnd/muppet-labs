@@ -1,3 +1,5 @@
+import random
+
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -9,20 +11,40 @@ from error_hide_seek.api.schemas import (
     ExperimentPaperOut,
     ExperimentSummaryOut,
 )
-from error_hide_seek.models import Condition, Experiment, ExperimentPaper, Paper
+from error_hide_seek.models import CATEGORY_CYCLE, Condition, Experiment, ExperimentPaper, Paper
 
 router = APIRouter(prefix="/experiments", tags=["experiments"])
 
 
-def _assign_conditions(paper_ids: list[int]) -> list[tuple[int, str]]:
-    n = len(paper_ids)
+def _assign_conditions_and_categories(
+    paper_ids: list[int],
+    experiment_id: int,
+) -> list[tuple[int, str, str]]:
+    """Return (paper_id, condition, intended_category) with seeded deterministic assignment.
+
+    Shuffles paper order using experiment_id as the RNG seed so the same
+    experiment always produces the same assignment (reproducible for reruns).
+    Categories are distributed in round-robin order after shuffling.
+    """
+    rng = random.Random(experiment_id)
+    shuffled = list(paper_ids)
+    rng.shuffle(shuffled)
+
+    n = len(shuffled)
     third = n // 3
     conditions = (
         [Condition.UNAIDED] * third
         + [Condition.AGENT_ONLY] * third
         + [Condition.HUMAN_AGENT] * (n - 2 * third)
     )
-    return list(zip(paper_ids, [c.value for c in conditions], strict=False))
+
+    # Round-robin categories so each condition sees a spread of error types.
+    categories = [CATEGORY_CYCLE[i % len(CATEGORY_CYCLE)] for i in range(n)]
+
+    return [
+        (pid, str(cond), cat)
+        for pid, cond, cat in zip(shuffled, conditions, categories, strict=False)
+    ]
 
 
 @router.post("", response_model=ExperimentOut, status_code=201)
@@ -34,16 +56,27 @@ async def create_experiment(
     await db.flush()
 
     papers_data: list[ExperimentPaperOut] = []
-    for paper_id, condition in _assign_conditions(body.paper_ids):
+    for paper_id, condition, intended_category in _assign_conditions_and_categories(
+        body.paper_ids, exp.id
+    ):
         paper = await db.get(Paper, paper_id)
         if paper is None:
             await db.rollback()
             raise HTTPException(404, f"Paper {paper_id} not found")
-        ep = ExperimentPaper(experiment_id=exp.id, paper_id=paper_id, condition=condition)
+        ep = ExperimentPaper(
+            experiment_id=exp.id,
+            paper_id=paper_id,
+            condition=condition,
+            intended_category=intended_category,
+        )
         db.add(ep)
         papers_data.append(
             ExperimentPaperOut(
-                paper_id=paper_id, title=paper.title, arxiv_id=paper.arxiv_id, condition=condition
+                paper_id=paper_id,
+                title=paper.title,
+                arxiv_id=paper.arxiv_id,
+                condition=condition,
+                intended_category=intended_category,
             )
         )
 
@@ -102,6 +135,7 @@ async def get_experiment(experiment_id: int, db: AsyncSession = Depends(get_db))
             title=p.title,
             arxiv_id=p.arxiv_id,
             condition=ep.condition,
+            intended_category=ep.intended_category,
         )
         for ep, p in rows
     ]

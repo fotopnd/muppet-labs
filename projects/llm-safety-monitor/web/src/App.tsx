@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { PanelTabBar } from '@/components/PanelTabBar'
+import { Disagreements } from '@/pages/Disagreements'
 import { HumanReview } from '@/pages/HumanReview'
 import { ModelPerformance } from '@/pages/ModelPerformance'
 import { StreamMonitor } from '@/pages/StreamMonitor'
@@ -13,6 +14,7 @@ const TABS = [
   { id: 'performance', label: 'Model Performance' },
   { id: 'taxonomy', label: 'Taxonomy Trends' },
   { id: 'review', label: 'Human Review' },
+  { id: 'disagreements', label: 'Disagreements' },
 ]
 
 function Dashboard() {
@@ -29,6 +31,7 @@ function Dashboard() {
         {activeTab === 'performance' && <ModelPerformance />}
         {activeTab === 'taxonomy' && <TaxonomyTrends />}
         {activeTab === 'review' && <HumanReview />}
+        {activeTab === 'disagreements' && <Disagreements />}
       </main>
     </div>
   )

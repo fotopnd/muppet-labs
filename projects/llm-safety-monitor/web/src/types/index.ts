@@ -1,4 +1,5 @@
-export type SourceDataset = 'hh-rlhf' | 'wildguard' | 'advbench' | 'jailbreakbench' | 'live'
+export type SourceDataset = 'hh-rlhf' | 'wildguard' | 'advbench' | 'jailbreakbench' | 'live' | 'red_team'
+export type SourceDatasetFilter = SourceDataset | 'all'
 
 export type EscalationReason =
   | 'JAILBREAK'
@@ -78,6 +79,23 @@ export type EscalationQueueItem = {
 export type EscalationQueueResponse = {
   total: number
   samples: EscalationQueueItem[]
+}
+
+// Calibration — matches GET /metrics/calibration
+export type CalibrationBin = {
+  bin_lower: number
+  bin_upper: number
+  count: number
+  actual_positive_rate: number
+}
+
+export type ModelCalibration = {
+  model_name: string
+  bins: CalibrationBin[]
+}
+
+export type CalibrationResponse = {
+  models: ModelCalibration[]
 }
 
 // Human review decision — matches POST /cases/{id}/decide

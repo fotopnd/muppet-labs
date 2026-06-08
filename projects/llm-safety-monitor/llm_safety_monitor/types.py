@@ -31,6 +31,7 @@ class SourceDataset(StrEnum):
     ADVBENCH = "advbench"
     JAILBREAKBENCH = "jailbreakbench"
     LIVE = "live"
+    RED_TEAM = "red_team"
 
 
 class EscalationReason(StrEnum):

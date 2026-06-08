@@ -47,6 +47,7 @@ class ExperimentPaperOut(BaseModel):
     title: str
     arxiv_id: str
     condition: str
+    intended_category: str | None = None
 
 
 class ExperimentSummaryOut(BaseModel):
@@ -89,6 +90,8 @@ class SessionOut(BaseModel):
     abstract_text: str
     annotations: list[AnnotationOut]
     scored_result: AutoScoredResult | None
+    agent_run_status: str | None = None
+    parse_failures: int = 0
 
 
 class ReviewConfirmOut(BaseModel):

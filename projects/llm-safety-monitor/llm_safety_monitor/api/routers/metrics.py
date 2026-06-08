@@ -29,11 +29,26 @@ router = APIRouter(prefix="/metrics", tags=["metrics"])
 
 _N_BINS = 10
 
+_SOURCE_DESCRIPTION = (
+    "Filter by source dataset. Default 'wildguard' (reliable labels). "
+    "Pass 'all' to include all sources including noisy HH-RLHF data."
+)
+
+
+def _source_filter(source_dataset: str):
+    """Return a SQLAlchemy WHERE clause for source_dataset, or None for 'all'."""
+    if source_dataset == "all":
+        return None
+    return Interaction.source_dataset == source_dataset
+
 
 @router.get("", response_model=MetricsResponse)
-async def get_metrics(db: AsyncSession = Depends(get_db)) -> MetricsResponse:
-    """Per-model F1, precision, recall computed against live-stream ground truth."""
-    result = await db.execute(
+async def get_metrics(
+    db: AsyncSession = Depends(get_db),
+    source_dataset: str = Query(default="wildguard", description=_SOURCE_DESCRIPTION),
+) -> MetricsResponse:
+    """Per-model F1, precision, recall computed against ground-truth labels."""
+    q = (
         select(
             ClassificationResult.model_name,
             ClassificationResult.predicted_label,
@@ -42,7 +57,10 @@ async def get_metrics(db: AsyncSession = Depends(get_db)) -> MetricsResponse:
         .join(Interaction, ClassificationResult.event_id == Interaction.id)
         .where(Interaction.ground_truth_safe.is_not(None))
     )
-    rows = result.all()
+    sf = _source_filter(source_dataset)
+    if sf is not None:
+        q = q.where(sf)
+    rows = (await db.execute(q)).all()
 
     by_model: dict[str, list[tuple[int, int]]] = defaultdict(list)
     for model_name, predicted_label, ground_truth_safe in rows:
@@ -66,9 +84,12 @@ async def get_metrics(db: AsyncSession = Depends(get_db)) -> MetricsResponse:
 
 
 @router.get("/calibration", response_model=CalibrationResponse)
-async def get_calibration(db: AsyncSession = Depends(get_db)) -> CalibrationResponse:
+async def get_calibration(
+    db: AsyncSession = Depends(get_db),
+    source_dataset: str = Query(default="wildguard", description=_SOURCE_DESCRIPTION),
+) -> CalibrationResponse:
     """Per-model calibration data for reliability diagrams."""
-    result = await db.execute(
+    q = (
         select(
             ClassificationResult.model_name,
             ClassificationResult.confidence,
@@ -77,7 +98,10 @@ async def get_calibration(db: AsyncSession = Depends(get_db)) -> CalibrationResp
         .join(Interaction, ClassificationResult.event_id == Interaction.id)
         .where(Interaction.ground_truth_safe.is_not(None))
     )
-    rows = result.all()
+    sf = _source_filter(source_dataset)
+    if sf is not None:
+        q = q.where(sf)
+    rows = (await db.execute(q)).all()
 
     by_model: dict[str, list[tuple[float, int]]] = defaultdict(list)
     for model_name, confidence, ground_truth_safe in rows:
@@ -100,8 +124,14 @@ _DISAGREEMENT_WHERE = """
 
 
 @router.get("/disagreements", response_model=DisagreementsResponse)
-async def get_disagreements(db: AsyncSession = Depends(get_db)) -> DisagreementsResponse:
+async def get_disagreements(
+    db: AsyncSession = Depends(get_db),
+    source_dataset: str = Query(default="wildguard", description=_SOURCE_DESCRIPTION),
+) -> DisagreementsResponse:
     """Events where pair classifier and taxonomy classifier contradict each other."""
+    source_clause = "" if source_dataset == "all" else "AND i.source_dataset = :source"
+    params: dict = {} if source_dataset == "all" else {"source": source_dataset}
+
     rows = (
         await db.execute(
             text(f"""
@@ -111,10 +141,12 @@ async def get_disagreements(db: AsyncSession = Depends(get_db)) -> Disagreements
                     ON pair_c.event_id = i.id AND pair_c.model_name = 'pair_classifier'
                 JOIN classifications tax_c
                     ON tax_c.event_id = i.id AND tax_c.model_name = 'taxonomy_classifier'
-                WHERE {_DISAGREEMENT_WHERE}
+                WHERE ({_DISAGREEMENT_WHERE})
+                {source_clause}
                 ORDER BY i.created_at DESC
                 LIMIT 50
-            """)
+            """),
+            params,
         )
     ).fetchall()
 
@@ -126,8 +158,10 @@ async def get_disagreements(db: AsyncSession = Depends(get_db)) -> Disagreements
                 ON pair_c.event_id = i.id AND pair_c.model_name = 'pair_classifier'
             JOIN classifications tax_c
                 ON tax_c.event_id = i.id AND tax_c.model_name = 'taxonomy_classifier'
-            WHERE {_DISAGREEMENT_WHERE}
-        """)
+            WHERE ({_DISAGREEMENT_WHERE})
+            {source_clause}
+        """),
+        params,
     )
     total = total_row.scalar() or 0
 
@@ -154,9 +188,10 @@ async def get_disagreements(db: AsyncSession = Depends(get_db)) -> Disagreements
 async def get_timeseries(
     db: AsyncSession = Depends(get_db),
     bucket_minutes: int = Query(default=60, ge=1, le=1440),
+    source_dataset: str = Query(default="wildguard", description=_SOURCE_DESCRIPTION),
 ) -> TimeseriesResponse:
     """Per-model F1/precision/recall bucketed by time window."""
-    result = await db.execute(
+    q = (
         select(
             ClassificationResult.model_name,
             ClassificationResult.predicted_label,
@@ -167,9 +202,11 @@ async def get_timeseries(
         .where(Interaction.ground_truth_safe.is_not(None))
         .order_by(ClassificationResult.processed_at)
     )
-    rows = result.all()
+    sf = _source_filter(source_dataset)
+    if sf is not None:
+        q = q.where(sf)
+    rows = (await db.execute(q)).all()
 
-    # Group by (model_name, time bucket) in Python — cross-dialect compatible
     bucket_td = timedelta(minutes=bucket_minutes)
 
     def _bucket(ts: datetime) -> datetime:

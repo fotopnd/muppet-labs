@@ -16,6 +16,8 @@ class Settings(BaseSettings):
     cluster_k: int = 8
     allowed_origins: str = "http://localhost:5173"
     api_port: int = 8003
+    kafka_bootstrap_servers: str = "localhost:9092"
+    kafka_topic: str = "llm-interactions"
 
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")
 

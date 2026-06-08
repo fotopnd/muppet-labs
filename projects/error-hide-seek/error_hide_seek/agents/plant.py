@@ -8,17 +8,9 @@ from sqlalchemy import select
 from error_hide_seek.agents.red_team import plant_error
 from error_hide_seek.config import settings
 from error_hide_seek.db import AsyncSessionLocal, init_db
-from error_hide_seek.models import ErrorCategory, ExperimentPaper, Paper, PlantedError
+from error_hide_seek.models import CATEGORY_CYCLE, ErrorCategory, ExperimentPaper, Paper, PlantedError
 
 log = logging.getLogger(__name__)
-
-CATEGORY_CYCLE = [
-    ErrorCategory.INVERTED_CONCLUSION,
-    ErrorCategory.NUMBER_SUBSTITUTION,
-    ErrorCategory.FALSE_CITATION,
-    ErrorCategory.SCOPE_EXTENSION,
-    ErrorCategory.CAUSAL_INVERSION,
-]
 
 
 async def _run(experiment_id: int, category_override: ErrorCategory | None) -> None:
@@ -53,12 +45,20 @@ async def _run(experiment_id: int, category_override: ErrorCategory | None) -> N
         planted = 0
         skipped = 0
 
-        for idx, (_ep, paper) in enumerate(rows):
+        for idx, (ep, paper) in enumerate(rows):
             if paper.id in existing_ids:
                 skipped += 1
                 continue
 
-            category = category_override or CATEGORY_CYCLE[idx % 5]
+            # Use the category stored at experiment creation time.
+            # Fall back to round-robin cycle for legacy rows where intended_category is NULL.
+            if category_override:
+                category = category_override
+            elif ep.intended_category:
+                category = ErrorCategory(ep.intended_category)
+            else:
+                category = ErrorCategory(CATEGORY_CYCLE[idx % len(CATEGORY_CYCLE)])
+
             log.info(
                 "[%d/%d] paper_id=%d category=%s — planting", idx + 1, total, paper.id, category
             )

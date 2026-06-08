@@ -3,7 +3,7 @@ from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
-from error_hide_seek.agents.blue_team import annotate
+from error_hide_seek.agents.blue_team import AnnotateResult, annotate
 from error_hide_seek.agents.red_team import PlantResult, plant_error
 from error_hide_seek.models import ErrorCategory
 
@@ -79,10 +79,12 @@ async def test_annotate_success():
     )
     client = MagicMock()
     client.messages.create = AsyncMock(return_value=_make_message(response_json))
-    annotations = await annotate(client, abstract)
-    assert len(annotations) == 1
-    assert annotations[0].text_excerpt == "improves alignment by 30%"
-    assert annotations[0].confidence == "high"
+    result = await annotate(client, abstract)
+    assert isinstance(result, AnnotateResult)
+    assert len(result.annotations) == 1
+    assert result.annotations[0].text_excerpt == "improves alignment by 30%"
+    assert result.annotations[0].confidence == "high"
+    assert result.parse_failures == 0
 
 
 @pytest.mark.asyncio
@@ -90,13 +92,39 @@ async def test_annotate_empty_list():
     response_json = json.dumps({"annotations": []})
     client = MagicMock()
     client.messages.create = AsyncMock(return_value=_make_message(response_json))
-    annotations = await annotate(client, "some abstract")
-    assert annotations == []
+    result = await annotate(client, "some abstract")
+    assert result.annotations == []
+    assert result.parse_failures == 0
+
+
+@pytest.mark.asyncio
+async def test_annotate_counts_single_parse_failure():
+    """First attempt fails, second succeeds → parse_failures=1."""
+    bad_msg = _make_message("not json at all")
+    good_msg = _make_message(
+        json.dumps(
+            {
+                "annotations": [
+                    {
+                        "text_excerpt": "suspicious claim here",
+                        "confidence": "medium",
+                        "reason": "Unusual phrasing.",
+                    }
+                ]
+            }
+        )
+    )
+    client = MagicMock()
+    client.messages.create = AsyncMock(side_effect=[bad_msg, good_msg])
+    result = await annotate(client, "abstract text")
+    assert len(result.annotations) == 1
+    assert result.parse_failures == 1
 
 
 @pytest.mark.asyncio
 async def test_annotate_returns_empty_on_double_failure():
     client = MagicMock()
     client.messages.create = AsyncMock(return_value=_make_message("bad json"))
-    annotations = await annotate(client, "some abstract")
-    assert annotations == []
+    result = await annotate(client, "some abstract")
+    assert result.annotations == []
+    assert result.parse_failures == 2

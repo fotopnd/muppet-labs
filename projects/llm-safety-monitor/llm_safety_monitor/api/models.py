@@ -52,6 +52,10 @@ class ClassificationResult(Base):
     )
     # JSON not JSONB: cross-dialect for SQLite tests (see ground_truth_categories note above)
     taxonomy_labels: Mapped[list | None] = mapped_column(JSON, nullable=True)
+    # git short SHA of the classifier package; 'legacy' for rows written before versioning
+    classifier_version: Mapped[str] = mapped_column(
+        String(100), nullable=False, server_default="legacy"
+    )
 
     interaction: Mapped[Interaction | None] = relationship(
         back_populates="classifications"
