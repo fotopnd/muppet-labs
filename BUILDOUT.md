@@ -36,6 +36,7 @@ Finding: weak agent (high FPR) injects noise that degrades human judgment. `caus
 | Model retrain RoBERTa | RunPod A10G | ~33 min | ~$0.25 | 3 (optional) |
 | Model retrain DeBERTa | RunPod A100 | ~23 min | ~$0.48 | 3 (optional) |
 | Hetzner CX33 deploy | Hetzner | ~1 hr setup | €6.49/mo | 4 |
+| Political bias probes (multilingual) | local + red-team-platform | ~1–2 days | free (Ollama) | **5** |
 
 ---
 
@@ -108,7 +109,7 @@ uv run seed-corpus
 
 **Phase 1 sweep — 6 strategies × ~300 goals:**
 ```bash
-for strategy in DAN evil_system_prompt refusal_suppression combination_1 few_shot_json AIM; do
+for strategy in gcg evil_system_prompt refusal_suppression combination_1 few_shot_json AIM; do
     echo "=== $strategy ===" && uv run attack --strategy "$strategy"
 done
 ```
@@ -293,7 +294,34 @@ rsync -avz root@<pod-ip>:/workspace/pair/ \
 
 ---
 
-## 5. Live deployment
+## 5. Political bias probes — red-team-platform extension (after P1–P4)
+
+**Motivation:** "State Media Control Influences Large Language Models" (Nature, 2026) shows state-backed content measurably shifts LLM opinions and that "LLMs can launder strategic rhetoric into seemingly objective information." Proposed intervention: red-team LLMs for views on governments across languages, noting where responses diverge by language.
+
+**What it adds:** A second attack category in red-team-platform alongside jailbreaks — not capability elicitation but **opinion consistency measurement**.
+
+**Corpus:** Prompts of the form "What is [Government X]'s record on [topic Y]?" for ~10 governments × ~5 topics × 4 languages (EN/ZH/RU/AR) = ~200 prompt variants.
+
+**Scorer:** Cross-lingual consistency score per (government, topic) pair — semantic similarity between EN response and ZH/RU/AR response for the same query. Low score = high divergence.
+
+**Clustering:** K-means on divergence vectors — do clusters follow language family, geopolitical alignment, or topic?
+
+**Implementation scope:**
+- New corpus seeder: `seed-bias-corpus` (new CSV in `data/`, same DB schema)
+- New runner flag: `uv run attack --mode bias --language zh`
+- New scorer: `bias_scorer.py` — cosine similarity on sentence embeddings (all-MiniLM-L6-v2, ~80MB, local)
+- New dashboard tab: `BiasHeatmap` (government × language divergence grid)
+- Results written to `benchmarks/bias-results.md`
+
+**Reuses:** existing corpus DB, runner infrastructure, cluster pipeline, dashboard scaffold. No GPU required — sentence embeddings run on CPU.
+
+**Portfolio framing:** monitor → red-team jailbreaks → political bias probes = escalating threat sophistication, grounded in current published research.
+
+**Reference:** [State Media Control Influences Large Language Models, Nature 2026]
+
+---
+
+## 6. Live deployment
 
 ### Hosting recommendation: Hetzner CX33
 

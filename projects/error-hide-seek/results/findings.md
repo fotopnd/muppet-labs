@@ -5,6 +5,7 @@ Results populated by `GET /results/{experiment_id}` or `uv run score --experimen
 | Experiment | Unaided TPR | Agent-Only TPR | Human+Agent TPR | Uplift |
 |------------|-------------|----------------|-----------------|--------|
 | 1 (pilot-01, n=10, gemma2:9b) | 0.67 | 0.33 | 0.50 | -0.17 |
+| 2 (exp-02-claude, n=100, claude-sonnet-4-6) | pending | **0.33** | pending | pending |
 
 ---
 
@@ -68,6 +69,56 @@ Reviewers see the altered abstract, so they flag altered text. Fixed to check bo
 
 ### Next steps
 
-- Scale to 100 papers with claude-sonnet-4-6 as planter (subtler errors)
-- Re-run agent_only with Claude to measure gap vs gemma2:9b
+- ~~Scale to 100 papers with claude-sonnet-4-6 as planter (subtler errors)~~ → done (exp-02)
+- ~~Re-run agent_only with Claude to measure gap vs gemma2:9b~~ → done (exp-02 agent_only)
 - Add time-on-task to human sessions (uplift may appear under fatigue)
+
+---
+
+## Experiment 2 — exp-02-claude (agent_only complete)
+
+**Date:** 2026-06-09
+**Papers:** 100 · **Errors per paper:** 1 · **Planter:** claude-sonnet-4-6 · **Blue-team:** claude-sonnet-4-6
+
+### Results (agent_only complete; unaided + human_agent pending)
+
+| Condition | Sessions | TPR | FPR |
+|-----------|----------|-----|-----|
+| unaided | 0/33 | pending | pending |
+| agent_only | 33/33 | **0.33** | **0.78** |
+| human_agent | 0/34 | pending | pending |
+
+### By category (agent_only)
+
+| Category | Planted | Detected | TPR |
+|----------|---------|----------|-----|
+| causal_inversion | 7 | 4 | **0.571** |
+| scope_extension | 7 | 4 | **0.571** |
+| inverted_conclusion | 7 | 2 | 0.286 |
+| false_citation | 6 | 1 | 0.167 |
+| number_substitution | 6 | 0 | **0.000** |
+
+### Interpretation
+
+**Agent-only TPR = 0.33, FPR = 0.78** — identical TPR to gemma2:9b in exp-1 despite harder planted errors and a stronger blue-team model. Capability and difficulty escalated in parallel.
+
+**FPR improved slightly (0.83 → 0.78)** — claude-sonnet-4-6 is more precise than gemma2:9b; fewer false alarms per session, though still very noisy.
+
+**Category breakdown reveals detection ceiling by error type:**
+- `causal_inversion` and `scope_extension`: Claude catches ~57% — logical/semantic inconsistencies are legible from domain knowledge alone
+- `inverted_conclusion`: 29% — conclusions are partially catchable but require knowing the paper's actual claim
+- `false_citation`: 17% — citations are nearly undetectable without access to the reference list
+- `number_substitution`: 0% — specific numbers are entirely unverifiable from abstract text alone
+
+**Key asymmetry:** Claude-as-planter deliberately chose subtle mechanisms (single-word clause inversions, hedge removal, plausible-sounding citations). Claude-as-detector cannot overcome the ground-truth deficit — it has no access to what the "original" said. This is a fundamental limit, not a capability gap: even a perfect reasoner cannot catch `78% → 71%` without the original.
+
+**Comparison to exp-1 by category:**
+- gemma2:9b: caught `inverted_conclusion` (1.0), missed `causal_inversion` and `scope_extension` (0.0)
+- claude-sonnet-4-6: reversed — detects `causal_inversion`/`scope_extension` better, weaker on `inverted_conclusion`
+- Both models miss `number_substitution` entirely; claude adds near-miss on `false_citation`
+
+### Next steps
+
+- Run unaided and human_agent sessions for exp-2 (human review of 67 papers)
+- Compute uplift: human_agent TPR − unaided TPR with Claude-quality hints
+- Hypothesis: positive uplift expected since Claude hints have lower FPR than gemma2:9b (0.78 vs 0.83), reducing noise-injection degradation

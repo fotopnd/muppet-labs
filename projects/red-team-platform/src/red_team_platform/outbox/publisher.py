@@ -98,9 +98,9 @@ def run_publisher() -> None:
                     """
                     UPDATE synthetic_events_outbox
                     SET published_at = %s
-                    WHERE id = ANY(%s)
+                    WHERE id = ANY(%s::uuid[])
                     """,
-                    (datetime.now(UTC), published_ids),
+                    (datetime.now(UTC), [str(i) for i in published_ids]),
                 )
                 conn.commit()
                 logger.info("Published %d events from outbox.", len(published_ids))
