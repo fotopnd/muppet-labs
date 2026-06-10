@@ -9,7 +9,17 @@ export default defineConfig({
   resolve: {
     alias: { '@': path.resolve(__dirname, './src') },
   },
-  server: { port: 5174 },
+  server: {
+    port: 5174,
+    proxy: {
+      '/sessions': 'http://localhost:8004',
+      '/reviews': 'http://localhost:8004',
+      '/experiments': 'http://localhost:8004',
+      '/results': 'http://localhost:8004',
+      '/papers': 'http://localhost:8004',
+      '/health': 'http://localhost:8004',
+    },
+  },
   test: {
     environment: 'jsdom',
     setupFiles: ['./src/test/setup.ts'],

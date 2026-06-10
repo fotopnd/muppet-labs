@@ -10,8 +10,9 @@ from error_hide_seek.api.schemas import (
     ExperimentOut,
     ExperimentPaperOut,
     ExperimentSummaryOut,
+    SessionListItemOut,
 )
-from error_hide_seek.models import CATEGORY_CYCLE, Condition, Experiment, ExperimentPaper, Paper
+from error_hide_seek.models import CATEGORY_CYCLE, Condition, Experiment, ExperimentPaper, Paper, ReviewSession
 
 router = APIRouter(prefix="/experiments", tags=["experiments"])
 
@@ -113,6 +114,20 @@ async def list_experiments(db: AsyncSession = Depends(get_db)) -> list[Experimen
         )
         for exp, count in rows
     ]
+
+
+@router.get("/{experiment_id}/sessions", response_model=list[SessionListItemOut])
+async def list_experiment_sessions(
+    experiment_id: int, db: AsyncSession = Depends(get_db)
+) -> list[SessionListItemOut]:
+    rows = (
+        await db.scalars(
+            select(ReviewSession)
+            .where(ReviewSession.experiment_id == experiment_id)
+            .order_by(ReviewSession.condition, ReviewSession.id)
+        )
+    ).all()
+    return [SessionListItemOut(session_id=r.id, condition=r.condition, status=r.status) for r in rows]
 
 
 @router.get("/{experiment_id}", response_model=ExperimentOut)

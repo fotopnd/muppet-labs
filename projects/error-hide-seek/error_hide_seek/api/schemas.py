@@ -66,6 +66,12 @@ class ExperimentOut(BaseModel):
     papers: list[ExperimentPaperOut]
 
 
+class SessionListItemOut(BaseModel):
+    session_id: int
+    condition: str
+    status: str
+
+
 class AnnotationOut(BaseModel):
     id: int
     text_excerpt: str

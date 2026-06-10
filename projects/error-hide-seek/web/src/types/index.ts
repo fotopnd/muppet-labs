@@ -63,6 +63,12 @@ export type Session = {
   scored_result: AutoScoredResult | null
 }
 
+export type SessionListItem = {
+  session_id: number
+  condition: 'unaided' | 'agent_only' | 'human_agent'
+  status: 'open' | 'completed'
+}
+
 export type ReviewConfirmOut = {
   session_id: number
   status: string

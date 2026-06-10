@@ -4,7 +4,7 @@ import { useNavigate } from 'react-router-dom'
 import { apiFetch } from '@/api/client'
 import type { ReviewConfirmOut, ReviewSubmitBody, Session } from '@/types'
 
-export function useSubmitReview(session: Session | undefined) {
+export function useSubmitReview(session: Session | undefined, nextSessionId: number | null) {
   const navigate = useNavigate()
 
   return useMutation({
@@ -14,7 +14,9 @@ export function useSubmitReview(session: Session | undefined) {
         body: JSON.stringify(body),
       }),
     onSuccess: () => {
-      if (session) {
+      if (nextSessionId !== null) {
+        navigate(`/review/${nextSessionId}`)
+      } else if (session) {
         navigate(`/results/${session.experiment_id}`)
       }
     },

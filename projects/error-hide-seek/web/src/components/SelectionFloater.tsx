@@ -11,6 +11,7 @@ export function SelectionFloater({ floaterPos, pendingExcerpt, onFlag }: Props) 
 
   return createPortal(
     <button
+      data-floater
       style={{ position: 'fixed', top: floaterPos.top, left: floaterPos.left }}
       className="bg-accent text-white font-interface text-sm px-3 py-1.5 rounded shadow-lg z-50 hover:bg-blue-700 transition-colors cursor-pointer"
       onMouseDown={(e) => e.preventDefault()}

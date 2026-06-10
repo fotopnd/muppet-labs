@@ -446,6 +446,31 @@ cd projects/error-hide-seek/web     && pnpm install && pnpm build
 
 ---
 
+## 7. Classifier comparison (deferred future project)
+
+**Motivation:** The portfolio currently uses a single classifier family (RoBERTa-base) with no published benchmark comparison. A controlled comparison against DeBERTa-v3-base on the same test set would quantify the upgrade's actual benefit and add a reproducible eval artefact to the portfolio.
+
+**What it produces:**
+- Side-by-side F1, precision, recall on a held-out safety test split for both RoBERTa-base and DeBERTa-v3-base
+- A `benchmarks/classifier-comparison.md` summarising results, training cost, and inference latency tradeoffs
+- A stronger "I measured this" narrative for the pair classifier vs "I trained this and assumed it was better"
+
+**Implementation scope:**
+- Train DeBERTa-v3-base pair classifier on same 50k samples as current RoBERTa (RunPod A100 80GB, ~$0.47)
+- Run both checkpoints against the same `WildGuard` test split
+- Record: F1, AUC-ROC, inference latency (CPU and CUDA), model size on disk
+- Write `benchmarks/classifier-comparison.md` with a results table and one-paragraph interpretation
+
+**Dependencies:**
+- Complete EHS exp-2 human reviews first (data collection should be done before infrastructure work)
+- Hetzner account created (compare inference latency on CPU, the production environment)
+
+**Estimated effort:** ~3 hours including RunPod training (~$0.47) + local eval + writeup
+
+**Defer condition:** Pick this up if/when the portfolio needs a stronger "measurement culture" signal or if an interviewer asks about model selection rationale. Not required for the core three-project narrative.
+
+---
+
 ## Total cost: RunPod + hosting (first month)
 
 | Item | Type | Wall clock | Cost |

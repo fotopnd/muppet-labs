@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useParams } from 'react-router-dom'
 
 import { AnnotatedAbstract } from '@/components/AnnotatedAbstract'
@@ -6,6 +6,8 @@ import { CompletionBanner } from '@/components/CompletionBanner'
 import { DetectionList } from '@/components/DetectionList'
 import { PaperHeader } from '@/components/PaperHeader'
 import { SelectionFloater } from '@/components/SelectionFloater'
+import { SessionNav } from '@/components/SessionNav'
+import { useExperimentSessions } from '@/hooks/useExperimentSessions'
 import { useSession } from '@/hooks/useSession'
 import { useSubmitReview } from '@/hooks/useSubmitReview'
 import type { DetectionIn } from '@/types'
@@ -14,12 +16,28 @@ export function ReviewPage() {
   const { sessionId } = useParams<{ sessionId: string }>()
   const id = sessionId ? parseInt(sessionId, 10) : null
   const { data: session, isLoading, isError } = useSession(id)
+  const { data: allSessions } = useExperimentSessions(session?.experiment_id ?? null)
 
   const [detections, setDetections] = useState<DetectionIn[]>([])
   const [floaterPos, setFloaterPos] = useState<{ top: number; left: number } | null>(null)
   const [pendingExcerpt, setPendingExcerpt] = useState<string | null>(null)
 
-  const submitMutation = useSubmitReview(session)
+  // Reset detections when navigating to a new session
+  useEffect(() => {
+    setDetections([])
+    setFloaterPos(null)
+    setPendingExcerpt(null)
+  }, [id])
+
+  // Compute prev/next within same condition
+  const sameCond = (allSessions ?? []).filter((s) => s.condition === session?.condition)
+  const idx = sameCond.findIndex((s) => s.session_id === id)
+  const prevId = idx > 0 ? sameCond[idx - 1].session_id : null
+  const nextId = idx < sameCond.length - 1 ? sameCond[idx + 1].session_id : null
+  const position = idx + 1
+  const total = sameCond.length
+
+  const submitMutation = useSubmitReview(session, nextId)
 
   useEffect(() => {
     function onMouseDown(e: MouseEvent) {
@@ -89,7 +107,18 @@ export function ReviewPage() {
 
   return (
     <main className="max-w-3xl mx-auto px-6 py-8 flex flex-col gap-6">
-      <PaperHeader session={session} />
+      <div className="flex items-start justify-between gap-4">
+        <PaperHeader session={session} />
+        {total > 0 && (
+          <SessionNav
+            prevId={prevId}
+            nextId={nextId}
+            position={position}
+            total={total}
+            condition={session.condition}
+          />
+        )}
+      </div>
 
       <div onMouseUp={handleMouseUp}>
         <AnnotatedAbstract abstract={session.abstract_text} annotations={session.annotations} />
