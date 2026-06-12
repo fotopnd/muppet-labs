@@ -14,7 +14,7 @@ The work provides a concrete, signed answer to a question that is directly relev
 
 ## What Was Demonstrated
 
-Two experiments across 100 papers and 67 human review sessions, with results scored per condition and per error category:
+Two experiments across 100 papers and 67 human review sessions (unaided: 33, human+agent: 34; agent-only sessions were fully automated), with results scored per condition and per error category:
 
 | Condition | TPR | FPR |
 |-----------|-----|-----|

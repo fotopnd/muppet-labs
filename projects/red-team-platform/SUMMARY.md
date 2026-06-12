@@ -22,7 +22,7 @@ Phase 1 sweep: 1,797 attacks across 6 strategies against gemma2:9b, running on a
 |----------|-----|-----------|
 | few_shot_json | 1.000 | Output-format bypass |
 | evil_system_prompt | 0.997 | Persona bypass |
-| gcg | 0.997 | Adversarial suffix |
+| gcg | 0.997 | Pre-computed adversarial suffix (corpus-driven) |
 | AIM | 0.000 | Resisted (fast refusal) |
 | combination_1 | 0.000 | Resisted |
 | refusal_suppression | 0.000 | Resisted (fastest refusal) |

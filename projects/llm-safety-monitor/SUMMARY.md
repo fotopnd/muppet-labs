@@ -26,6 +26,8 @@ Three classifiers evaluated on held-out test sets from published safety datasets
 
 The pair classifier's F1 of 0.549 reflects a deliberate design choice: it is tuned to catch as many harmful interactions as possible (recall 0.910), accepting more false flags in return. A safety-conservative classifier should flag more than it misses. The escalation router then uses all three classifiers together, so the pair classifier's high recall feeds disagreement detection rather than triggering direct escalation on its own.
 
+These figures are measured on a held-out WildGuard test split, where harm labels are human-curated. The live production stream uses HH-RLHF data, where "chosen" responses are bulk-labelled safe regardless of topic — inflating apparent false-positive rates. The dashboard exposes a WildGuard-only filter for this reason.
+
 25/25 integration tests pass. 1,797 red-team attack events were published into the monitor's Kafka topic from the red-team platform and processed through the full classification and escalation pipeline.
 
 ## What Extension Would Require
@@ -37,4 +39,4 @@ The pair classifier's F1 of 0.549 reflects a deliberate design choice: it is tun
 
 ## Appendix: Technical Details
 
-The monitor uses Kafka (Confluent) as the event transport, DeBERTa-v3-base as the base model for all three classifiers, FastAPI for the API layer, PostgreSQL for interaction and classification storage, and React/TypeScript for the dashboard. The escalation router is a pure function tested independently of the database. Full architecture and implementation decisions are in the [Technical Deep-Dive](README.md).
+The monitor uses Kafka (Confluent) as the event transport, RoBERTa-base as the base model for all three classifiers, FastAPI for the API layer, PostgreSQL for interaction and classification storage, and React/TypeScript for the dashboard. The escalation router is a pure function tested independently of the database. Full architecture and implementation decisions are in the [Technical Deep-Dive](README.md).
