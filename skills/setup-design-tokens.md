@@ -2,7 +2,51 @@
 
 > **Loaded by:** `frontend-architect` on new projects to establish the token layer before
 > producing component specs.
->
+
+---
+
+## Tailwind v4 Projects
+
+For projects with `@tailwindcss/vite` in devDependencies — **skip Steps 2–6 below**. No `tailwind.config.js` is created.
+
+Define tokens in `src/index.css`:
+
+```css
+@import "tailwindcss";
+
+@theme {
+  --font-sans: ui-sans-serif, system-ui, sans-serif;
+  --font-mono: ui-monospace, "JetBrains Mono", monospace;
+
+  --color-canvas:       oklch(98.5% 0 0);   /* page background */
+  --color-surface:      oklch(100% 0 0);    /* card / panel */
+  --color-surface-muted:oklch(96.1% 0 0);  /* muted sections */
+  --color-border:       oklch(91.8% 0 0);
+  --color-text-primary: oklch(15.1% 0 0);
+  --color-text-secondary: oklch(44.6% 0 0);
+  --color-text-inverse: oklch(98.5% 0 0);
+  --color-accent:       oklch(...);         /* confirm hue with human */
+  --color-accent-hover: oklch(...);
+}
+```
+
+Reference tokens in components using **shorthand utilities**:
+
+| Instead of | Use |
+|------------|-----|
+| `bg-[--color-canvas]` | `bg-canvas` |
+| `text-[--color-accent]` | `text-accent` |
+| `border-[--color-border]` | `border-border` |
+| `bg-[--color-surface]/95` | `bg-surface/95` |
+
+Shorthand supports opacity modifiers (`bg-surface/95`, `hover:border-accent/60`). The `bg-[--color-*]` arbitrary form does not — use shorthand everywhere.
+
+Accent hue is confirmed at the architect stage (via the `@theme` token block in architect output). The frontend-architect references that block and does not re-derive it here.
+
+The v3 procedure below applies to projects using `tailwind.config.js`.
+
+---
+
 > **When to use:** Load this skill when a new frontend project is starting and no token layer
 > exists yet. For existing projects with an established `tailwind.config`, skip this skill
 > and read the existing config to confirm which tokens are in use.

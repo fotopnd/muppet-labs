@@ -61,6 +61,20 @@
 
 ---
 
+## Tailwind v4 Token Conventions
+
+For projects using `@tailwindcss/vite` (Tailwind v4):
+
+- Define tokens in `src/index.css` via an `@theme {}` block with `--color-*` and `--font-*` CSS variables.
+- **Reference tokens via shorthand utilities**, not arbitrary syntax:
+  - ✅ `bg-canvas`, `text-accent`, `border-border`, `bg-surface/95`, `hover:border-accent/60`
+  - ❌ `bg-[--color-canvas]`, `text-[--color-accent]`, `bg-[--color-surface]/95`
+- Shorthand utilities support opacity modifiers (`/95`, `/60`). The arbitrary `bg-[--color-*]` form does not.
+- `--color-text-*` variables produce `text-text-*` utility classes (e.g. `text-text-primary`) — the doubling is intentional and works correctly in Tailwind v4.
+- No `tailwind.config.js` is created for v4 projects. See `skills/setup-design-tokens.md` for the full v4 token setup procedure.
+
+---
+
 ## React Conventions
 
 - Functional components only. No class components.

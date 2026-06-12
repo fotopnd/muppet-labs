@@ -1,157 +1,133 @@
-# Planner Output — diagram-workflow roles
+# Planner Output — portfolio-site
 
-**Role:** planner
-**Sequence:** new-role
-
----
-
-## What We Are Building
-
-Four Markdown files:
-1. `roles/diagram-brief/CONTEXT.md`
-2. `roles/diagram-author/CONTEXT.md`
-3. `roles/diagram-reviewer/CONTEXT.md`
-4. `resources/diagram-types.md`
-
-Plus blank `output/output.md` templates under each role directory. The `routing.md` update is a fifth file edit.
+**Role:** planner  
+**Sequence:** new-project-full  
+**Step:** 2 of 9  
+**Date:** 2026-06-12
 
 ---
 
-## Role Contracts — Detailed Spec
+## Project
 
-### diagram-brief
-
-**Purpose:** Define what a diagram must show before anyone starts drawing it. The output is a structured brief that fully specifies the diagram's scope, audience, rendering target, and visual constraints — enough for the author to produce the diagram without re-reading the source project.
-
-**What it reads:**
-- The document the diagram will be embedded in (to understand context and identify placement)
-- The project's source material (architecture docs, README, results tables) as needed to understand what to show
-- `resources/audience-tiers.md` — to calibrate label density and abstraction level for the target audience tier
-- `resources/diagram-types.md` — to select the appropriate diagram type
-
-**What it produces:** `roles/diagram-brief/output/output.md` with these sections:
-- `Diagram Title` — the title that will appear above or in the diagram
-- `Target Document` — exact file path and section heading where the diagram will be inserted
-- `Audience Tier` — Tier 1 / Tier 2 / Tier 3, with persona note
-- `Diagram Type` — type name from `diagram-types.md` and rendering syntax (Mermaid flowchart, sequence, etc.)
-- `Must Show` — ordered list of components, flows, or relationships that must appear
-- `Must Not Show` — explicit exclusions that keep the diagram focused
-- `Label Style` — how components should be labelled (technical names, human-readable names, or both)
-- `Layout Hint` — directional flow (top-down, left-right) and any layout constraints
-- `Handoff` — what the diagram-author should pay attention to
-
-**Key decision:** The brief must capture enough that the author can produce the diagram without reading the source document. Everything the author needs to know about what to draw is in the brief.
+**portfolio-site** — A static single-page marketing site presenting the Anthropic Safeguards portfolio as a three-project argument (Build → Attack → Measure), with key metrics, project cards, and links to deployed live demos.
 
 ---
 
-### diagram-author
+## Requirements
 
-**Purpose:** Produce the diagram code and embed it in the target document at the specified location.
-
-**What it reads:**
-- `roles/diagram-brief/output/output.md` — the complete spec
-- The target document (to find the insertion point and verify placement makes sense in context)
-- `resources/diagram-types.md` — syntax reference for the chosen type
-- `resources/audience-tiers.md` — calibration while drafting labels
-
-**What it produces:**
-- The diagram embedded in the target document at the section specified in the brief (edit in-place, not a new file)
-- `roles/diagram-author/output/output.md` — a manifest with: diagram title, target file, diagram type used, any deviations from brief, and any `[AUTHOR: ...]` gaps
-
-**Key decisions the author makes:**
-- Exact node labels (must match the brief's label style)
-- Layout (must match the brief's layout hint or note deviation)
-- Whether to use a Mermaid subgraph to group related components
-- Whether a complex diagram should be split into two simpler ones (flag in output.md if so)
-
-**Constraint:** The author does not invent components or flows that are not in the brief's Must Show list. If the diagram requires something that is not in the brief, the author inserts `[AUTHOR: need spec for X]` and flags it in the manifest.
+1. The page renders a hero section with a headline framing the "Build → Attack → Measure" narrative and a single CTA anchor-scrolling to the projects section.
+2. Three `ProjectCard` components render in a responsive grid: 3-column on desktop (≥1024px), 1-column on mobile.
+3. Each `ProjectCard` displays: project name, one-sentence description, a `MetricsTable` with hardcoded key metrics, and a demo link that renders as "Demo coming soon" when no URL is provided.
+4. `MetricsTable` accepts a typed `rows` prop and renders metric name + value pairs; it does not fetch data.
+5. A `BioSection` renders a brief professional bio situating the portfolio work relative to Anthropic Safeguards roles (SWE + DE).
+6. A sticky minimal `NavBar` provides anchor links to `#projects` and `#about`.
+7. All metric values are hardcoded in `src/data/projects.ts` — no API calls at runtime.
+8. `pnpm build` produces a `dist/` folder with zero TypeScript errors and zero ESLint errors.
+9. The site is fully responsive: no horizontal overflow at any viewport width; tested at 375px and 1440px.
+10. No external analytics, tracking scripts, web fonts with third-party requests, or API calls are included.
+11. `vitest` runs cleanly; at minimum `ProjectCard` and `MetricsTable` have component tests.
 
 ---
 
-### diagram-reviewer
+## Technology Stack
 
-**Purpose:** Edit the embedded diagram in-place until it satisfies the brief and is legible at the target audience tier.
-
-**What it reads:**
-- `roles/diagram-brief/output/output.md` — the contract
-- The document containing the embedded diagram
-- `resources/audience-tiers.md` — legibility standard for the tier
-
-**What it produces:**
-- The diagram edited in-place (Mermaid code corrected, labels sharpened, layout adjusted)
-- `roles/diagram-reviewer/output/output.md` — summary of changes + READY or AUTHOR REWORK NEEDED verdict
-
-**Checks to perform:**
-1. Every item in Must Show is present and correctly labelled
-2. Nothing from Must Not Show appears
-3. Label style matches the brief's specification
-4. Flow direction is consistent (no arrows that contradict the data flow)
-5. The diagram is legible at typical GitHub render width (no node labels truncated, no crowded subgraphs)
-6. For Tier 3 diagrams: no unexplained technical acronyms in labels
-
-**AUTHOR REWORK NEEDED** when: the Must Show list has a gap that cannot be filled without re-reading the source project, or the diagram type is wrong for the content (e.g. a flowchart was used where a sequence diagram is needed).
+| Concern | Choice | Reason |
+|---------|--------|--------|
+| Language | TypeScript 5.x | Strict mode; consistent with all existing projects |
+| UI library | React 19 | Functional components, hooks; no SSR needed |
+| Bundler | Vite 6 | Fast dev server; `pnpm build` → `dist/` static output |
+| Styling | Tailwind v4 | CSS-first `@theme` block; consistent with red-team-platform and error-hide-seek |
+| Package manager | pnpm | Workspace standard |
+| Formatter | prettier | Single config, enforced via script |
+| Linter | eslint (flat config, `eslint.config.ts`) | typescript-eslint + react-hooks plugin |
+| Testing | vitest + @testing-library/react | Colocated component tests; jsdom environment |
+| Router | none | Single-page with anchor scroll; no route segments needed |
+| Data fetching | none | All content is hardcoded static data |
 
 ---
 
-## diagram-types.md Spec
-
-A catalog of available diagram types with: type name, rendering syntax, what it is best for, when not to use it, and a minimal Mermaid example. Types to include:
-
-1. **Flowchart / directed graph** — component relationships, data flow, decision trees
-2. **Sequence diagram** — time-ordered interactions between systems or actors
-3. **Entity-relationship diagram** — database schemas, data model relationships
-4. **Component / architecture diagram** — how subsystems connect (Mermaid's `graph` or `C4Context`)
-5. **State diagram** — lifecycle of an entity through states
-
----
-
-## routing.md Addition Spec
-
-Add a `design-diagram` sequence entry with:
-- Objective: Produce a reviewed, embedded diagram for a specific document and audience
-- Use when: A document needs a diagram to convey architecture or flow that prose cannot efficiently cover
-- Review gates: after diagram-brief (confirm scope); after diagram-reviewer (confirm correctness)
-- Three steps: diagram-brief → diagram-author → diagram-reviewer
-- Note: the sequence produces no new files; it edits an existing document in-place
-
----
-
-## File Structure to Create
+## File and Module Structure
 
 ```
-roles/
-  diagram-brief/
-    CONTEXT.md          ← role contract
-    output/
-      output.md         ← blank template
-  diagram-author/
-    CONTEXT.md
-    output/
-      output.md
-  diagram-reviewer/
-    CONTEXT.md
-    output/
-      output.md
-resources/
-  diagram-types.md      ← new catalog file
+projects/portfolio-site/
+├── index.html                    Vite entry point; sets page title and meta description
+├── package.json                  Scripts: dev, build, preview, lint, test
+├── pnpm-lock.yaml
+├── vite.config.ts                Path alias @/ → src/; vitest config
+├── tsconfig.json                 References app + node
+├── tsconfig.app.json             Strict TS; moduleResolution bundler; @/* paths; no baseUrl
+├── tsconfig.node.json            For vite.config.ts
+├── eslint.config.ts              Flat config; typescript-eslint + react-hooks
+├── .prettierrc                   semi:false, singleQuote:true, trailingComma:all, printWidth:100
+├── .gitignore
+└── src/
+    ├── main.tsx                  React root; mounts App into #root
+    ├── App.tsx                   Top-level layout: NavBar + main sections
+    ├── index.css                 Tailwind v4 @import + @theme token block
+    ├── data/
+    │   └── projects.ts           Hardcoded project records (name, description, metrics, demoUrl)
+    ├── components/
+    │   ├── NavBar.tsx            Sticky minimal nav; anchor links to #projects and #about
+    │   ├── HeroSection.tsx       Build → Attack → Measure headline; CTA button
+    │   ├── ProjectCard.tsx       Card wrapper; renders name, description, MetricsTable, demo link
+    │   ├── MetricsTable.tsx      Accepts MetricRow[]; renders name/value pairs in tabular style
+    │   └── BioSection.tsx        Professional bio paragraph; situates work re: Anthropic Safeguards
+    └── test/
+        ├── setup.ts              @testing-library/jest-dom import
+        ├── ProjectCard.test.tsx  Renders name, description, metric values, demo link behavior
+        └── MetricsTable.test.tsx Renders all rows; handles empty rows prop
 ```
 
 ---
 
-## Open Questions
+## Key Data Shape (for architect)
 
-**Q: Should diagram-brief support multi-diagram briefs (one output.md covers N diagrams for the same project)?**
-Proposed answer: No. One brief per diagram. If a project needs three diagrams, run diagram-brief three times and produce three output.md files (archived after each). This keeps each brief focused and makes the author's job unambiguous.
+`src/data/projects.ts` exports an array of project records. The architect should define the exact types, but the shape is:
 
-**Q: Should diagram-author append diagrams to the document or replace existing ones?**
-Proposed answer: Replace if a `[DIAGRAM: title]` placeholder exists, otherwise append to the specified section. The brief must specify the section heading clearly.
+```ts
+type MetricRow = { label: string; value: string }
 
-**Q: Should the reviewer role support ASCII art as a fallback for terminals / PDF renders?**
-Proposed answer: No. ASCII diagrams are a separate concern. Mermaid is the default; SVG is the fallback for complex diagrams. ASCII is out of scope for this workflow.
+type Project = {
+  id: string
+  name: string
+  tagline: string
+  description: string
+  metrics: MetricRow[]
+  demoUrl: string | null   // null → render "Demo coming soon"
+}
+```
+
+The three records are:
+- **LLM Safety Monitor** — metrics: Prompt F1 (0.818), Taxonomy macro-F1 (0.787), Pair F1 (0.549)
+- **Red-Team Platform** — metrics: Attacks generated (1,797), Strategies covered (10), Avg ASR gap (architect to confirm format from SUMMARY.md)
+- **Error Hide and Seek** — metrics: Uplift (Human+AI vs Human-only), n=110; architect to confirm exact metric labels from SUMMARY.md
+
+---
+
+## Open Questions for Architect
+
+1. **Metrics exact values for Red-Team Platform and Error Hide and Seek** — the brief specifies "ASR split" and "uplift result" but doesn't give numeric values. Architect should read `projects/red-team-platform/SUMMARY.md` and `projects/error-hide-seek/SUMMARY.md` to extract the headline numbers before writing `projects.ts` data.  
+   *Proposed answer:* Architect reads SUMMARY.md files and populates exact MetricRow labels and values in the type definition.
+
+2. **Color accent** — neutral slate-only vs. a 10% accent hue.  
+   *Proposed answer:* Use amber-600 as primary accent (CTA button, active nav link, metric value text) — Anthropic-adjacent, readable on white at WCAG AA. 60% slate/white canvas, 30% slate structure, 10% amber-600 accent.
+
+3. **Hero CTA behavior** — external link to GitHub/demo vs. anchor scroll to #projects.  
+   *Proposed answer:* Anchor scroll to `#projects` — no external URL assumed at build time; avoids broken links.
+
+4. **Font loading** — self-hosted font vs. system font stack.  
+   *Proposed answer:* System font stack for body (SF Pro / Inter / Segoe UI sans-serif); system monospace (SF Mono / JetBrains Mono) for metric values in MetricsTable. No external font requests.
+
+5. **Project grid layout on tablet (768–1023px)** — 2-column or 1-column?  
+   *Proposed answer:* 1-column at <1024px, 3-column at ≥1024px. Tablet gets same readable single-column layout as mobile. Three equal-width cards at ≥1024px.
 
 ---
 
 ## Handoff
 
-Next role: architect
-Confirm the role contracts as specified above. The architect should resolve the open questions and confirm the exact CONTEXT.md structure before implementation. Pay particular attention to the diagram-brief output schema — it is the contract between brief and author and must be precise enough that the author never needs to re-read the source project.
+**Next role:** architect  
+The architect reads this file to design component interfaces (prop types), the `projects.ts` data structure (with exact metric values from SUMMARY.md files), the Tailwind `@theme` token block, and the layout grid strategy. Open questions above each have a proposed answer — architect confirms or overrides.
+
+The architect should also read `resources/design_style.md` (Marketing/Landing Page context) to apply the correct visual register: wide-column centered container, high-contrast typographic hero, 3-column asymmetric features list, 60/30/10 color rule with amber-600 accent.
+
+After architect: `design-brief` + `frontend-architect` sequence applies (project has a frontend).

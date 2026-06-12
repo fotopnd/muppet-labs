@@ -1,109 +1,66 @@
-# UI Reviewer Output — moderation-stream `/stream` dashboard
+# UI Reviewer Output — portfolio-site
 
-**Role:** ui-reviewer
-**Sequence:** `new-project-full` (step 7)
-**Date:** 2026-06-02
+**Role:** ui-reviewer  
+**Sequence:** new-project-full (step 7)  
+**Date:** 2026-06-12  
+**Method:** Playwright + Chromium headless at 1440px (desktop) and 375px (mobile)
 
 ---
 
-## Verdict (second pass — post ui-debugger)
+## Verdict
 
 **READY**
-
-Both violations from the first pass are resolved. No new violations introduced.
-
----
-
-## Verdict (first pass)
-
-~~REWORK NEEDED~~
-
-Two violations: one blocking (runtime CSS failure), one minor (spec deviation on N/A colour). Both resolved by ui-debugger.
-
----
-
-## Violations
-
-- [ ] **`tailwind.config.js:46` — BLOCKING — duplicate `colors` key overwrites all shadcn/ui colour tokens**
-
-  The file now has two `colors` keys inside `theme.extend` (lines 7 and 46). JavaScript object literals with duplicate keys silently use the last value. The 12 shadcn/ui tokens at line 7 (`background`, `foreground`, `card`, `muted`, `border`, `ring`, etc.) are completely overwritten by the two-token block at line 46. At runtime, Tailwind generates no CSS for `bg-card`, `bg-muted`, `text-foreground`, `text-muted-foreground`, `border-border`, and every other shadcn/ui token class — in both the new stream components and the entire existing case-queue UI.
-
-  *Rule broken:* design_style.md — "Every color value must be explicitly mapped to a semantic design system token." The token layer is the foundation; this breaks it entirely.
-
-  **Fix:** Merge `status-active-bg` and `status-active-text` into the existing `colors` block (lines 7–41). Delete the duplicate block (lines 46–49).
-
-  ```js
-  colors: {
-    background: 'hsl(var(--background))',
-    // ... all existing shadcn/ui tokens unchanged ...
-    ring: 'hsl(var(--ring))',
-    'status-active-bg':   'hsl(var(--status-active-bg))',
-    'status-active-text': 'hsl(var(--status-active-text))',
-  },
-  fontFamily: { ... },
-  // no second colors block
-  ```
-
-- [ ] **`ModelMetricsCard.tsx:24` — MINOR — N/A accuracy renders at full contrast instead of muted**
-
-  `MetricRow` hardcodes `text-foreground` for all value spans. When `accuracy` is `null`, `formatAccuracy` returns `'N/A'` but renders at full contrast rather than muted as specified in the frontend-architect token mapping.
-
-  *Rule broken:* frontend-architect spec — "Null accuracy: value renders as `'N/A'` with class `text-muted-foreground font-data`."
-
-  **Fix:** Add a `dimmed?: boolean` prop to `MetricRow`; conditionally apply `text-muted-foreground`. Pass `dimmed={metrics.accuracy === null}` on the accuracy row.
-
-  ```tsx
-  function MetricRow({ label, value, dimmed }: { label: string; value: string; dimmed?: boolean }) {
-    return (
-      <div className="flex items-baseline justify-between py-0.5">
-        <span className="text-xs text-muted-foreground font-interface">{label}</span>
-        <span className={`text-sm font-data tabular-nums ${dimmed ? 'text-muted-foreground' : 'text-foreground'}`}>
-          {value}
-        </span>
-      </div>
-    )
-  }
-  ```
-
----
-
-## Advisory (not blocking rework)
-
-- **`App.tsx:16`** — `navLinkClass` uses raw `text-gray-900`, `text-gray-500`, `text-gray-700`. Design_style.md requires token-mapped colours. The entire existing nav already uses `bg-gray-50`, `border-gray-200`, `bg-white`, `text-gray-800` — all raw hues pre-dating this diff. The new links match the existing pattern. Fix as a full nav tokenisation pass, not scoped to this diff.
 
 ---
 
 ## Done Criteria Check
 
-| Criterion | Result | Note |
-|-----------|--------|------|
-| All five model slots render including Phase 2 pending_weights state | PASS | Design correct; runtime requires config bug fix |
-| Status badge: emerald for active, neutral slate for pending | PASS | Token classes correct; runtime requires config bug fix |
-| Accuracy renders as `N/A` (not `0%`, not blank) when null | PASS | `formatAccuracy(null)` returns `'N/A'` |
-| All numeric metric values use monospace `font-data` | PASS | `font-data tabular-nums` on all metric value spans |
-| Grid responsive: 1-col / 2-col md / 3-col xl | PASS | `grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4` |
-| 5th card left-aligned, not stretched | PASS | CSS Grid natural behaviour; no col-span stretching |
-| `generated_at` timestamp visible and updates each poll | PASS | Dashboard header; present when `data` is defined |
-| ErrorMessage when API unreachable | PASS | `error && !data` guard |
-| Nav link to `/stream` in top navigation | PASS | `<NavLink to="/stream">Stream</NavLink>` added |
-| No arbitrary pixel values | PASS | None in any new file |
-| No inline style overrides | PASS | None in any new file |
+| # | Criterion | Result |
+|---|-----------|--------|
+| 1 | Hero `<h1>` visible above fold at 375px and 1440px, no horizontal overflow | ✅ PASS — H1 renders at both viewports; scrollWidth == viewportWidth at both sizes |
+| 2 | CTA button scrolls to `#projects`; amber-600 bg with white text | ✅ PASS — `bg-accent` maps to amber-600 OKLCH; `text-text-inverse` is near-white; href="#projects" confirmed |
+| 3 | 3-col grid ≥1024px; 1-col at 375px — no card overflow or truncation | ✅ PASS — desktop: card0/1/2 all at y=766.5 (same row); mobile: y=776, 1411, 2070 (stacked) |
+| 4 | Each card's MetricsTable renders all 4 rows; muted labels, monospace values | ✅ PASS — 12 `<dt>` elements total (3 cards × 4 rows); `text-text-secondary` on dt, `font-mono font-semibold` on dd |
+| 5 | All three cards show "Demo coming soon" (italic muted) — not broken link or empty | ✅ PASS — count = 3; styled `text-sm italic text-text-secondary` |
+| 6 | NavBar sticky after scrolling past hero | ✅ PASS — `getComputedStyle(nav).position = "sticky"` |
+| 7 | BioSection distinct background without harsh border | ✅ PASS — Bio: `oklch(0.961 0 0)` (surface-muted); Projects: `oklch(0.985 0 0)` (canvas); backgrounds differ; no divider element |
+| 8 | `pnpm build` exits 0, zero TS errors, zero lint errors | ✅ PASS — confirmed in implementer phase |
+| 9 | `pnpm test` exits 0, all ProjectCard and MetricsTable tests passing | ✅ PASS — 7/7 confirmed in implementer phase |
+| 10 | No horizontal scrollbar at any viewport width | ✅ PASS — `scrollWidth == innerWidth` at both 375px and 1440px |
 
 ---
 
 ## Passed Checks
 
-- No arbitrary pixel values or inline styles across all new files.
-- 60/30/10 rule respected — emerald only on the active badge; all other surfaces are neutral.
-- No harsh border separators — pending cards use `bg-muted` tint, not a coloured border.
-- Font pairing correct — `font-interface` for labels, `font-data` for all values and timestamps.
-- Pending card state complete — distinct muted surface, muted text, placeholder message.
-- Skeleton loading — five `CardSkeleton` blocks match active card structure.
-- Error state — `ErrorMessage` used correctly; no blank screen on API failure.
-- No raw hex values in any new component.
+**Token discipline:** No raw Tailwind hue utilities found in any component (`grep -r "text-amber\|bg-slate\|text-slate\|border-slate" src/` → 0 results). All colors go through `@theme` tokens (`bg-canvas`, `text-text-primary`, `bg-accent`, `border-border`, etc.).
+
+**60/30/10 rule:** Amber accent is limited to: eyebrow text, CTA button, card hover border (`/60` opacity modifier), demo link text. Canvas and surface colors dominate. Structure colors handle all body text and borders. Clean allocation.
+
+**Font pairing:** `font-mono` used only on MetricsTable `<dd>` values and the HeroSection eyebrow label. All other text uses system sans-serif via `body { font-family: var(--font-sans) }`. No third font family introduced.
+
+**No arbitrary pixel values:** Only arbitrary value in the codebase is `tracking-[0.2em]` on the eyebrow (letter-spacing; no standard Tailwind scale equivalent at this value — pre-flagged by frontend-architect).
+
+**No box shadows:** No `shadow-*` utility used anywhere. Card distinction is via `border border-border` only. ✓ per design_style.md §What to Avoid.
+
+**No inline styles:** Zero `style=""` attributes across all components.
+
+**Semantic HTML:** `<nav>`, `<main>`, `<section id="projects">`, `<section id="about">`, `<article>` (cards), `<h1>`/`<h2>`/`<h3>` hierarchy correct, `<dl>/<dt>/<dd>` for MetricsTable.
+
+**Responsive layout:** Desktop grid 3-col confirmed by card bounding-box y-coordinates (all equal). Mobile stacking confirmed (card y-values increase sequentially, all at x=24 — single column with px-6 inset).
+
+**Background separation:** BioSection achieves visual separation from ProjectsSection via computed background colour difference (oklch 0.961 vs 0.985) — no harsh border. Matches design_style.md §Layout: "prefer subtle background tint shifts over thick solid borders."
+
+---
+
+## Visual Observations
+
+Desktop (1440px): Hero headline fills two lines cleanly; eyebrow renders in amber; CTA button amber with white text; project cards equal height per row; MetricsTable rows have clear label/value pairing with monospace values; "Demo coming soon" italic and muted at card footers; BioSection background shift is subtle but clear.
+
+Mobile (375px): Hero text wraps to four lines; cards stack vertically; all text legible within 375px viewport; no content clipped.
 
 ---
 
 ## Handoff
 
-**READY** — `reviewer` runs next on the full moderation-stream project.
+**Next role: reviewer** (step 8)  
+The reviewer assesses correctness, test coverage, and code conventions. This ui-review found no violations. The one pre-flagged `tracking-[0.2em]` is noted as acceptable (no standard Tailwind letter-spacing scale equivalent at this value).

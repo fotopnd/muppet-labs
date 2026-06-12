@@ -1,73 +1,68 @@
-# Design Brief Output — error-hide-seek
+# Design Brief Output — portfolio-site
 
-**Role:** design-brief
-**Sequence:** `new-project-full` (step 4)
-**Date:** 2026-06-07
+**Role:** design-brief  
+**Sequence:** new-project-full (step 4)  
+**Date:** 2026-06-12
 
 ---
 
 ## Interface Context
 
-**Application Dashboard.**
+**Marketing / Landing Page**
 
-error-hide-seek is a single-user research tool — a researcher runs experiments, reviews abstracts one-by-one, and reads detection rates. There is no marketing intent and no documentation purpose. The review page is task-focused (action surface for flagging errors); the results page is data-dense (metric table with computed uplift). Both pages call for the Application Dashboard register: clean structure, monospace for metrics, operational clarity over decoration.
+This is a read-only, single-scroll persuasion surface — no data entry, no persistent state, no operational controls. The user arrives to form an impression of the portfolio, not to interact with a system. That maps exactly to the Marketing/Landing Page context from `design_style.md`: "clear value metrics, broad spacing layouts, and rapid conversion pathways... large typographic elements, generous whitespace allocations."
+
+The project cards contain a small metrics table, which borrows from the Application Dashboard context — but only as a sub-component. The dominant register is marketing.
 
 ---
 
 ## Primary Interaction
 
-**Read an altered AI safety abstract (with optional blue team annotation highlights), flag suspected planted errors by selecting text, and submit detections.**
+**A visitor reads the three project cards and follows the demo link (or notes "coming soon") for the project that interests them most.**
 
-The ReviewPage is where the experiment runs. Everything else — experiment setup, results — is secondary. A user arrives at `/review/:sessionId`, reads the abstract, uses the Selection API to highlight and flag suspicious text, and submits. The ResultsPage is a read-out, not an action surface.
+Everything else on the page — the hero, the bio, the metrics — supports this. The card + demo-link pair is the unit of conversion.
 
 ---
 
 ## Key Visual Components
 
-1. **`AnnotatedAbstract`** — the abstract text rendered with inline highlighted `<mark>` spans for each blue team annotation. Highlight colour varies by confidence: amber for high, yellow-100 for medium, slate-100 for low. Hovering a span shows a tooltip with the confidence badge and reason text. Absent for `unaided` sessions (abstract renders as plain text). The most visually distinctive component in the interface.
+1. **`HeroSection`** — Full-width typographic block with eyebrow label, `<h1>` headline, subheadline, and a single CTA anchor button. Sets the "Build → Attack → Measure" frame before any project detail appears.
 
-2. **`SelectionFloater`** — a floating button that appears near the user's text selection when the selection is ≥15 characters. Label: "Flag selection". Clicking appends `{text_excerpt, note: ""}` to the detection list and clears the browser selection. Invisible and non-interactive below the 15-character threshold.
+2. **`ProjectCard`** — Card container (bordered, no shadow) holding project name, tagline, `MetricsTable`, description paragraph, and a conditional demo link / "coming soon" span at the bottom. This is the primary content unit.
 
-3. **`DetectionList`** — the staged list of flagged excerpts below the abstract. Each item: a monospace excerpt chip (truncated to 60 chars), an optional note `<input>`, and a remove ×  button. Empty state: "No errors flagged yet — select text above to flag." Submit button at the bottom, disabled while mutation is in-flight. An empty detection list is valid (the human found nothing).
+3. **`MetricsTable`** — Definition-list table inside each card showing 3–4 metric label/value pairs. Values in monospace; labels in muted text. Visually differentiates numbers from prose without leaving the card.
 
-4. **`UpliftHero`** — the headline metric on ResultsPage. Large numeric display: `+X.X%` (emerald) when uplift > 0, `-X.X%` (destructive/red) when uplift < 0, "Results incomplete" (muted, smaller) when any required condition is still in progress.
+4. **`NavBar`** — Sticky minimal header: site title on the left, two anchor links on the right. Keeps the visitor oriented during scroll without dominating the viewport.
 
-5. **`ConditionResultsTable`** — a three-column table (Unaided / Agent Only / Human + Agent). Rows: True Positive Rate, False Positive Rate, Sessions Complete. The Human + Agent TPR cell is background-highlighted — emerald-50 if uplift > 0, rose-50 if negative, default if null. All numeric values render in monospace. Below the main table: a per-category breakdown table (rows = error categories, columns = conditions, cells = TPR % or "—" if condition incomplete).
+5. **`BioSection`** — Muted-background closing section with two short paragraphs: professional background, then why this portfolio was built. No metrics, no links — pure text.
 
 ---
 
 ## Done Criteria
 
-1. `AnnotatedAbstract` renders: highlighted spans have visually distinct background (amber, yellow-100, or slate-100 by confidence level); hovering a span reveals a tooltip containing a confidence badge and one-sentence reason; plain text renders with no highlights for `unaided` sessions.
-
-2. `SelectionFloater` appears when the user highlights ≥15 characters of abstract text; does **not** appear for selections shorter than 15 characters. Clicking "Flag selection" adds the excerpt to the detection list and the selection is cleared.
-
-3. `DetectionList` renders: each detection item shows a monospace truncated excerpt, an optional note field, and a remove button; the empty state message is shown (not an empty container) when no detections are staged; the submit button is disabled while the review mutation is in-flight.
-
-4. ReviewPage shows a "Session already completed" banner (not the detection form) when `session.status === 'completed'`. The abstract and any annotations remain visible in read-only form.
-
-5. `UpliftHero` renders the correct semantic state: emerald text for positive uplift, destructive/red for negative, muted "Results incomplete" text when `uplift === null`. The numeric format is always `+X.X%` or `-X.X%` (one decimal, sign explicit).
-
-6. `ConditionResultsTable` renders: three columns are present regardless of condition completeness; the Human + Agent TPR cell has an emerald-50 background when uplift > 0 and rose-50 when negative; incomplete conditions show "—" (not 0% or blank) in all cells; all percentage values are in the monospace font.
-
-7. The per-category breakdown table below `ConditionResultsTable` renders: one row per error category present in the experiment, three columns (one per condition), each cell showing the category TPR % or "—". The table has a visible header row with condition labels.
-
-8. Both pages show named loading skeletons while their primary API call is in-flight, and a named error message (e.g. "Session unavailable — check API") on failure. Error state does not render partial data.
-
-9. No arbitrary pixel values appear in any `className` string (`h-[13px]`, `w-[342px]`, `style=""` are all banned). All spacing uses Tailwind scale tokens.
+1. Hero `<h1>` text is visible above the fold at both 375px and 1440px viewport widths with no horizontal overflow.
+2. CTA button scrolls the page to `#projects` when clicked; button uses amber-600 background with legible white text.
+3. Three project cards render in a 3-column grid at ≥1024px and a single column at 375px — no card overflow or truncation at either width.
+4. Each card's `MetricsTable` renders all 4 metric rows with label text in muted/secondary color and value text in monospace.
+5. All three cards currently show "Demo coming soon" (italic, muted) — not a broken link or an empty element.
+6. `NavBar` is sticky: it remains visible at the top of the viewport after scrolling past the hero.
+7. `BioSection` renders with a visually distinct background (surface-muted) that separates it from the projects section without a harsh border.
+8. `pnpm build` exits 0 with zero TS errors and zero lint errors.
+9. `pnpm test` exits 0 with all `ProjectCard` and `MetricsTable` tests passing.
+10. No horizontal scrollbar appears at any viewport width between 375px and 1440px.
 
 ---
 
 ## Handoff
 
-The `frontend-architect` reads this file alongside `roles/architect/output/output.md` and `resources/design_style.md`.
+The frontend-architect reads this file alongside `roles/architect/output/output.md` and `resources/design_style.md`.
 
-**Open decisions for frontend-architect to resolve:**
+The architect output already contains full component interfaces, the Tailwind `@theme` token block, the `projects.ts` data spec, and layout class strings. The frontend-architect's job is to:
+- Validate those specs against the done criteria above
+- Confirm or adjust the layout grid and spacing rhythm
+- Specify any interactive states not yet covered (hover on cards, active nav link on scroll)
+- Produce the frontend-architect output the implementer executes from
 
-- **`SelectionFloater` positioning strategy:** The floating "Flag selection" button must appear near the user's text selection. Two options: (a) use `window.getSelection().getRangeAt(0).getBoundingClientRect()` to position with `position: fixed`, rendered via a React portal; (b) position relative to the abstract container using a ref. Option (a) is more accurate across scroll positions; (b) is simpler. Frontend-architect decides.
-
-- **Overlapping annotation highlights:** If two `AnnotatedAbstract` annotations cover overlapping text ranges, the substring-search segmentation algorithm may produce nested or crossed highlights. Frontend-architect should specify the tiebreaker — proposed: first annotation wins (process in index order, skip annotations whose text is already inside a prior highlighted segment).
-
-- **ResultsPage polling:** Should `useResults` poll at an interval while any condition is incomplete? This would let the page update live as sessions are completed without a manual refresh. Proposed: poll every 30s if `uplift === null` (conditions incomplete), stop polling once all conditions complete. Frontend-architect confirms or drops.
-
-- **Category breakdown table placement:** The per-category breakdown could be a separate collapsible section below `ConditionResultsTable`, or always-visible. Frontend-architect decides based on how many rows are typically expected (5 error categories max — always-visible is cleaner).
+Open decisions for frontend-architect:
+- Whether `ProjectCard` gets a subtle hover state (e.g. border color lifts to amber-200) — the architect spec omits this
+- Whether the `NavBar` active link highlights on scroll position (requires `IntersectionObserver`) or is purely static anchor links — static is simpler and sufficient for a portfolio

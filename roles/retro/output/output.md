@@ -1,46 +1,53 @@
-# Retro — diagram-workflow roles
+# Retro — portfolio-site
 
-**Role:** retro
-**Sequence:** `new-role`
-**Date:** 2026-06-11
+**Role:** retro  
+**Sequence:** new-project-full  
+**Date:** 2026-06-12
 
 ---
 
 ## Project
 
-**Name:** diagram-workflow
-**Sequence:** new-role
-**Sessions:** 2 (brief + planner + architect in session 1; implementer + reviewer + retro in session 2, resumed after context compaction)
-**Roles that ran:** brief → planner → architect (gate) → implementer → reviewer (PASS) → retro
-**Outcome:** PASS — all 8 deliverables produced, no blocking issues
+**Name:** portfolio-site  
+**Sequence:** `new-project-full` (all 9 steps)  
+**Sessions:** 1 (single continuous session 2026-06-12)  
+**Roles run in order:** brief → planner → architect → design-brief → frontend-architect → implementer → ui-reviewer → reviewer → retro  
+**Reviewer verdict:** PASS WITH NOTES (3 minor items, all fixed before retro)
 
 ---
 
 ## What Went Well
 
-**1 — Architect's resolved open questions became reliable ground rules**
+**W1 — Metric values extracted from SUMMARY.md files at architect stage.**  
+The planner flagged that exact metric values needed to be sourced from the project SUMMARY.md files rather than invented. The architect did this at step 3, producing a complete `projects.ts` data spec with real numbers. The implementer copied it verbatim — no correction pass needed. Pattern: when a planner open question involves factual data that exists in the workspace, resolve it at the architect stage (not the implementer stage) so the implementer has a complete spec to follow.
 
-The architect session closed three open questions (multi-diagram briefs, insert-vs-replace logic, ASCII fallback) with concrete decisions. Each decision propagated directly into the Notes sections of the relevant CONTEXT.md files. The implementer did not re-litigate any of them. When the brief specifies "one diagram per run" and the author contract says "replace `[DIAGRAM PLACEHOLDER]` if present, otherwise append," the author has no ambiguity. Tight architect outputs produce tight role contracts.
+**W2 — BioSection generalisation caught and corrected before architecture was written.**  
+The initial architect spec used hiring-goal language ("targeting Anthropic Safeguards"). The human corrected this to CV-grounded content before the architect output was finalised. The correction was a single targeted edit. Pattern: the architect role is the right place to catch copy-level decisions (not the implementer), because the copy propagates forward unchanged.
 
-**2 — The diagram-brief output schema was defined before implementation began**
+**W3 — Tailwind v4 shorthand token utilities worked cleanly.**  
+The frontend-architect spec used `bg-[--color-*]` arbitrary syntax. At implementation time, this was correctly replaced with shorthand tokens (`bg-canvas`, `text-text-primary`, etc.) matching the error-hide-seek pattern already in the workspace. The implementation required no rework. Pattern: checking an existing Tailwind v4 project (`error-hide-seek`) before writing the implementer code avoided a silent CSS generation failure.
 
-The architect specified all 9 sections of the brief output schema (Diagram Title, Target Document, Audience, Diagram Type, Must Show, Must Not Show, Label Style, Layout, Handoff) and the exact purpose of each. This is the most critical interface in the whole workflow — the contract between brief and author. Having it specified in full before the implementer ran meant the CONTEXT.md, the blank template, and the routing.md entry all referenced the same schema with no drift.
+**W4 — Playwright verification caught no issues on first pass.**  
+The ui-reviewer used headless Playwright to verify all 10 done criteria programmatically. All passed first time. The done criteria were specific enough (bounding-box y-coordinates, scrollWidth checks, computed background colours) that the verification was mechanical rather than interpretive.
 
-**3 — `diagram-types.md` was written first, referenced cleanly by both roles**
-
-The implementer followed the architect's "write `diagram-types.md` first" order. Both `diagram-brief` and `diagram-author` CONTEXT.md files load it; neither had to duplicate type definitions. The resource is self-contained: type name, Mermaid keyword, best-for/not-for, complexity thresholds, minimal example.
+**W5 — Three reviewer findings were all minor and fixed in under 5 minutes.**  
+`mt-auto` removal (1 line), `githubUrl` field removal (4 lines across 2 files + test), `aria-label` addition (1 line). The codebase was clean enough that the reviewer had nothing blocking to report.
 
 ---
 
 ## What Could Have Gone Better
 
-**1 — Minor inconsistency in Flowchart complexity threshold**
+**B1 — `frontend-architect` spec used `bg-[--color-*]` arbitrary syntax that doesn't support opacity modifiers.**  
+The frontend-architect output specified `hover:border-[--color-accent]/60` — which is valid Tailwind v4 syntax only if the color is in `@theme` AND the opacity modifier syntax is supported for CSS variable references. In practice the implementer replaced this with `hover:border-accent/60` (shorthand) which does support opacity modifiers. The frontend-architect spec should use shorthand token utility classes directly, not the arbitrary `[--color-*]` form, because (a) it matches the actual output and (b) shorthand is unambiguous about opacity modifier support.  
+→ **Fix:** Update `design_style.md` or `typescript-conventions.md` to note that Tailwind v4 `@theme` color tokens should be referenced via shorthand utilities (`bg-canvas`, `text-accent`) not the `bg-[--color-*]` arbitrary form.
 
-`diagram-types.md` states "up to ~12 nodes before legibility degrades" in the per-type table, but the Complexity Thresholds section at the bottom sets soft limit 10 and hard limit 15 for Flowcharts. The reviewer noted this (W1). The Complexity Thresholds table is the authoritative reference (it is what the `diagram-brief` Notes section points to), but the type table's "~12 nodes" creates a slight contradiction for someone reading the type entry in isolation. Could have been caught by proofing the catalog end-to-end before writing the CONTEXT.md files that depend on it.
+**B2 — `githubUrl` field typed and seeded but never rendered.**  
+The architect spec included `githubUrl: string | null` in the `Project` type because it seemed likely to be needed. It was never wired into the UI. The reviewer caught it, the implementer removed it. This is a classic YAGNI violation in the data modelling phase. The architect should only type fields that the implementer will render.  
+→ **Fix:** Add a note to `roles/architect/CONTEXT.md`: "Define only fields that the current implementer pass will render. Do not forward-model fields for hypothetical future UI."
 
-**2 — Blank templates are heading-only, which may feel sparse**
-
-The blank `output/output.md` files contain only section headings with no placeholder text. Other role templates in the workspace (e.g. `doc-brief`) also follow this pattern, so this is consistent. But for a first-time user of `diagram-brief`, seeing a blank schema with no worked example or prompt text could be disorienting. An in-template comment like `[e.g. "Kafka Event Flow"]` in the Diagram Title slot would reduce first-run friction with no downside.
+**B3 — `mt-auto` redundancy in ProjectCard was a logical error in the frontend-architect spec.**  
+The frontend-architect spec specified both `grow` on the description `<p>` and `mt-auto` on the demo `<div>`. These are mutually exclusive — `mt-auto` is a no-op when a sibling above it has `grow`. The reviewer caught it, the implementer fixed it. This is a spacing logic error that should be caught at the frontend-architect stage.  
+→ **Fix:** No resource change needed. Awareness note: in a `flex flex-col` container, `grow` on one child and `mt-auto` on the following child are not additive — `mt-auto` becomes inert. The frontend-architect should apply one or the other.
 
 ---
 
@@ -50,16 +57,19 @@ The blank `output/output.md` files contain only section headings with no placeho
 
 | Stage | Issue | Estimated Waste | Recommendation |
 |-------|-------|-----------------|----------------|
-| Implementer | Read all prior role outputs (brief, planner, architect) before writing — correct behavior, not waste | None | No change |
-| Reviewer | Loaded all three CONTEXT.md files plus architect spec to check correctness | Low | Correct scope — reviewer's job is exactly this comparison |
+| Architect | Loaded full `design_style.md` (116 lines) but only the Marketing/Landing Page context section (10 lines) was relevant | Low | Already scoped correctly — design-brief confirmed context before architect ran. No change needed. |
+| Frontend-architect | Loaded `setup-design-tokens.md` skill (116 lines) which prescribes a `tailwind.config.js` approach; Tailwind v4 does not use this file | Medium | The skill is v3-era. Frontend-architect noted this and used the `@theme` approach from the architect output instead. Skill should be updated to cover v4. |
+| Implementer | Read `setup-ts-pnpm.md` (193 lines) — most of the setup was already done by the Vite 8 scaffold | Low | Scaffold included more deps than expected (typescript-eslint, react-hooks plugin). The skill's "Step 3 — Add ESLint and Prettier" section was partially superseded. No change needed for now; note in skill that Vite 8 scaffold bundles more. |
 
 ### Redundancy Patterns
 
-None identified. The role contracts do not duplicate content from `diagram-types.md` — they reference it by filename. The output schemas appear in the CONTEXT.md files once each (not in both CONTEXT.md and a separate template file).
+- The `@theme` token block was specified in full in both the architect output and the frontend-architect output. The frontend-architect could have referenced "use the token block from `roles/architect/output/output.md` §Token Layer" rather than repeating it.
+- The `PROJECTS` data spec appeared in full in the architect output and was copied verbatim to `projects.ts`. This is correct (the implementer needs the exact spec) — not redundancy, just handoff.
 
 ### Scoping Recommendations
 
-The `new-role` sequence loaded `_config/project-state.md` in the retro stage. For a Markdown-only workspace tooling project like this, `project-state.md` is lightly relevant (contains general workspace state but no diagram-workflow-specific history). This is acceptable for retro — the file is short and provides orientation.
+- **Frontend-architect:** does not need to reload `vibecoding-style.md` — it was already loaded in design-brief and does not affect layout decisions. Remove from the routing.md resource list for frontend-architect.
+- **Retro:** confirm that not loading language conventions files is the right call. It was — this retro needed no TypeScript reference.
 
 ---
 
@@ -69,46 +79,59 @@ The `new-role` sequence loaded `_config/project-state.md` in the retro stage. Fo
 
 | File | Change | Reason | Human decision required? |
 |------|--------|--------|--------------------------|
-| `resources/diagram-types.md` | In the Flowchart type table, change "up to ~12 nodes before legibility degrades" → "up to 10 nodes (soft limit); see Complexity Thresholds section below for hard limits" | Resolves the W1 inconsistency between the type entry and the Complexity Thresholds table | No |
+| `resources/typescript-conventions.md` | Add a Tailwind v4 subsection under UI conventions: "Use shorthand token utilities (`bg-canvas`, `text-accent`) not arbitrary `bg-[--color-*]` syntax. Shorthand supports opacity modifiers; arbitrary syntax does not." | B1 — prevents the frontend-architect/implementer mismatch on token syntax | No |
 
 ### Skills to Update
 
-None.
+| File | Change | Reason | Human decision required? |
+|------|--------|--------|--------------------------|
+| `skills/setup-design-tokens.md` | Add a Tailwind v4 section at the top: "For Tailwind v4 projects, skip Steps 2–6. Define tokens in `src/index.css` using an `@theme {}` block with `--color-*` and `--font-*` variables. No `tailwind.config.js` is needed. Use shorthand utility classes (`bg-canvas`, `text-accent`) to reference tokens in components." | B1, token efficiency B — the skill currently only covers v3 patterns | No |
+| `skills/setup-ts-pnpm.md` | Add a note under Step 3: "Vite 8 scaffold (`pnpm create vite --template react-ts`) bundles `@eslint/js`, `typescript-eslint`, `eslint-plugin-react-hooks`, `@types/node`, and `globals` by default. Skip installing these manually; only add `prettier` and the testing libs." | Token efficiency — prevents redundant install steps being listed | No |
 
 ### Routing Changes
 
-None. The `design-diagram` entry in `routing.md` was written correctly in this session. No structural changes needed.
+| Sequence | Change | Reason | Human decision required? |
+|----------|--------|--------|--------------------------|
+| `new-project-full` step 5 | Remove `vibecoding-style.md` from frontend-architect resources | Not referenced in frontend-architect output; design-brief already loaded it | No |
 
 ### New Resources or Skills Needed
 
-None identified. The three existing resources loaded by the diagram workflow (`audience-tiers.md`, `diagram-types.md`, `writing-voice.md` indirectly via audience-tiers) are sufficient.
+Nothing critical. The workspace handled a fully static frontend project cleanly with existing infrastructure.
 
 ---
 
 ## One Change to Make Now
 
-**Fix the Flowchart complexity threshold inconsistency in `resources/diagram-types.md`.**
+**Update `skills/setup-design-tokens.md`** — prepend the Tailwind v4 note at the top so the next frontend-architect that loads this skill gets the correct pattern immediately rather than reading a v3-oriented procedure and having to adapt it.
 
-In the Flowchart type table, line:
-> `Typical complexity | Low to medium — up to ~12 nodes before legibility degrades`
+Exact addition at line 1 (before "# Skill: Setup a TypeScript / React Project"):
 
-Change to:
-> `Typical complexity | Low to medium — soft limit 10 nodes; see Complexity Thresholds section`
+```markdown
+## Tailwind v4 Projects
 
-This closes the W1 finding from the reviewer, removes ambiguity for the first person who uses `diagram-brief` to brief a flowchart, and takes under 30 seconds to apply.
+For Tailwind v4 (identified by `@tailwindcss/vite` in devDependencies):
+- **Skip Steps 2–6 below.** No `tailwind.config.js` is created.
+- Define tokens in `src/index.css`:
+  ```css
+  @import "tailwindcss";
+  @theme {
+    --color-canvas: oklch(...);
+    --color-accent: oklch(...);
+    /* etc. */
+  }
+  ```
+- Reference tokens in components using shorthand utilities: `bg-canvas`, `text-accent`, `border-border`.
+  - **Not** `bg-[--color-canvas]` — the arbitrary form does not support opacity modifiers.
+  - Opacity modifiers work with shorthand: `bg-surface/95`, `hover:border-accent/60`.
+- Accent hue is confirmed at the architect stage, not here.
+
+The v3 procedure below applies to projects using `tailwind.config.js`.
+```
 
 ---
 
 ## Handoff
 
-Human reviews recommendations above. Only one change recommended:
+Human reviews these recommendations and decides which to apply. The three skill/resource changes are low-risk and no human decision is required. The routing.md change (remove `vibecoding-style.md` from frontend-architect) is also straightforward.
 
-1. **Apply now (no decision required):**
-   - Fix Flowchart complexity line in `resources/diagram-types.md` (one-line edit)
-
-2. Update `_config/project-state.md` to record diagram-workflow retro complete and `design-diagram` sequence now available.
-
-The `design-diagram` sequence is ready for first use. Candidate diagrams from `resources/priorities.md` P3:
-- Three-project system flow → `PORTFOLIO.md`
-- Kafka event → classifier → escalation pipeline → `projects/llm-safety-monitor/README.md`
-- POST /sessions → annotate → score pipeline → `projects/error-hide-seek/README.md`
+Update `_config/project-state.md` to record retro complete and which recommendations were actioned.

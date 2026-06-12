@@ -54,6 +54,8 @@ its output feeds back into the workspace itself (`resources/`, `skills/`, `routi
 | 3 | `architect` | `planner/output.md` | `[lang]-conventions.md` | — | `roles/architect/output/output.md` |
 | 4 | `design-brief` *(if project has frontend)* | `planner/output.md`, `architect/output.md` | `design_style.md`, `vibecoding-style.md` | — | `roles/design-brief/output/output.md` |
 | 5 | `frontend-architect` *(if project has frontend)* | `design-brief/output.md`, `architect/output.md` | `design_style.md`, `[lang]-conventions.md` | `setup-design-tokens.md` (new projects) | `roles/frontend-architect/output/output.md` |
+
+> **frontend-architect context note:** Do not load `vibecoding-style.md` — it is not referenced in layout decisions and was already loaded by design-brief. Load only `design_style.md` and the language conventions file.
 | 6a | `implementer` **(backend phase)** *(full-stack projects only)* | `architect/output.md` | `python-conventions.md`, `vibecoding-style.md` | `setup-uv-project.md` | `roles/implementer/output/backend-output.md` |
 | 6b | `implementer` **(frontend phase)** *(full-stack projects only)* | `implementer/output/backend-output.md`, `frontend-architect/output.md` or `architect/output.md` | `typescript-conventions.md`, `vibecoding-style.md` | `setup-ts-pnpm.md` | `roles/implementer/output/output.md` |
 | 6 | `implementer` **(single-language projects)** | `architect/output.md` | `[lang]-conventions.md`, `vibecoding-style.md` | `setup-[lang]-project.md` | `roles/implementer/output/output.md` |

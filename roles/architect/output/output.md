@@ -1,265 +1,318 @@
-# Architect Output — diagram-workflow roles
+# Architect Output — portfolio-site
 
-**Role:** architect
-**Sequence:** new-role
+**Role:** architect  
+**Sequence:** new-project-full  
+**Step:** 3 of 9  
+**Date:** 2026-06-12
 
 ---
 
 ## System Overview
 
-Four deliverables compose the diagram workflow: three role CONTEXT.md files (`diagram-brief`, `diagram-author`, `diagram-reviewer`) and one resource catalog (`diagram-types.md`). A fifth edit adds the `design-diagram` sequence to `routing.md`. The three roles follow the same brief → author → reviewer pattern as `write-doc`, with two review gates: after diagram-brief (confirm scope before drawing) and after diagram-reviewer (confirm correctness before the diagram is committed). No new files are created by the author — it edits the target document in-place.
+`portfolio-site` is a fully static React 19 + Vite 6 + Tailwind v4 single-page application. It has no runtime API calls, no router, and no server-side logic. The entire site is one scroll page composed of four sections: `NavBar` (sticky header with anchor links), `HeroSection` (headline + CTA), `ProjectsSection` (3-column grid of `ProjectCard`), and `BioSection` (professional context paragraph). All content — project names, descriptions, metric values, and demo URLs — is defined in a single `src/data/projects.ts` module and passed down as props. The `dist/` output is served directly by nginx with no Node.js process.
 
 ---
 
-## Open Questions — Resolved
+## Open Questions Resolved
 
-**Multi-diagram briefs:** One brief per diagram. Confirmed. If a document needs three diagrams, run diagram-brief three times, archiving the output between runs. This keeps each brief unambiguous and the author's job scoped.
-
-**Author inserts vs replaces:** The author inserts at the target section specified in the brief. If a `[DIAGRAM PLACEHOLDER]` comment exists in the document, it replaces that comment. Otherwise, it appends to the body of the specified section heading. The brief must specify the section heading exactly as it appears in the document.
-
-**ASCII / fallback formats:** Out of scope. Mermaid is the default. The diagram-reviewer may recommend SVG as a fallback if a Mermaid diagram exceeds a legible complexity threshold, but SVG authoring is outside the role contract.
+| # | Question | Decision |
+|---|----------|----------|
+| 1 | Metric values for Red-Team Platform and Error Hide and Seek | Resolved below from SUMMARY.md files |
+| 2 | Color accent | amber-600 as primary accent (10% rule); slate-900/50 for text; white/slate-50 surfaces |
+| 3 | Hero CTA behavior | Anchor scroll to `#projects` |
+| 4 | Font loading | System font stack only — no external font requests |
+| 5 | Tablet grid (768–1023px) | 1-column below 1024px, 3-column at ≥1024px |
 
 ---
 
-## diagram-brief CONTEXT.md Spec
+## Data Models
 
-**Identity:** Captures the requirements for a single diagram. Produces a structured brief that specifies scope, audience, placement, and visual constraints precisely enough for the author to produce the diagram without re-reading the source project.
+### `src/data/projects.ts`
 
-**Inputs table:**
-| Source | File | Notes |
-|--------|------|-------|
-| Human | Target document path + which section needs a diagram | Specifies the work |
-| Document | The target document | Read to understand context and verify placement makes sense |
-| Source material | As specified by human | Architecture docs, README, data-flow specs — only what is needed to identify Must Show |
-| Resources | `resources/audience-tiers.md` | Calibrate label density and abstraction level |
-| Resources | `resources/diagram-types.md` | Select the correct diagram type |
+```ts
+export type MetricRow = {
+  label: string   // e.g. "Prompt F1"
+  value: string   // e.g. "0.818"
+}
 
-**Process (7 steps):**
-1. Read the target document. Identify the section where the diagram will live and what the surrounding prose establishes.
-2. Read relevant source material to identify the components, flows, and relationships the diagram must make legible.
-3. Read `audience-tiers.md` for the target tier. Determine label density: Tier 1 (technical identifiers), Tier 2 (human-readable with identifiers), Tier 3 (human-readable only).
-4. Read `diagram-types.md`. Select the type that best represents the content — flowchart for component/data flow, sequence for time-ordered interactions, ER for data models.
-5. Write the Must Show list. Each item must be specific enough to draw without further research: not "the three classifiers" but "three nodes: `pair_classifier`, `prompt_detector`, `taxonomy_classifier`, each with an arrow from the Kafka topic".
-6. Write the Must Not Show list. Anything that would add complexity without aiding comprehension for the target audience.
-7. Write output using the schema below.
+export type Project = {
+  id: string           // slug, used as React key and aria-labelledby anchor
+  name: string         // display name
+  tagline: string      // one-sentence summary shown below the name
+  description: string  // two-to-three sentence narrative paragraph in card body
+  metrics: MetricRow[] // 3–4 rows; rendered by MetricsTable
+  demoUrl: string | null  // null → render "Demo coming soon" (disabled link)
+  githubUrl: string | null
+}
 
-**Output file:** `roles/diagram-brief/output/output.md`
-
-**Output schema (exact sections):**
-
-```markdown
-## Diagram Title
-[short title, used as the heading above the diagram in the document]
-
-## Target Document
-**File:** [path]
-**Section:** [exact section heading text as it appears in the document]
-**Placement:** before section body | after first paragraph | replace [DIAGRAM PLACEHOLDER]
-
-## Audience
-**Tier:** [1 / 2 / 3]
-**Persona:** [one sentence — who will read this diagram and what do they already know]
-
-## Diagram Type
-**Type:** [name from diagram-types.md]
-**Syntax:** [Mermaid flowchart LR | Mermaid sequence | Mermaid erDiagram | etc.]
-
-## Must Show
-[Numbered list. Each item must be specific enough to draw without further research.]
-1. [Node / component: name and brief description]
-2. [Edge / flow: from X to Y, label, direction]
-...
-
-## Must Not Show
-[Bulleted list of explicit exclusions]
-- [item]
-
-## Label Style
-technical identifiers | human-readable | both (format: "Human Name (`tech_id`)")
-
-## Layout
-**Direction:** LR | TD | RL | BT
-**Grouping:** [subgraph groupings if any — e.g. "group the three consumers in a subgraph labelled Classifiers"]
-
-## Handoff
-[One or two sentences: what the author should pay close attention to, and any known visual challenge]
+export const PROJECTS: Project[] = [
+  {
+    id: 'llm-safety-monitor',
+    name: 'LLM Safety Monitor',
+    tagline: 'Fine-tuned classifiers that score production traffic for harmfulness, prompt injection, and taxonomy category in real time.',
+    description:
+      'Three RoBERTa-base classifiers trained on HH-RLHF and WildGuard data — one for pair-level harmfulness, one for prompt injection, one for 13-category harm taxonomy. The monitor streams live events through a Kafka pipeline and exposes a FastAPI metrics endpoint consumed by the moderation dashboard.',
+    metrics: [
+      { label: 'Prompt classifier F1', value: '0.818' },
+      { label: 'Taxonomy macro-F1', value: '0.787' },
+      { label: 'Pair classifier F1', value: '0.549' },
+      { label: 'Training set', value: '50k pairs (HH-RLHF)' },
+    ],
+    demoUrl: null,
+    githubUrl: null,
+  },
+  {
+    id: 'red-team-platform',
+    name: 'Red-Team Platform',
+    tagline: 'Corpus-driven jailbreak campaigns with classifier scoring, semantic clustering, and live safety monitor integration.',
+    description:
+      'Runs structured attack campaigns against an Ollama-compatible model, scores every response with the shared safety classifier, clusters successful attacks by mechanism, and publishes all 1,797 events to the live monitor via Kafka outbox. A React dashboard surfaces attack-success-rate splits by strategy, semantic cluster breakdowns, and regression tracking across runs.',
+    metrics: [
+      { label: 'Attacks (Phase 1)', value: '1,797' },
+      { label: 'Strategies tested', value: '6' },
+      { label: 'Top ASR (few_shot_json)', value: '100%' },
+      { label: 'Fully-resisted strategies', value: '3 of 6' },
+    ],
+    demoUrl: null,
+    githubUrl: null,
+  },
+  {
+    id: 'error-hide-seek',
+    name: 'Error Hide and Seek',
+    tagline: 'A randomised controlled trial measuring whether AI hints improve human detection of planted errors in academic abstracts.',
+    description:
+      'Two experiments across 100 papers and 67 human review sessions compared unaided detection against human+agent detection. Overall TPR uplift was −0.01 (null result). Category-level decomposition found +0.33 uplift for inverted-conclusion errors — the one category where Claude can reason without ground-truth access — and zero or negative uplift for domain-dependent categories.',
+    metrics: [
+      { label: 'Human+Agent TPR', value: '0.29' },
+      { label: 'Unaided TPR', value: '0.30' },
+      { label: 'Overall uplift', value: '−0.01' },
+      { label: 'Inverted-conclusion uplift', value: '+0.33' },
+    ],
+    demoUrl: null,
+    githubUrl: null,
+  },
+]
 ```
 
 ---
 
-## diagram-author CONTEXT.md Spec
+## Tailwind v4 Token Block (`src/index.css`)
 
-**Identity:** Produces the Mermaid diagram code and embeds it in the target document at the section specified in the brief. Does not invent components or flows beyond the Must Show list.
+```css
+@import "tailwindcss";
 
-**Inputs table:**
-| Source | File | Notes |
-|--------|------|-------|
-| Upstream role | `roles/diagram-brief/output/output.md` | Primary — the complete spec |
-| Document | Target file from brief | Read to find the insertion point |
-| Resources | `resources/diagram-types.md` | Mermaid syntax reference |
-| Resources | `resources/audience-tiers.md` | Label calibration while drafting |
+@theme {
+  /* Typography */
+  --font-sans: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  --font-mono: ui-monospace, "SF Mono", "JetBrains Mono", "Fira Code", Consolas, monospace;
 
-**Process (6 steps):**
-1. Read the diagram-brief in full. Note Diagram Type, Must Show, Must Not Show, Label Style, Layout, and Target Document.
-2. Read the target document. Find the section specified in the brief. Determine whether a `[DIAGRAM PLACEHOLDER]` comment exists; if so, plan to replace it; otherwise, plan to append to the section body.
-3. Draft the diagram in the specified syntax. Work through the Must Show list in order. Check each item against the Must Not Show list before adding it.
-4. Apply label style throughout. For Tier 3 diagrams, verify no technical identifiers appear without a human-readable label.
-5. Where the brief is ambiguous or an item in Must Show cannot be drawn without additional information: insert `[AUTHOR: describe gap specifically]` in the diagram comment block and note it in the manifest.
-6. Embed the diagram in the target document (Edit in-place). Write the manifest to `roles/diagram-author/output/output.md`.
+  /* Color roles — 60/30/10 rule */
+  /* 60% canvas */
+  --color-canvas: oklch(98.5% 0 0);        /* ~slate-50 */
+  --color-surface: oklch(100% 0 0);        /* white */
+  --color-surface-muted: oklch(96.1% 0 0); /* ~slate-100 */
 
-**Output — document edit:** Diagram embedded at the target section as a fenced Mermaid code block.
+  /* 30% structure */
+  --color-border: oklch(91.8% 0 0);        /* ~slate-200 */
+  --color-text-primary: oklch(15.1% 0 0);  /* ~slate-900 */
+  --color-text-secondary: oklch(44.6% 0 0);/* ~slate-500 */
+  --color-text-inverse: oklch(98.5% 0 0);  /* ~slate-50 */
 
-**Output — manifest file:** `roles/diagram-author/output/output.md`
-
-**Manifest schema:**
-```markdown
-## Diagram Produced
-[Diagram title]
-[Target file and section]
-[Diagram type and syntax used]
-
-## Must Show Coverage
-| Item | Status |
-|------|--------|
-| [item from brief] | Drawn / Not drawn (see Author Note) |
-
-## Deviations from Brief
-[Any departure from the brief's spec and why — or "None"]
-
-## Author Notes in Diagram
-[List any [AUTHOR: ...] markers left in the diagram block, and what information is needed]
-[Or "None"]
-
-## Handoff
-The diagram-reviewer reads the diagram-brief and the embedded diagram.
-Key concern: [one thing the reviewer should examine closely]
+  /* 10% accent — amber-600 */
+  --color-accent: oklch(66.6% 0.179 60.4);       /* amber-600 */
+  --color-accent-hover: oklch(60.6% 0.179 60.4); /* amber-700 */
+  --color-accent-subtle: oklch(96.9% 0.021 60.4);/* amber-50 */
+}
 ```
 
 ---
 
-## diagram-reviewer CONTEXT.md Spec
+## Module Interfaces
 
-**Identity:** Formal editor for diagrams. Reads the brief and the embedded diagram, edits the diagram in-place, and issues a READY or AUTHOR REWORK NEEDED verdict.
+### `src/data/projects.ts`
+```ts
+export type MetricRow = { label: string; value: string }
+export type Project = { id, name, tagline, description, metrics, demoUrl, githubUrl }
+export const PROJECTS: Project[]
+```
+No imports. Pure data. Consumed by `App.tsx` and `ProjectsSection`.
 
-**Inputs table:**
-| Source | File | Notes |
-|--------|------|-------|
-| Upstream role | `roles/diagram-brief/output/output.md` | The contract |
-| Document | Target file from brief | Contains the embedded diagram to review |
-| Resources | `resources/audience-tiers.md` | Legibility standard for the target tier |
+---
 
-**Process (7 steps):**
-1. Read the diagram-brief in full. Note Must Show, Must Not Show, Label Style, Layout, and Audience Tier.
-2. Read the embedded diagram in the target document.
-3. Check each item in Must Show against the diagram.
-4. Check that nothing from Must Not Show appears.
-5. Check label style against the brief's specification. For Tier 3: no unexplained technical identifiers.
-6. Check layout direction and grouping against the brief.
-7. Edit the diagram in-place for fixable issues. Insert `[AUTHOR: ...]` markers for gaps that require source knowledge the reviewer does not have.
-
-**Checks (enforced):**
-- Every Must Show item is present and correctly labelled
-- No Must Not Show items appear
-- Label style matches brief
-- Flow direction is consistent — no arrows that contradict the described data flow
-- No node labels truncated (keep labels under ~30 characters; use subgraph grouping to reduce crowding)
-- For Tier 3: no raw technical identifiers without a human-readable equivalent
-
-**READY** when: all Must Show items present, no Must Not Show items, label style correct, no `[AUTHOR: ...]` gaps.
-
-**AUTHOR REWORK NEEDED** when: one or more Must Show items cannot be drawn correctly without re-reading source material, or the diagram type is wrong for the content.
-
-**Output file:** `roles/diagram-reviewer/output/output.md`
-
-**Output schema:**
-```markdown
-## What Was Edited
-[Specific changes made — e.g. "Relabelled pair_classifier node to match Tier 1 label style; added missing arrow from escalation router to case-queue; removed database node (Must Not Show)"]
-
-## Author Flags
-[List every [AUTHOR: ...] marker and what is needed — or "None"]
-
-## Verdict
-READY — diagram satisfies the brief and is publication quality.
-or
-AUTHOR REWORK NEEDED — [one sentence on the gap]
-
-## Handoff
-[If READY: "No further action required. Diagram is embedded at: [path]#[section]"]
-[If AUTHOR REWORK NEEDED: "Author should address [AUTHOR: ...] flags, then diagram-reviewer does a second pass."]
+### `src/App.tsx`
+```tsx
+// No props — root component
+export default function App(): JSX.Element
+// Renders: <NavBar /> <main> <HeroSection /> <ProjectsSection projects={PROJECTS} /> <BioSection /> </main>
 ```
 
 ---
 
-## diagram-types.md Spec
-
-A catalog resource with the following structure per type:
-
-```markdown
-### [Type Name]
-| Field | Value |
-|-------|-------|
-| **Mermaid keyword** | [e.g. `flowchart LR`] |
-| **Best for** | [what content this type conveys well] |
-| **Not for** | [what to avoid using it for] |
-| **Typical complexity** | low / medium / high |
-
-**Minimal example:**
-\`\`\`mermaid
-[5–8 line example]
-\`\`\`
-```
-
-Types to include: Flowchart/Directed Graph, Sequence Diagram, Entity-Relationship Diagram, State Diagram. (C4/component diagrams: note that Mermaid's `C4Context` is experimental; use `flowchart TD` with subgraphs as the stable alternative.)
-
----
-
-## routing.md Addition Spec
-
-Add after the `write-doc` sequence entry:
-
-```markdown
-## Sequence: `design-diagram`
-
-**Objective:** Produce a reviewed, audience-calibrated diagram embedded in an existing document.
-**Use when:** A document references architecture, data flow, or a system structure that prose cannot convey efficiently. The target document already exists; the diagram is added to it.
-**Review gate:** After `diagram-brief` (confirm scope and Must Show list before drawing); after `diagram-reviewer` (confirm the diagram is correct and legible).
-
-| Step | Role | Reads | Resources | Output |
-|------|------|-------|-----------|--------|
-| 1 | `diagram-brief` | Target document + source materials | `audience-tiers.md`, `diagram-types.md` | `roles/diagram-brief/output/output.md` |
-| 2 | `diagram-author` | `diagram-brief/output.md` + target document | `diagram-types.md`, `audience-tiers.md` | Diagram embedded in target document + `roles/diagram-author/output/output.md` |
-| 3 | `diagram-reviewer` | `diagram-brief/output.md` + target document | `audience-tiers.md` | Diagram edited in-place + `roles/diagram-reviewer/output/output.md` |
-
-> **One diagram per run.** If a document needs multiple diagrams, run the full sequence once per diagram. Archive `diagram-brief/output.md` between runs.
-> **No new files.** The author edits the target document in-place. The diagram-reviewer edits the same file. No versioned copies are created.
-> **Retro does not apply** to `design-diagram`. Diagram sessions are short-cycle and do not generate workspace tooling friction.
+### `src/components/NavBar.tsx`
+```tsx
+// No props
+export default function NavBar(): JSX.Element
+// Sticky top-0 bar; z-50; white background with bottom border (border-[--color-border])
+// Left: site title "Safeguards Portfolio" (slate-900, font-semibold)
+// Right: two anchor links — "Projects" → #projects, "About" → #about
+// Height: h-14; horizontal padding: px-6 lg:px-12
 ```
 
 ---
 
-## Generalisation Check
+### `src/components/HeroSection.tsx`
+```tsx
+// No props
+export default function HeroSection(): JSX.Element
+// Full-width section; bg-[--color-canvas]; py-24 lg:py-32
+// Centered column: max-w-3xl mx-auto px-6 text-center
+// Elements:
+//   <p> — eyebrow: "AI Safety · Anthropic Safeguards Portfolio" (amber-600, text-sm font-mono tracking-widest uppercase)
+//   <h1> — "Build the detector. Attack it. Measure the human layer."
+//          (text-4xl lg:text-5xl font-bold text-[--color-text-primary] leading-tight)
+//   <p> — subheadline: 2-sentence description of the three-project argument
+//          (text-lg text-[--color-text-secondary] mt-4 max-w-xl mx-auto)
+//   <a href="#projects"> — CTA button:
+//          bg-[--color-accent] hover:bg-[--color-accent-hover]
+//          text-white font-semibold rounded-lg px-6 py-3 mt-8 inline-block
+//          transition-colors duration-150
+```
 
-Each role contract was verified against a hypothetical completely different project (e.g. a Rust CLI tool with a PostgreSQL schema diagram):
+---
 
-- **diagram-brief:** All inputs are parameterised by what the human specifies (target document, source materials). Nothing assumes an LLM safety domain. ✓
-- **diagram-author:** Reads from the brief, which is project-agnostic by construction. Mermaid syntax reference is domain-neutral. ✓
-- **diagram-reviewer:** Checks are expressed against the brief's Must Show / Must Not Show lists, not against any hardcoded domain. ✓
+### `src/components/ProjectsSection.tsx`
+```tsx
+type ProjectsSectionProps = { projects: Project[] }
+export default function ProjectsSection({ projects }: ProjectsSectionProps): JSX.Element
+// id="projects"; bg-[--color-canvas]; py-20; px-6 lg:px-12
+// Section header: <h2> "The Work" — text-2xl font-bold text-[--color-text-primary] mb-12 text-center
+// Grid: grid grid-cols-1 lg:grid-cols-3 gap-8 max-w-6xl mx-auto
+// Renders: projects.map(p => <ProjectCard key={p.id} project={p} />)
+```
 
-All three contracts are fully generalisable.
+---
+
+### `src/components/ProjectCard.tsx`
+```tsx
+type ProjectCardProps = { project: Project }
+export default function ProjectCard({ project }: ProjectCardProps): JSX.Element
+// bg-[--color-surface]; rounded-xl; border border-[--color-border]; p-6; flex flex-col gap-4
+// No shadow — uses border for card edge definition (design_style.md: subtle contrast over heavy shapes)
+// Elements (top to bottom):
+//   <h3> — project.name (text-lg font-semibold text-[--color-text-primary])
+//   <p>  — project.tagline (text-sm text-[--color-text-secondary])
+//   <MetricsTable rows={project.metrics} />
+//   <p>  — project.description (text-sm text-[--color-text-primary] mt-auto leading-relaxed)
+//   Demo link row (bottom): conditional on demoUrl
+//     demoUrl !== null → <a href={demoUrl} target="_blank" rel="noopener noreferrer"> "View Demo →"
+//                        (text-[--color-accent] hover:text-[--color-accent-hover] text-sm font-medium)
+//     demoUrl === null  → <span> "Demo coming soon"
+//                        (text-[--color-text-secondary] text-sm italic)
+```
+
+---
+
+### `src/components/MetricsTable.tsx`
+```tsx
+type MetricsTableProps = { rows: MetricRow[] }
+export default function MetricsTable({ rows }: MetricsTableProps): JSX.Element
+// bg-[--color-surface-muted]; rounded-lg; p-4
+// <dl> element — definition list for semantic label/value pairing
+// Each row: <div class="flex justify-between items-baseline py-1 border-b border-[--color-border] last:border-0">
+//   <dt> — row.label: text-xs text-[--color-text-secondary] font-sans
+//   <dd> — row.value: text-sm font-mono font-semibold text-[--color-text-primary]
+//                     (monospace for metric values per design_style.md typography rule)
+// Empty rows prop → renders nothing (no error)
+```
+
+---
+
+### `src/components/BioSection.tsx`
+```tsx
+// No props
+export default function BioSection(): JSX.Element
+// id="about"; bg-[--color-surface-muted]; py-20; px-6 lg:px-12
+// Centered column: max-w-2xl mx-auto
+// <h2> "About" — text-2xl font-bold text-[--color-text-primary] mb-6
+// Two <p> blocks (hardcoded):
+//   Para 1 — Professional background:
+//     Data engineer at Meta London with ~14 years across data engineering,
+//     analytics engineering, and business intelligence. Current focus:
+//     account security and authentication analytics (Account Access and Recovery team).
+//     Languages: Python, TypeScript, Rust.
+//   Para 2 — Why this portfolio:
+//     These projects came out of a sustained effort to build and evaluate
+//     AI safety infrastructure hands-on — training classifiers, running structured
+//     attack campaigns, and measuring the human review layer with a controlled experiment.
+//     Each one is end-to-end: built, instrumented, and tested.
+// No dynamic data. No hiring-goal language.
+```
+
+---
+
+## Component Dependency Map
+
+```
+App.tsx
+├── NavBar.tsx          (no deps)
+├── HeroSection.tsx     (no deps)
+├── ProjectsSection.tsx
+│   └── ProjectCard.tsx
+│       └── MetricsTable.tsx   (no deps)
+└── BioSection.tsx      (no deps)
+
+src/data/projects.ts → imported by App.tsx, passed as props down to ProjectCard/MetricsTable
+```
+
+No circular dependencies. Data flows strictly down from `projects.ts` → `App` → `ProjectsSection` → `ProjectCard` → `MetricsTable`.
+
+---
+
+## Cross-Cutting Concerns
+
+| Concern | Approach |
+|---------|----------|
+| Error handling | None required — no runtime I/O, no async operations; TypeScript strict mode catches type errors at build time |
+| Configuration | No `import.meta.env` usage — all content is hardcoded; `.env.example` is empty but present (tooling convention) |
+| Logging | None — static site |
+| Testing | Component tests with vitest + @testing-library/react; test `ProjectCard` renders name/tagline/metrics/demo states; test `MetricsTable` renders all rows and handles empty array |
+| Accessibility | Use semantic HTML: `<nav>`, `<main>`, `<section>`, `<h1>`/`<h2>`/`<h3>` hierarchy, `<dl>`/`<dt>`/`<dd>` for metrics; anchor links with descriptive text; demo link gets `aria-label` if link text is generic |
 
 ---
 
 ## Implementation Notes for Implementer
 
-- The four output/output.md blank templates should follow the schema defined above for each role. Write each as a short heading-only template (no filler text), so the first real run has a clear scaffold to overwrite.
-- The routing.md edit should insert the `design-diagram` section immediately after the `write-doc` section, before the `daily-brief` section.
-- Do not modify any existing role contracts.
-- No language conventions files are needed — deliverables are Markdown only.
+1. **Tailwind v4 CSS-first setup.** The `@theme` block goes in `src/index.css`. No `tailwind.config.js`. Import with `@import "tailwindcss"` at the top, then `@theme { ... }`. Install via `pnpm add -D tailwindcss @tailwindcss/vite`. Add the Vite plugin to `vite.config.ts`:
+   ```ts
+   import tailwindcss from '@tailwindcss/vite'
+   // in plugins: [react(), tailwindcss()]
+   ```
+
+2. **CSS variable usage in Tailwind v4.** Use `bg-[--color-canvas]` or `text-[--color-text-primary]` syntax to reference `@theme` variables in utility classes. This is the v4 pattern — no `theme()` function needed.
+
+3. **No `baseUrl` in `tsconfig.app.json`.** TypeScript 6 deprecates it. Use `paths` alone with `moduleResolution: bundler` and add `"ignoreDeprecations": "6.0"` if scaffolded with `baseUrl`.
+
+4. **`defineConfig` import for vitest.** Import from `'vitest/config'`, not `'vite'`, to get the `test:` block typed correctly.
+
+5. **`pnpm build` verification.** After the implementer writes all files: `pnpm build` must exit 0 with zero TS errors; `pnpm lint` must exit 0; `pnpm test` must exit 0 with all tests passing.
+
+6. **Project directory location.** Create at `projects/portfolio-site/` — consistent with all other projects in the workspace.
+
+7. **Smooth scroll.** Add `html { scroll-behavior: smooth; }` to `index.css` for anchor link navigation.
+
+8. **`index.html` meta tags.** Set `<title>Safeguards Portfolio</title>` and `<meta name="description" content="AI safety engineering portfolio: LLM classifier training, red-team attack platform, and human review measurement.">`.
+
+9. **msw allowBuilds.** If msw is installed (it is not needed here — no API calls), the `pnpm-workspace.yaml` allowBuilds entry is required for pnpm v11. Since msw is not needed, do not install it.
+
+10. **Test content.** `ProjectCard.test.tsx` must assert: project name renders, tagline renders, all metric labels render, demo link renders "View Demo →" when `demoUrl` is set and "Demo coming soon" when null. `MetricsTable.test.tsx` must assert: all `rows` render as label/value pairs, empty array renders nothing.
 
 ---
 
 ## Handoff
 
-Next role: implementer (after human sign-off on this architect output)
-The implementer creates the directory structure, writes the four CONTEXT.md files and blank output templates, and edits routing.md. Write in this order: `diagram-types.md` first (referenced by both brief and author), then `diagram-brief`, `diagram-author`, `diagram-reviewer`, then `routing.md`.
+**Next role:** design-brief (per `new-project-full` step 4 — project has frontend)  
+The design-brief role reads this file + `resources/design_style.md` to lock in the interface context (Marketing/Landing Page), primary interaction model (read-only scroll), key components (HeroSection, ProjectCard, MetricsTable), and done criteria before frontend-architect proceeds.
+
+The design-brief should confirm the interface context is "Marketing / Landing Page" from `design_style.md` and that the amber-600 accent and system font stack decisions are carried forward. No open structural questions remain — all planner open questions are resolved above.
+
+After design-brief → frontend-architect → implementer (single frontend phase, no backend).

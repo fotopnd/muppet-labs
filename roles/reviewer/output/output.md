@@ -1,59 +1,71 @@
-# Reviewer Output — diagram-workflow roles
+# Reviewer Output — portfolio-site
 
-**Role:** reviewer
-**Sequence:** new-role (step 5)
-**Project:** diagram-workflow
+**Role:** reviewer  
+**Sequence:** new-project-full (step 8)  
+**Date:** 2026-06-12
 
 ---
 
 ## Summary
 
-All eight deliverables are present and structurally correct. The three CONTEXT.md files follow the Identity / Inputs / Process / Output / Notes structure. The output schemas match the architect spec exactly. The routing.md `design-diagram` section is placed correctly. No blocking issues. Two minor notes logged below.
+Clean static site with no logic errors and correct TypeScript throughout. Two minor items worth a quick fix before deploy: `githubUrl` is typed but never rendered (dead field), and `mt-auto` on the demo area `<div>` is a no-op given the sibling `grow`. No blocking issues. PASS WITH NOTES.
 
 ---
 
 ## Correctness
 
-**diagram-brief/CONTEXT.md:** Output schema contains all 9 required sections (Diagram Title, Target Document, Audience, Diagram Type, Must Show, Must Not Show, Label Style, Layout, Handoff). Notes section captures the three key edge-case rules (one diagram per brief, complexity threshold handling, exact section heading copy). Matches architect spec. ✓
+**C1 — Minor:** `ProjectCard.tsx:15` — `mt-auto` on the demo area `<div>` is unreachable. The description `<p>` at line 14 has `grow`, which expands to fill all remaining flex space, leaving zero margin for `mt-auto` to consume. The card layout renders correctly because `grow` handles the pushing — `mt-auto` is harmless but misleading.
 
-**diagram-author/CONTEXT.md:** Process step 5 (`[AUTHOR: ...]` gap handling) and step 6 (embed + manifest) match architect spec. Manifest schema contains all 5 sections. Notes section includes the `####` heading convention (not in architect spec but consistent with existing role contracts). ✓
+**C2 — Minor:** `src/data/projects.ts:12` — `githubUrl: string | null` is defined on the `Project` type and set to `null` on all three entries, but nothing in the UI reads or renders it. `ProjectCard.tsx` only accesses `demoUrl`. Either render it (a GitHub link alongside the demo link) or remove it from the type until it's needed. As-is it creates a typed field with no behaviour.
 
-**diagram-reviewer/CONTEXT.md:** Checks section matches architect's 6-item enforced checklist exactly. Verdict conditions match. Output schema contains all 4 sections. SVG fallback note present. Second-pass re-run note present. ✓
+**C3 — Minor:** `MetricsTable.tsx:15` — `key={row.label}` assumes metric labels are unique within a card. They are in the current `PROJECTS` data, but the type does not enforce uniqueness. If a duplicate label were added, React would warn silently (no crash, but potential reconciliation bugs). Acceptable given the data is hardcoded and controlled; note it for when dynamic data is ever added.
 
-**resources/diagram-types.md:** 4 types produced (Flowchart, Sequence, ER, State). Each entry has: Mermaid keyword, best-for, not-for, typical complexity, minimal example, notes paragraph. Quick Selection Guide table and Complexity Thresholds table added (not in architect spec but add genuine value). ✓
-
-**resources/routing.md edit:** `design-diagram` sequence inserted between `write-doc` and The Daily Brief Role section. 3-step table matches architect spec. Three notes (one diagram per run, no new files, retro does not apply) match architect's routing.md addition spec exactly. ✓
-
-**Minor note — W1:** The diagram-types.md entry for Flowchart notes "up to ~12 nodes before legibility degrades" in the type table, but the Complexity Thresholds section at the bottom sets soft limit 10 and hard limit 15 for Flowcharts. The table entry and the thresholds section are slightly inconsistent (~12 vs 10/15). This does not block use; the Complexity Thresholds table is the authoritative reference for the brief role. No action required unless the user wants to harmonise.
-
-**Minor note — W2:** The blank `roles/diagram-brief/output/output.md` template omits the `**Role:** diagram-brief` frontmatter header that several other role output files carry (e.g. `doc-brief`). This is a style choice, not a correctness issue — the blank template will be overwritten on first use.
+No logic errors, no unhandled nulls, no type-unsafe narrowing, no missing error paths (not applicable — no I/O).
 
 ---
 
 ## Style
 
-No deviations from workspace role conventions. All CONTEXT.md files use consistent section delimiters (---), table formatting, and code block quoting for output schemas.
+**S1 — Minor:** `ProjectCard.tsx` — the `"View Demo →"` link text includes a raw `→` Unicode arrow. Screen readers will vocalise "View Demo right-pointing arrow" or similar. A `aria-label="View Demo"` on the `<a>` would give screen readers clean text while keeping the visual arrow. `typescript-conventions.md` §Accessibility note: "demo link gets `aria-label` if link text is generic" — the arrow makes this apply.
+
+All other conventions clean:
+- `import type` used on every type-only import ✓
+- No `any`, no `!` assertions, no `ts-ignore` ✓
+- `verbatimModuleSyntax` respected throughout ✓
+- `SCREAMING_SNAKE_CASE` on `PROJECTS` module-level constant ✓
+- `PascalCase.tsx` components, `kebab-case.ts` for data module ✓
+- Props typed as inline `type` (not `interface`) ✓
+- No non-null assertions in JSX ✓
 
 ---
 
 ## Tests
 
-Not applicable. Markdown-only deliverables with no runtime execution path.
+**T1 — Minor:** `ProjectCard.test.tsx` — no test for the description field. The five existing tests cover name, tagline, metric labels, and both demo states — adequate for the component's logic branches. Description is pure presentational text; testing it would verify the data layer not the component. Low value; not blocking.
+
+**T2 — Minor:** No tests for `HeroSection`, `NavBar`, `BioSection`, or `ProjectsSection`. All four are pure-presentational with no conditional logic or branching. The implementer contract required only `ProjectCard` and `MetricsTable` tests. Adequate for a static portfolio. If `githubUrl` rendering is added to `ProjectCard`, a test for that branch should be added at the same time.
+
+**T3 — Note:** The `baseProject` fixture in `ProjectCard.test.tsx` sets `githubUrl: null` to satisfy the `Project` type. When `githubUrl` is eventually used in the UI, the test file will need a corresponding branch test added.
 
 ---
 
 ## Refactor Candidates
 
-None. The three roles are appropriately scoped; no premature abstractions introduced.
+**R1:** Remove `mt-auto` from `ProjectCard.tsx:15`. The `grow` on the description `<p>` is sufficient to anchor the demo area to the card bottom. `mt-auto` adds confusion without adding behaviour.
+
+**R2:** Either render `githubUrl` in `ProjectCard` (a secondary link in the demo area row alongside or beneath `demoUrl`) or remove it from the `Project` type. A typed-but-unused field is silent maintenance noise; both resolutions are acceptable before deploy.
 
 ---
 
 ## Verdict
 
-**PASS** — All deliverables match the architect spec. No blocking issues.
+**PASS WITH NOTES**
+
+C1 and C2 are the priority fixes before deploy. C1 (`mt-auto` removal) is a one-line change. C2 (`githubUrl`) is a design decision — render or remove. S1 (`aria-label` on demo link) is a good-citizenship fix, also one line.
+
+---
 
 ## Handoff
 
-No next role required. The `new-role` sequence completes after `retro`.
-
-Next: `retro` role. Reads `reviewer/output.md` + `implementer/output.md` + `_config/project-state.md` + `resources/routing.md`. Key question for retro: did building this workflow surface any friction or conventions worth capturing for future diagram sessions?
+Next role: retro (step 9)  
+The retro reads this output alongside `implementer/output.md` and `project-state.md` to identify workspace improvements. The three open items above (C1, C2, S1) can be addressed in a quick implementer fixup pass if the human prefers clean code before deploy, or deferred until Hetzner URLs are added (at which point `githubUrl` rendering becomes relevant anyway).
