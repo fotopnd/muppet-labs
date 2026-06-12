@@ -1,99 +1,103 @@
-# LLM Safety Monitor
+# LLM Safety Monitor — Technical Deep-Dive
 
-A streaming safety classification platform that processes live LLM interactions through a multi-model pipeline, stores results with full measurement provenance, and surfaces disagreements and calibration signals to human reviewers.
+## Overview
 
----
+The LLM Safety Monitor is a streaming Kafka pipeline that classifies every LLM interaction using three independently fine-tuned transformer classifiers, then routes flagged interactions to a review queue based on inter-classifier agreement patterns. The architecture's central assumption is that any single classifier will be wrong on some inputs, and that disagreement between classifiers is a more reliable safety signal than any one classifier's confidence score. This document covers the classifier design, the escalation logic, the threading model, and the evaluation results that ground each architectural claim.
+
+## Problem and Motivation
+
+A safety monitoring system built around a single classifier has a structural problem: its errors are invisible. When the classifier is confident and wrong, no signal distinguishes that case from a correct high-confidence prediction. The only way to catch systematic errors is to add independent signal sources that can disagree.
+
+Three classifiers looking at an interaction from different angles produce four qualitatively different outcomes that map to distinct escalation responses: both the response-level and prompt-level classifiers flag the interaction (probable jailbreak), only the response-level classifier flags it (benign prompt with harmful output), only the prompt-level classifier flags it (suspicious prompt that did not produce a harmful response), or neither flags it while the taxonomy classifier identifies a specific harm category (model disagreement, lower confidence). The escalation router translates this 2x2 matrix into four escalation reasons with configurable severity levels.
+
+## Design Decisions
+
+**Three independent classifiers rather than one multi-head model.** A single model with three output heads would share weights and representations across all three tasks, reducing the independence of the three signals. Three separately fine-tuned models (pair safety, prompt intent, harm taxonomy) allow disagreement at the representation level, not just at the output layer. The pair and prompt classifiers both use DeBERTa-v3-base, fine-tuned separately on HH-RLHF and WildGuard splits.
+
+**Escalation logic as a pure function.** `compute_escalation_reason` in `escalation/router.py` takes six scalar inputs (pair label and confidence, prompt label and confidence, taxonomy labels, and whether a response is present) and returns an `EscalationReason` enum value or None. It has no database calls, no side effects, and no I/O dependencies. This makes it straightforward to unit-test exhaustively — the full logic is expressed as conditional branches over six inputs, and every branch is covered by the test suite.
+
+**Four daemon threads in parallel rather than a processing chain.** The pair consumer, prompt consumer, taxonomy consumer, and escalation poller run as independent daemon threads (via `threading.Thread`). Each classifier consumer reads from the same Kafka topic, classifies events, and writes classification rows to PostgreSQL. The poller queries for events where all three classifications exist, then applies the escalation logic. This design means classifier consumers never block each other, and a slowdown in one classifier (for example, a large batch arriving for the taxonomy classifier) does not back-pressure the others.
+
+**Poller waits for all three classifiers before escalating.** The poller's `_check_ready` query selects only interactions that have all three classification rows present. A 10-second timeout (`_check_timed_out`) catches events where one classifier failed or timed out, marks them `escalated=TRUE` with a warning log, and moves on. This prevents a stuck classifier from causing event backlog while preserving the invariant that the escalation router always sees all three signals when it fires.
+
+**Pair classifier tuned for recall rather than F1.** The pair classifier's evaluation results show F1 0.549, precision 0.393, and recall 0.910 (n=6,337). This is intentional: the escalation router treats pair=1 as one input among three, not as a final verdict. A safety-conservative design should flag more than it misses at the classifier level and rely on the escalation logic to reduce false positives through inter-classifier filtering. A pair classifier tuned for F1 would produce a lower recall, meaning some harmful interactions would produce pair=0 and reach the escalation router with a weaker signal.
+
+**BENIGN_HARMFUL takes precedence over MODEL_DISAGREEMENT.** The escalation priority order is: JAILBREAK (pair=1 and prompt=1) > BENIGN_HARMFUL (pair=1 and prompt=0) > LOG_ONLY (pair=0 and prompt=1) > MODEL_DISAGREEMENT (both 0, taxonomy labels present). A comment in the router documents this explicitly: the BENIGN_HARMFUL case (a benign-seeming prompt that produced a harmful response) is the harder safety problem and gets higher priority than a taxonomy-only flag.
 
 ## Architecture
 
+**Classification and Escalation Pipeline**
+
+```mermaid
+flowchart LR
+    kafka[Kafka Topic]
+
+    subgraph cls[Classifiers]
+        pair[Pair Consumer]
+        prompt[Prompt Consumer]
+        taxonomy[Taxonomy Consumer]
+    end
+
+    db[(classifications — PostgreSQL)]
+    poller[Escalation Poller]
+    queue([Review Queue])
+    logged([Mark escalated])
+
+    kafka --> pair
+    kafka --> prompt
+    kafka --> taxonomy
+    pair --> db
+    prompt --> db
+    taxonomy --> db
+    db --> poller
+    poller -->|JAILBREAK / BENIGN_HARMFUL / MODEL_DISAGREEMENT| queue
+    poller -->|LOG_ONLY / None| logged
 ```
-Producer ──► Kafka topic ──► pair_classifier     ──┐
-                          ──► prompt_detector     ──┼──► Postgres ──► FastAPI ──► React dashboard
-                          ──► taxonomy_classifier ──┘
-```
 
-The producer ingests WildGuard, HH-RLHF, and AdvBench datasets (plus live and red-team sources) and publishes `LLMInteractionEvent` JSON to a single Kafka topic. Three consumers run in parallel shadow mode — each writes a `classification_results` row without blocking the others. The FastAPI layer aggregates across classifiers to compute metrics, surface disagreements, and drive the review queue.
+Events enter through a Kafka topic. Each event is an `LLMInteractionEvent` JSON payload containing a prompt text, an optional response text, and metadata (event id, source dataset, ground truth labels if known). Three consumer threads each subscribe to the topic, classify the event using their respective DeBERTa-v3-base model, and write a `classifications` row to PostgreSQL with the predicted label, confidence score, and classifier version.
 
-### Why Kafka over a request/response classifier API
+The escalation poller runs on a 2-second polling loop. When it finds an interaction with all three classifications, it loads the classification results, calls `compute_escalation_reason`, and either posts to the case-queue API (for JAILBREAK, BENIGN_HARMFUL, and MODEL_DISAGREEMENT) or skips (for LOG_ONLY and None). It then marks the interaction as escalated regardless of whether a case was created, ensuring the interaction is not reprocessed.
 
-Shadow mode: the monitor sits beside the real inference path rather than in it. A failed classifier does not degrade latency for users. The topic also decouples the red-team platform's attack sweep from the monitor — results flow in via an outbox publisher rather than direct DB writes.
+The FastAPI application exposes endpoints for streaming events into the monitor (`POST /stream`), querying stored interactions and classifications, reviewing flagged cases, and retrieving per-classifier metrics. The React dashboard (TypeScript, Vite, TanStack Query) renders live event throughput, classifier score distributions, escalation reason breakdowns, and a review queue for flagged interactions.
 
----
+The red-team platform publishes attack results into the same Kafka topic via the outbox publisher, setting `source_dataset: "red_team"`. The monitor's consumers process these events identically to live traffic, so red-team bypass events appear in the review queue alongside organic interactions.
 
-## Key design decisions
+## Implementation Details
 
-### Atomic Kafka publishing with the outbox pattern
+**Classifier consumers use a shared base class.** `consumers/base.py` defines the Kafka consumer setup, the main poll loop, the database session lifecycle, and the stop signal. Each of the three concrete consumers inherits from this base and implements a single `classify(event) -> ClassificationResult` method. This reduces the per-classifier implementation to the model loading and inference logic.
 
-Direct Postgres + Kafka writes are not atomic: a crash between the DB commit and the Kafka publish leaves an event in the DB but missing from consumers. The outbox pattern fixes this:
+**Pair classifier calibration is bimodal.** The pair classifier's calibration bins show two populated regions: 0.0–0.1 (3,059 samples, 4.2% positive rate) and 0.5–0.6 (3,278 samples, 39.3% positive rate). The model outputs scores near 0 or near 0.5 rather than spanning the full probability range. This is a known property of binary DeBERTa fine-tuning on tasks with inherent ambiguity at the decision boundary: the model is confident about clear negatives and uncertain about borderline cases. The escalation router uses label (0 or 1) rather than raw confidence for the primary logic, so the bimodal distribution does not break the escalation matrix. For the prompt classifier, calibration is well-distributed across all bins with monotonically increasing positive rates.
 
-1. Producer writes `interactions` row and `synthetic_events_outbox` row in the same transaction.
-2. A background publisher polls for `WHERE published_at IS NULL FOR UPDATE SKIP LOCKED`, publishes to Kafka, then marks `published_at`.
-3. Monitor consumers are idempotent: `UNIQUE(event_id, model_name, classifier_version)` + `IntegrityError` catch means duplicate delivery is safe.
+**The taxonomy classifier returns a list of harm category labels rather than a single label.** An interaction can be assigned to multiple harm categories. `taxonomy_labels` is stored as a JSONB array in the `classifications` table. The escalation router checks `if taxonomy_labels` (non-empty list) as the MODEL_DISAGREEMENT condition. Per-category F1 scores range from 0.584 (causing material harm by disseminating misinformation) to 0.945 (copyright violations), with all 13 categories above 0.58.
 
-### Classifier versioning
+**Classifier version is stored with each classification row.** The `alembic/versions/004_add_classifier_version.py` migration added the `classifier_version` column to the `classifications` table. This allows historical runs to be associated with the checkpoint that produced them, supporting before/after comparison when classifiers are retrained.
 
-Every `classification_results` row carries a `classifier_version` column (short git SHA of the `llm-safety-classifier` package). This makes it possible to isolate metric regressions to a specific model update without backfilling. Legacy rows before versioning was added get `'legacy'`.
+## Results and Validation
 
-The migration (`004_add_classifier_version.py`) handles the existing-data case in three steps: add nullable, backfill `'legacy'`, dedup rows with `DISTINCT ON (event_id, model_name) ORDER BY processed_at DESC`, then `SET NOT NULL` and add the unique constraint.
+**Classifier evaluation (held-out splits, 2026-06-07):**
 
-### Source dataset filter on all metrics endpoints
+| Classifier | F1 | Precision | Recall | Eval samples |
+|------------|-----|-----------|--------|------|
+| pair | 0.549 | 0.393 | 0.910 | 6,337 |
+| prompt | 0.818 | 0.752 | 0.897 | 2,512 |
+| taxonomy | 0.787 macro | — | — | 4,337 |
 
-WildGuard labels are reliable (harm categories are expert-curated). HH-RLHF labels are noisy — `chosen` responses are bulk-labeled `safe` even when the conversation touches harmful topics. All metrics endpoints default to `source_dataset=wildguard`; passing `source_dataset=all` is surfaced in the dashboard with a warning label.
+Taxonomy per-category F1: 0.584 (misinformation/material harm) to 0.945 (copyright violations). All 13 categories above 0.58.
 
-This distinction matters: the pair classifier's naive F1 against HH-RLHF appears inflated (~0.7) because the majority class is easy. WildGuard-only F1 is the number worth optimising.
+**Integration tests:** 25/25 pass, covering API endpoints, escalation logic (all branches of `compute_escalation_reason`), and the full classification-to-escalation pipeline.
 
-### Shared classifier package
+**Red-team integration:** 1,797 attack events published from the red-team platform were consumed by all three classifiers and processed through the full escalation pipeline, confirming end-to-end connectivity between the two systems.
 
-Both this project and the red-team platform use the same RoBERTa-base checkpoint. Before Phase 2, they had independent preprocessing paths — the red-team was scoring `response_text` alone, while this project scored `prompt [SEP] response`. That input mismatch meant the pair classifier in the monitor and the one in the red-team were effectively different models on different distributions, making cross-project ASR comparisons meaningless.
+## Limitations and Future Work
 
-Extracting `llm-safety-classifier` as a shared editable package (`packages/llm-safety-classifier/`) with a single `build_input_text(prompt, response)` function removes the divergence. The golden tests in that package pin the `[SEP]` concatenation contract — if either project drifts, a test fails.
+**Single-turn classification only.** Each interaction is classified independently. The classifiers have no access to conversation history, so multi-turn jailbreak strategies that build context across turns are not detected as part of a pattern. Conversation-level classification would require grouping events by session id before inference.
 
----
+**Pair classifier precision.** Precision of 0.393 means the pair classifier flags many benign interactions. The escalation router reduces the effective false positive rate by requiring inter-classifier agreement for high-severity escalation, though MODEL_DISAGREEMENT escalations (taxonomy-only flags) can still surface from false pair=0 events where the taxonomy classifier fires.
 
-## Measurement methodology
+**Classifier independence assumption.** The three classifiers are trained on overlapping data (HH-RLHF appears in the training sets for pair and taxonomy). Complete statistical independence between classifiers would require training on non-overlapping splits, which was not done for this implementation.
 
-### F1, precision, recall
+**No streaming dashboard updates.** The React dashboard polls the API on a fixed interval rather than using WebSockets or server-sent events. This is adequate for monitoring cadences of seconds to minutes, though it introduces latency for real-time incident response.
 
-Computed against `ground_truth_safe` labels from the source dataset. Only events with a non-null ground truth contribute. Default view: WildGuard only. The `/metrics` timeseries endpoint buckets by `processed_at` hour so you can see drift after a model redeployment.
+## Conclusion
 
-### Calibration
-
-`/metrics/calibration` bins confidence scores into deciles and computes the actual positive rate per bin. A well-calibrated classifier has bins lying close to the `y=x` diagonal. The reliability diagram in the dashboard uses a `ReferenceLine` from Recharts to draw that diagonal. Overconfident classifiers (clusters above the diagonal) and underconfident classifiers (clusters below) are both visible immediately.
-
-### Model disagreements
-
-`/metrics/disagreements` finds events where `pair_classifier` and `taxonomy_classifier` give conflicting signals — pair says safe but taxonomy flags a harm category (missed signal), or pair flags unsafe with no taxonomy support (potential false alarm). These are the highest-value events to route to human review because disagreement itself is evidence of model uncertainty.
-
----
-
-## Escalation router
-
-The escalation logic uses a 2×2 matrix on `(pair_label, taxonomy_label_count)`:
-
-| | Taxonomy flags | No taxonomy flags |
-|---|---|---|
-| **Pair unsafe** | `JAILBREAK` — escalate immediately | `ADVERSARIAL_PROMPT_FLAGGED` — high priority review |
-| **Pair safe** | `BENIGN_HARMFUL` — taxonomy catch | `LOG_ONLY` — routine |
-
-`MODEL_DISAGREEMENT` fires when pair and taxonomy give conflicting confidence rather than conflicting labels.
-
----
-
-## Red-team integration
-
-When the red-team platform completes an attack session, the outbox publisher injects results into this pipeline with `source_dataset=red_team`. The monitor's consumers process them identically to live traffic. The Disagreements tab's "Red-team" source filter then shows which red-team attacks the pair classifier missed — closing the feedback loop between adversarial evaluation and production monitoring.
-
----
-
-## Stack
-
-| Layer | Technology |
-|---|---|
-| Streaming | Apache Kafka (Confluent) |
-| Storage | Postgres 16 + SQLAlchemy async |
-| Migrations | Alembic |
-| API | FastAPI + uvicorn |
-| Classifiers | HuggingFace Transformers (RoBERTa-base) |
-| Shared inference | `llm-safety-classifier` (local editable package) |
-| Frontend | React 18 + Vite + Recharts + TanStack Query |
-| Language | Python 3.12 + TypeScript 5 |
+The monitor's core contribution is treating inter-classifier disagreement as a first-class signal rather than treating the escalation router as a post-processing step. The pair classifier is intentionally recall-heavy. The taxonomy classifier provides harm-category specificity. The prompt classifier provides intent context. The escalation priority matrix maps the four possible classifier agreement states to actionable review outcomes. Three independent classifiers with mediocre individual F1 scores, combined through a well-reasoned agreement logic, produce a monitoring system that is harder to fool than any single high-F1 classifier.

@@ -1,18 +1,24 @@
-# Doc-Reviewer Output — toxicity-classifier fine-tuning experiment
-
-**Role:** doc-reviewer
-**Sequence:** `write-doc` (step 3)
-**Date:** 2026-06-03
-
----
+# Doc-Reviewer Output — Anthropic Safeguards Portfolio Writeups
 
 ## What Was Edited
 
-**Overview rewritten.** The draft opened with "This document describes..." — a meta-description that violates the brief's impact-first principle for a technical audience. Replaced with a single sentence leading with the headline result (F1 0.32 → 0.85, precision 0.21 → 0.83) and a statement of what the document covers. The finding is now the first thing the reader encounters.
+**PORTFOLIO.md:** No changes required. Clean on first read.
 
-**Factual error corrected.** Epoch 4 val loss was `1.0598` in the training log table. The source JSON (`distilbert-finetuned-20260603T175950.json`) records `0.10598` — a decimal place error introduced during authoring. Corrected to `0.1060`.
+**error-hide-seek/SUMMARY.md:** One fix. Line 28: em-dash changed to colon in "demonstrates experimental rigour — honest null results..." Voice rule enforcement.
 
-**Architecture paragraph 1 tightened.** The draft enumerated individual CLI flags (`--model`, `--output-dir`, `--epochs`, `--batch-size`, `--max-train-samples`) that a technical reader does not need spelled out. Condensed to the entry point names and the two-pass evaluate structure, which are architecturally meaningful.
+**error-hide-seek/README.md:** Six em-dash violations fixed throughout. Each changed to the appropriate alternative (comma + participial phrase, comma + "meaning", colon, "and", parenthetical). No structural or content changes. All key messages present.
+
+**red-team-platform/SUMMARY.md:** Two fixes. Em-dashes around list of provenance fields changed to parenthetical. Semicolon in latency sentence changed to ", while".
+
+**red-team-platform/README.md:** Two fixes. Em-dashes around provenance list changed to parenthetical. Em-dash + semicolon in the latency gap sentence changed to colon + new sentence.
+
+**llm-safety-monitor/SUMMARY.md:** Four fixes.
+- Opening sentence of The Problem restructured to remove em-dash.
+- "PostgreSQL with full classification provenance" changed to "PostgreSQL with a full record of each classification result" — "provenance" is jargon for the Tier 3 audience.
+- F1 definition added before the classifier table: "F1 score is a standard accuracy measure that combines how often a flag is correct (precision) with how often a real issue is caught (recall)." The pair classifier explanation was also simplified for the Tier 3 audience: "tuned to catch as many harmful interactions as possible (recall 0.910), accepting more false flags in return" replaces the precision/recall number pair without context.
+- Three semicolons in the What Extension Would Require bullets changed to periods or commas.
+
+**llm-safety-monitor/README.md:** One fix. Two semicolons in the conclusion sentence changed to periods: "The pair classifier is intentionally recall-heavy. The taxonomy classifier provides harm-category specificity. The prompt classifier provides intent context."
 
 ---
 
@@ -24,19 +30,18 @@ None — document is complete.
 
 ## Verdict
 
-READY — document is publication quality.
-
-All five key messages from the brief land clearly:
-1. Zero-shot precision failure (0.21) motivates fine-tuning in the Problem section with concrete numbers
-2. Epoch 2 overfitting signal is visible in the corrected table and explained in the adjacent prose
-3. AUC-ROC 0.924 is interpreted (ranking quality, threshold flexibility) not just reported
-4. Env-var activation pattern is specific (env var name, registry behaviour, no code changes)
-5. MPS constraints (bf16, pin_memory) are stated honestly and without apology
-
-Voice: no em-dashes, no semicolons, third person throughout, "though" used for concessive points. Compliant.
+READY — all seven documents are publication quality. No `[AUTHOR: ...]` markers. All key messages present in all documents. Voice rules enforced throughout. Tier 3 documents (all three SUMMARY files and PORTFOLIO.md) contain no inline code in body sections and no unexplained jargon. Tier 1 documents (all three README files) contain concrete design decisions backed by specific numbers, code paths, or observable behaviours.
 
 ---
 
 ## Handoff
 
-No further action required. Document is at: `projects/toxicity-classifier-finetuned/docs/distilbert-finetuning-experiment.md`
+No further action required. Documents are at:
+
+- `PORTFOLIO.md`
+- `projects/error-hide-seek/SUMMARY.md`
+- `projects/error-hide-seek/README.md`
+- `projects/red-team-platform/SUMMARY.md`
+- `projects/red-team-platform/README.md`
+- `projects/llm-safety-monitor/SUMMARY.md`
+- `projects/llm-safety-monitor/README.md`

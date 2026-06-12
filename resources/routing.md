@@ -184,6 +184,24 @@ its output feeds back into the workspace itself (`resources/`, `skills/`, `routi
 
 ---
 
+## Sequence: `design-diagram`
+
+**Objective:** Produce a reviewed, audience-calibrated diagram embedded in an existing document.
+**Use when:** A document references architecture, data flow, or a system structure that prose cannot convey efficiently. The target document already exists; the diagram is added to it.
+**Review gate:** After `diagram-brief` (confirm scope and Must Show list before drawing); after `diagram-reviewer` (confirm the diagram is correct and legible).
+
+| Step | Role | Reads | Resources | Output |
+|------|------|-------|-----------|--------|
+| 1 | `diagram-brief` | Target document + source materials | `audience-tiers.md`, `diagram-types.md` | `roles/diagram-brief/output/output.md` |
+| 2 | `diagram-author` | `diagram-brief/output.md` + target document | `diagram-types.md`, `audience-tiers.md` | Diagram embedded in target document + `roles/diagram-author/output/output.md` |
+| 3 | `diagram-reviewer` | `diagram-brief/output.md` + target document | `audience-tiers.md` | Diagram edited in-place + `roles/diagram-reviewer/output/output.md` |
+
+> **One diagram per run.** If a document needs multiple diagrams, run the full sequence once per diagram. Archive `diagram-brief/output.md` between runs.
+> **No new files.** The author edits the target document in-place. The diagram-reviewer edits the same file. No versioned copies are created.
+> **Retro does not apply** to `design-diagram`. Diagram sessions are short-cycle and do not generate workspace tooling friction.
+
+---
+
 ## The Daily Brief Role
 
 The `daily-brief` role is a session-start orientation. It is not part of any sequence — it can

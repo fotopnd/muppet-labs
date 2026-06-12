@@ -7,6 +7,7 @@ requires-python = ">=3.12"
 [tool.uv.workspace]
 members = [
     "packages/llm-safety-classifier",
+    "packages/mcp-server",
     "projects/llm-safety-monitor",
     "projects/red-team-platform",
     "projects/error-hide-seek",

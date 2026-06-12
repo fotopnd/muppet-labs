@@ -1,75 +1,59 @@
-# Reviewer Output — red-team-platform (pass 2)
+# Reviewer Output — diagram-workflow roles
 
 **Role:** reviewer
-**Sequence:** new-project-full (step 5, second pass)
-**Date:** 2026-06-07
-**Context:** Re-review after implementer resolved B1, W2, T1 from pass 1.
+**Sequence:** new-role (step 5)
+**Project:** diagram-workflow
 
 ---
 
 ## Summary
 
-All three blocking/required items from pass 1 are resolved. `strategy.py` now computes `asr` in Python from integer counts — no SQL type-system dependency. The duplicate unique constraint on `ClusterSummary.cluster_id` is removed. The seeded-data aggregation test calls the router function directly with the test session, correctly verifying the SQL computation. Remaining findings are all warning/minor — acceptable to proceed.
+All eight deliverables are present and structurally correct. The three CONTEXT.md files follow the Identity / Inputs / Process / Output / Notes structure. The output schemas match the architect spec exactly. The routing.md `design-diagram` section is placed correctly. No blocking issues. Two minor notes logged below.
 
 ---
 
 ## Correctness
 
-**B1 — RESOLVED.** `strategy.py` no longer uses `func.avg(boolean)`. `asr` is computed as `total_successes / total_runs` in Python after the query. Python-side sort replaces the SQL `order_by` on the computed expression. Correct.
+**diagram-brief/CONTEXT.md:** Output schema contains all 9 required sections (Diagram Title, Target Document, Audience, Diagram Type, Must Show, Must Not Show, Label Style, Layout, Handoff). Notes section captures the three key edge-case rules (one diagram per brief, complexity threshold handling, exact section heading copy). Matches architect spec. ✓
 
-**W2 — RESOLVED.** `ClusterSummary.cluster_id` `mapped_column` no longer carries `unique=True`. The named `Index` in `__table_args__` is the sole unique constraint. ORM and Alembic migration are now consistent.
+**diagram-author/CONTEXT.md:** Process step 5 (`[AUTHOR: ...]` gap handling) and step 6 (embed + manifest) match architect spec. Manifest schema contains all 5 sections. Notes section includes the `####` heading convention (not in architect spec but consistent with existing role contracts). ✓
 
-**W1 — `api/routers/runs.py:38-56` — N+1 query, open (warning)**
-Not addressed in this pass — accepted as follow-up. For the first attack session (likely <1000 runs), performance is acceptable. Should be resolved before portfolio presentation.
+**diagram-reviewer/CONTEXT.md:** Checks section matches architect's 6-item enforced checklist exactly. Verdict conditions match. Output schema contains all 4 sections. SVG fallback note present. Second-pass re-run note present. ✓
 
-**W3 — `db.py` — dead exports, open (minor)**
-`get_db_session` and `init_db` remain. No runtime impact. Follow-up item.
+**resources/diagram-types.md:** 4 types produced (Flowchart, Sequence, ER, State). Each entry has: Mermaid keyword, best-for, not-for, typical complexity, minimal example, notes paragraph. Quick Selection Guide table and Complexity Thresholds table added (not in architect spec but add genuine value). ✓
 
-**W4 — `corpus/constants.py` — field names unverified, open (warning)**
-Still unverified against the live dataset. Will surface immediately on first `uv run seed-corpus` if wrong. Acceptable — the loader skips malformed rows and logs a warning, so the failure mode is visible.
+**resources/routing.md edit:** `design-diagram` sequence inserted between `write-doc` and The Daily Brief Role section. 3-step table matches architect spec. Three notes (one diagram per run, no new files, retro does not apply) match architect's routing.md addition spec exactly. ✓
+
+**Minor note — W1:** The diagram-types.md entry for Flowchart notes "up to ~12 nodes before legibility degrades" in the type table, but the Complexity Thresholds section at the bottom sets soft limit 10 and hard limit 15 for Flowcharts. The table entry and the thresholds section are slightly inconsistent (~12 vs 10/15). This does not block use; the Complexity Thresholds table is the authoritative reference for the brief role. No action required unless the user wants to harmonise.
+
+**Minor note — W2:** The blank `roles/diagram-brief/output/output.md` template omits the `**Role:** diagram-brief` frontmatter header that several other role output files carry (e.g. `doc-brief`). This is a style choice, not a correctness issue — the blank template will be overwritten on first use.
 
 ---
 
 ## Style
 
-**S1 — OPEN (minor).** `classifier.py:46-47` dead guard remains. No impact.
-
-**S2 — OPEN (minor).** `SampleReview.tsx:13` redundant null coalescing. No impact.
+No deviations from workspace role conventions. All CONTEXT.md files use consistent section delimiters (---), table formatting, and code block quoting for output schemas.
 
 ---
 
 ## Tests
 
-**T1 — RESOLVED.** `test_api.py` now has `test_strategy_comparison_computes_asr` — seeds 1 attack + 2 runs (1 success, 1 failure), calls `get_strategy_comparison(db=db_session)` directly, asserts `asr == total_successes / total_runs` to 3 decimal places. Correctly exercises the SQL and the Python computation. The `>=` assertion on `total_runs` and `total_successes` (rather than `==`) is robust to other seeded data in the shared test DB session — correct approach.
-
-**T2 — OPEN.** `run_session()` integration test. Follow-up.
-
-**T3 — OPEN.** TypeScript component tests beyond the tab bar render. Follow-up.
+Not applicable. Markdown-only deliverables with no runtime execution path.
 
 ---
 
 ## Refactor Candidates
 
-Same as pass 1: R1 (N+1 JOIN), R2 (no longer relevant — asr is now Python-side), R3 (dead db.py exports), R4 (shared table styles in frontend).
+None. The three roles are appropriately scoped; no premature abstractions introduced.
 
 ---
 
 ## Verdict
 
-**PASS WITH NOTES** — All blocking and convention-required items resolved. Open items (W1, W3, T2, T3, S1, S2) are follow-up pass work and do not block the first attack session.
+**PASS** — All deliverables match the architect spec. No blocking issues.
 
 ## Handoff
 
-No next role required. Human may proceed to first attack session:
+No next role required. The `new-role` sequence completes after `retro`.
 
-```bash
-cd projects/red-team-platform
-docker compose up -d
-uv run alembic upgrade head
-uv run seed-corpus   # verify corpus/constants.py field names from log output
-uv run attack
-uv run cluster       # after attack session
-cd web && pnpm dev   # frontend
-```
-
-Follow-up implementer pass (non-blocking): W1 (N+1 in list_runs), W3 (dead db.py exports), T2 (run_session test), T3 (TS component tests).
+Next: `retro` role. Reads `reviewer/output.md` + `implementer/output.md` + `_config/project-state.md` + `resources/routing.md`. Key question for retro: did building this workflow surface any friction or conventions worth capturing for future diagram sessions?

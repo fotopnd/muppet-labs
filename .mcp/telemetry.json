@@ -1,0 +1,29 @@
+[
+  {
+    "ts": "2026-06-12T10:21:25.514142+00:00",
+    "tool": "atomic_write_feature",
+    "action": "write",
+    "files_affected": [
+      "src/foo.py"
+    ],
+    "manifest_note": "test write"
+  },
+  {
+    "ts": "2026-06-12T10:21:25.535013+00:00",
+    "tool": "update_agent_state",
+    "action": "decision",
+    "files_affected": [
+      "_config/project-state.md"
+    ],
+    "project": "\u2014"
+  },
+  {
+    "ts": "2026-06-12T10:21:25.536752+00:00",
+    "tool": "update_agent_state",
+    "action": "session_summary",
+    "files_affected": [
+      "_config/project-state.md"
+    ],
+    "project": "\u2014"
+  }
+]

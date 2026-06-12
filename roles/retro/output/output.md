@@ -1,66 +1,46 @@
-# Retro — red-team-platform
+# Retro — diagram-workflow roles
 
 **Role:** retro
-**Sequence:** `new-project-full`
-**Date:** 2026-06-07
+**Sequence:** `new-role`
+**Date:** 2026-06-11
 
 ---
 
 ## Project
 
-**Name:** red-team-platform
-**Sequence:** new-project-full
-**Sessions:** 3 fragments (context-compacted twice)
-**Roles that ran:** brief → planner → architect (2026-06-06) → architect-delta (2026-06-07) → implementer → ruff-fix → reviewer (pass 1) → implementer-fixes → reviewer (pass 2) → retro
-**Outcome:** PASS WITH NOTES → fixes applied → PASS WITH NOTES
+**Name:** diagram-workflow
+**Sequence:** new-role
+**Sessions:** 2 (brief + planner + architect in session 1; implementer + reviewer + retro in session 2, resumed after context compaction)
+**Roles that ran:** brief → planner → architect (gate) → implementer → reviewer (PASS) → retro
+**Outcome:** PASS — all 8 deliverables produced, no blocking issues
 
 ---
 
 ## What Went Well
 
-**1 — Corpus fallback was pre-decided, zero implementer friction**
+**1 — Architect's resolved open questions became reliable ground rules**
 
-When JailbreakBench and AdvBench were unavailable on HuggingFace Hub, the switch to `sevdeawesome/jailbreak_success` was already in the Decisions Log before the implementer ran. The implementer had the field names, the dataset path, and the strategy for mapping `behavior` → `harm_category` all in the architect spec. No recovery work in the implementer pass. Pre-planning the fallback corpus in the architect session paid off immediately.
+The architect session closed three open questions (multi-diagram briefs, insert-vs-replace logic, ASCII fallback) with concrete decisions. Each decision propagated directly into the Notes sections of the relevant CONTEXT.md files. The implementer did not re-litigate any of them. When the brief specifies "one diagram per run" and the author contract says "replace `[DIAGRAM PLACEHOLDER]` if present, otherwise append," the author has no ambiguity. Tight architect outputs produce tight role contracts.
 
-**2 — Sync/async engine separation in cluster CLI was cleanly executed**
+**2 — The diagram-brief output schema was defined before implementation began**
 
-The architect spec explicitly chose sync SQLAlchemy (psycopg2) for the cluster CLI and async (asyncpg) for the FastAPI routes. The implementer followed this without deviation. No event loop errors, no `asyncio.run()` workarounds. The convention from the moderation-stream retro ("consumers sync, API async, separate engines") transferred correctly to a new context (cluster CLI vs API) without being re-litigated.
+The architect specified all 9 sections of the brief output schema (Diagram Title, Target Document, Audience, Diagram Type, Must Show, Must Not Show, Label Style, Layout, Handoff) and the exact purpose of each. This is the most critical interface in the whole workflow — the contract between brief and author. Having it specified in full before the implementer ran meant the CONTEXT.md, the blank template, and the routing.md entry all referenced the same schema with no drift.
 
-**3 — Two-pass review caught B1 before a live DB run**
+**3 — `diagram-types.md` was written first, referenced cleanly by both roles**
 
-`func.avg(Run.jailbreak_success.cast(type_=None))` produces `avg(boolean)` — invalid PostgreSQL SQL, but it compiles fine in Python and passes type checking. Without a live test DB, the only checkpoint where this could be caught was the reviewer. The two-pass review sequence with a blocking B-tier finding resolved in a single implementer fix pass is working as intended.
-
-**4 — Ruff pre-pass before handoff eliminated style noise from the review**
-
-The implementer ran `ruff check --fix` + manual fixes for 4 non-auto-fixable issues before writing the implementer output. The reviewer found zero style issues. This means the review context was spent entirely on correctness and tests, not formatting. The vibecoding-style rule ("run linter before handoff") is holding.
-
-**5 — Previous retro recommendations were load-bearing this session**
-
-The SQLAlchemy engine lifecycle note (from llm-safety-monitor retro) prevented any `create_engine`-per-call pattern in the cluster CLI or API. The API Aggregation Endpoints note caused the reviewer to look specifically for SQL-level aggregation correctness — which is what caught B1. Retro findings are compounding correctly.
+The implementer followed the architect's "write `diagram-types.md` first" order. Both `diagram-brief` and `diagram-author` CONTEXT.md files load it; neither had to duplicate type definitions. The resource is self-contained: type name, Mermaid keyword, best-for/not-for, complexity thresholds, minimal example.
 
 ---
 
 ## What Could Have Gone Better
 
-**1 — B1: `avg(boolean)` not ruled out by any convention or architect spec**
+**1 — Minor inconsistency in Flowchart complexity threshold**
 
-The architect spec for `StrategyComparisonOut` defined `asr: float` but gave no guidance on how to compute it in SQL. The implementer reached for `func.avg(boolean_col)` which is a natural SQLAlchemy expression — but invalid PostgreSQL SQL. No convention covered this. The fix (integer aggregates in SQL, Python-side division) is simple and should be a rule. Root cause: the aggregation convention only covers filtering and COUNT — it says nothing about which aggregate functions are valid for which column types.
+`diagram-types.md` states "up to ~12 nodes before legibility degrades" in the per-type table, but the Complexity Thresholds section at the bottom sets soft limit 10 and hard limit 15 for Flowcharts. The reviewer noted this (W1). The Complexity Thresholds table is the authoritative reference (it is what the `diagram-brief` Notes section points to), but the type table's "~12 nodes" creates a slight contradiction for someone reading the type entry in isolation. Could have been caught by proofing the catalog end-to-end before writing the CONTEXT.md files that depend on it.
 
-**2 — Architect "delta" output pattern doubled the implementer's reading load**
+**2 — Blank templates are heading-only, which may feel sparse**
 
-The 2026-06-07 architect output was structured as "changes from 2026-06-06" — a diff, not a complete spec. The implementer had to load the 2026-06-06 file (~1000 lines) plus the 2026-06-07 delta (~200 lines) and mentally merge them. Across context compaction boundaries, this pattern risks the implementer missing content from either file. The correct pattern: the architect always produces a single consolidated output before handing off. Diffs belong in the architect's working notes, not in the file the implementer reads.
-
-**3 — Implementer context split at language boundary (Python/TypeScript)**
-
-The Python backend consumed enough context that the session was compacted mid-implementation. The resumed session had to fix 11 ruff errors as its first act, then build the frontend from scratch with limited context. This is the same pattern observed in the moderation-dashboard session. A full-stack project (Python backend + TypeScript frontend) consistently exceeds one implementer context window. The routing sequence has no mechanism to make this split explicit — it happens at context limits, uncontrolled.
-
-**4 — Frontend design roles skipped — no design system**
-
-`new-project-full` includes conditional `design-brief` and `frontend-architect` roles for projects with frontends. Both were skipped; the implementer built the frontend directly from the backend architect's spec. Result: plain inline styles, no design system, recharts default colours. Acceptable for a local dev tool, but would not survive a portfolio presentation as-is. The routing.md conditional is not enforced — there is no prompt to the human to choose whether to run `frontend-architect` for a given project.
-
-**5 — pnpm v11 `allowBuilds` required multiple attempts to discover**
-
-The setting moved from `package.json`'s `pnpm` field to `pnpm-workspace.yaml` in pnpm v11. This discovery took three attempts in the implementer pass. It is now recorded in the project memory file and in the Decisions Log, but not in `skills/setup-ts-pnpm.md` — the canonical reference for TypeScript project setup. Future sessions starting from the skill file will hit the same issue.
+The blank `output/output.md` files contain only section headings with no placeholder text. Other role templates in the workspace (e.g. `doc-brief`) also follow this pattern, so this is consistent. But for a first-time user of `diagram-brief`, seeing a blank schema with no worked example or prompt text could be disorienting. An in-template comment like `[e.g. "Kafka Event Flow"]` in the Diagram Title slot would reduce first-run friction with no downside.
 
 ---
 
@@ -70,19 +50,16 @@ The setting moved from `package.json`'s `pnpm` field to `pnpm-workspace.yaml` in
 
 | Stage | Issue | Estimated Waste | Recommendation |
 |-------|-------|-----------------|----------------|
-| Implementer | Loaded 2026-06-06 architect output (~1000 lines) + 2026-06-07 delta as separate files | Medium | Architect consolidates into one complete output file before handing off. Implementer reads one file. |
-| Implementer (resumed) | Ruff fix pass (11 errors) as first act of the resumed session | Low | Accept: unavoidable given context compaction. Make explicit in routing as a known backend→frontend seam. |
-| Reviewer pass 1 | Loaded full code manifest to find B1 | Low | Implementer Handoff should name specific files the reviewer should prioritise. This one already named aggregation endpoints explicitly — it worked. Pattern is correct. |
+| Implementer | Read all prior role outputs (brief, planner, architect) before writing — correct behavior, not waste | None | No change |
+| Reviewer | Loaded all three CONTEXT.md files plus architect spec to check correctness | Low | Correct scope — reviewer's job is exactly this comparison |
 
 ### Redundancy Patterns
 
-- The 2026-06-06 architect output and 2026-06-07 delta were both in `roles/architect/archive/`. The implementer read both. These are now stable archived references, but the pattern of shipping a delta instead of a consolidated spec created a merge obligation for the implementer. Future architect passes should consolidate before archiving.
-
-- `db.py` exports `get_db_session` and `init_db` — neither is used outside the file. The implementer wrote them anticipating future use, which is exactly what vibecoding-style says not to do. They add noise to every context window that loads `db.py`.
+None identified. The role contracts do not duplicate content from `diagram-types.md` — they reference it by filename. The output schemas appear in the CONTEXT.md files once each (not in both CONTEXT.md and a separate template file).
 
 ### Scoping Recommendations
 
-- Add a note to `new-project-full` in routing.md: for projects with both a Python backend and TypeScript frontend, expect the implementer to span two context windows. The backend→frontend seam should be a named checkpoint: human confirms backend is complete (ruff clean + migrations run) before the implementer starts the frontend.
+The `new-role` sequence loaded `_config/project-state.md` in the retro stage. For a Markdown-only workspace tooling project like this, `project-state.md` is lightly relevant (contains general workspace state but no diagram-workflow-specific history). This is acceptable for retro — the file is short and provides orientation.
 
 ---
 
@@ -92,53 +69,46 @@ The setting moved from `package.json`'s `pnpm` field to `pnpm-workspace.yaml` in
 
 | File | Change | Reason | Human decision required? |
 |------|--------|--------|--------------------------|
-| `resources/python-conventions.md` | Add to **API Aggregation Endpoints** section: "PostgreSQL does not support `avg(boolean)`. To compute a ratio from a boolean column: use `func.sum(case((col == True, 1), else_=0)).label('successes')` and `func.count().label('total')` in SQL (both valid integer aggregates), then compute `successes / total` in Python. Do not use `func.avg(boolean_col)` — it raises a PostgreSQL type error at runtime." | Directly caused B1 in this project. Most likely recurrence pattern: any endpoint that tracks a success/failure boolean and needs to compute a rate. | No |
-| `skills/setup-ts-pnpm.md` | Add a subsection on pnpm v11: "In pnpm v11, build allowlists for specific packages moved out of `package.json`. The equivalent of `onlyBuiltDependencies: [msw]` is `allowBuilds:\n  msw: true` in `pnpm-workspace.yaml` (root of the workspace). The `pnpm.onlyBuiltDependencies` key in `package.json` is silently ignored in v11." | Took three implementer attempts to discover. setup-ts-pnpm.md is loaded at project init — this note prevents the issue entirely. | No |
+| `resources/diagram-types.md` | In the Flowchart type table, change "up to ~12 nodes before legibility degrades" → "up to 10 nodes (soft limit); see Complexity Thresholds section below for hard limits" | Resolves the W1 inconsistency between the type entry and the Complexity Thresholds table | No |
 
 ### Skills to Update
 
-*(None beyond the above — no new skill files needed.)*
+None.
 
 ### Routing Changes
 
-| Sequence | Change | Reason | Human decision required? |
-|----------|--------|--------|--------------------------|
-| `new-project-full` | Add a note to the **architect** step: "If this is a delta architect pass (extending a prior output), consolidate the prior output and the delta into a single complete spec in `roles/architect/output/output.md` before writing to archive. The implementer reads one file, not a diff + base." | Prevents double-load pattern from repeating on any project with multiple architect passes. | No |
-| `new-project-full` | Add a named seam between implementer (backend) and implementer (frontend) for full-stack projects: "For projects with both Python and TypeScript, treat the implementer as two sequential phases. After the Python backend: verify ruff clean + alembic migrations generate without error. Human confirms before TypeScript phase begins." | Makes the context-limit split explicit rather than accidental. Prevents losing backend state when the session compacts mid-implementation. | Yes — requires routing.md restructure to add the conditional |
+None. The `design-diagram` entry in `routing.md` was written correctly in this session. No structural changes needed.
 
 ### New Resources or Skills Needed
 
-None. All findings map to additions in existing files.
+None identified. The three existing resources loaded by the diagram workflow (`audience-tiers.md`, `diagram-types.md`, `writing-voice.md` indirectly via audience-tiers) are sufficient.
 
 ---
 
 ## One Change to Make Now
 
-**Add the `avg(boolean)` rule to `resources/python-conventions.md` under `## API Aggregation Endpoints`.**
+**Fix the Flowchart complexity threshold inconsistency in `resources/diagram-types.md`.**
 
-Specific insertion — after the existing bullet on `total`/`count` fields:
+In the Flowchart type table, line:
+> `Typical complexity | Low to medium — up to ~12 nodes before legibility degrades`
 
-```
-- **PostgreSQL does not support `avg(boolean)`**. To compute a success rate from a boolean column:
-  use `func.sum(case((col == True, 1), else_=0)).label("successes")` and `func.count().label("total")`
-  (both valid integer aggregates in SQL), then divide in Python: `successes / total if total > 0 else 0.0`.
-  Do not use `func.avg(boolean_col)` — it raises a PostgreSQL type error at runtime, not at query-build time.
-```
+Change to:
+> `Typical complexity | Low to medium — soft limit 10 nodes; see Complexity Thresholds section`
 
-This is the highest-value change because: it directly caused the only blocking issue (B1) in this project; the pattern (tracking a boolean `jailbreak_success` or `is_harmful` column and computing a rate) will recur in every safety/moderation project in this workspace; and the fix is a concrete two-line substitute, not a vague warning.
+This closes the W1 finding from the reviewer, removes ambiguity for the first person who uses `diagram-brief` to brief a flowchart, and takes under 30 seconds to apply.
 
 ---
 
 ## Handoff
 
-Human reviews recommendations above. Recommended actions before the next project starts:
+Human reviews recommendations above. Only one change recommended:
 
 1. **Apply now (no decision required):**
-   - Add `avg(boolean)` rule to `resources/python-conventions.md` → `## API Aggregation Endpoints`
-   - Add pnpm v11 `allowBuilds` note to `skills/setup-ts-pnpm.md`
-   - Add architect consolidation note to `resources/routing.md` → `new-project-full` architect step
+   - Fix Flowchart complexity line in `resources/diagram-types.md` (one-line edit)
 
-2. **Requires human decision:**
-   - Add explicit backend→frontend seam to `new-project-full` routing (requires restructure)
+2. Update `_config/project-state.md` to record diagram-workflow retro complete and `design-diagram` sequence now available.
 
-3. Update `_config/project-state.md` to record retro complete.
+The `design-diagram` sequence is ready for first use. Candidate diagrams from `resources/priorities.md` P3:
+- Three-project system flow → `PORTFOLIO.md`
+- Kafka event → classifier → escalation pipeline → `projects/llm-safety-monitor/README.md`
+- POST /sessions → annotate → score pipeline → `projects/error-hide-seek/README.md`

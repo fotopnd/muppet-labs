@@ -1,100 +1,37 @@
-# Implementer Output — red-team-platform
+# Implementer Output — diagram-workflow roles
 
 **Role:** implementer
-**Sequence:** `new-project-full` (step 4)
-**Date:** 2026-06-07
-**Project:** `projects/red-team-platform/`
+**Sequence:** new-role
+**Project:** diagram-workflow
 
 ---
 
-## What Was Built
+## Deliverables Produced
 
-Full project scaffold delivered per architect spec (2026-06-06 + 2026-06-07 outputs).
+| File | Status | Notes |
+|------|--------|-------|
+| `resources/diagram-types.md` | Created | 4 types: Flowchart, Sequence, ER, State — with Mermaid keywords, best-for/not-for, complexity thresholds, minimal examples |
+| `roles/diagram-brief/CONTEXT.md` | Created | Identity, Inputs table, 7-step Process, Output schema, Notes |
+| `roles/diagram-brief/output/output.md` | Created | Blank template with all schema headings |
+| `roles/diagram-author/CONTEXT.md` | Created | Identity, Inputs table, 6-step Process, Output (document edit + manifest), Notes |
+| `roles/diagram-author/output/output.md` | Created | Blank manifest template |
+| `roles/diagram-reviewer/CONTEXT.md` | Created | Identity, Inputs table, 7-step Process, Checks, Verdict conditions, Output schema, Notes |
+| `roles/diagram-reviewer/output/output.md` | Created | Blank reviewer output template |
+| `resources/routing.md` | Edited | Added `design-diagram` sequence after `write-doc`, before daily-brief section |
 
-### Python Backend (`src/red_team_platform/`)
+## Deviations from Architect Spec
 
-| File | Status |
-|------|--------|
-| `config.py` | Done — 9 Settings fields incl. sync_database_url, taxonomy_classifier_path, cluster_k |
-| `models.py` | Done — 5 ORM classes: Attack, RunSession, Run, FailureCluster, ClusterSummary |
-| `db.py` | Done — async engine + session factory helpers |
-| `corpus/constants.py` | Done — sevdeawesome field constants |
-| `corpus/loader.py` | Done — `load_sevdeawesome()`, skips malformed rows, harm_goal set |
-| `corpus/seed.py` | Done — taxonomy classifier called per record, upsert on conflict |
-| `runner/taxonomy_classifier.py` | Done — singleton pipeline, `classify_category()` |
-| `runner/classifier.py` | Done — pair classifier singleton, `score()` |
-| `runner/ollama_client.py` | Done — POSTs to `/api/chat`, `make_client()` |
-| `runner/attack.py` | Done — `run_session()` async, typer CLI |
-| `cluster/kmeans.py` | Done — `cluster_failures()` pure TF-IDF+KMeans, `main()` sync DB |
-| `api/schemas.py` | Done — all schemas incl. cluster types |
-| `api/routers/` | Done — 7 routers (attacks, runs, sessions, coverage, strategy, regression, clusters) |
-| `api/main.py` | Done — lifespan loads classifier, CORS, 7 routers registered |
-| `alembic/versions/001_initial_schema.py` | Done — all 5 tables + coverage_summary view |
-
-### TypeScript Frontend (`web/`)
-
-| File | Status |
-|------|--------|
-| `src/types/index.ts` | Done — all 16 types incl. cluster types |
-| `src/hooks/` | Done — 9 hooks (useAttacks, useAttackFilters, useSessions, useRuns, useCoverage, useStrategyComparison, useRegression, useSample, useClusters) |
-| `src/pages/AttackBrowser.tsx` | Done |
-| `src/pages/CoverageHeatmap.tsx` | Done — ScatterChart heatmap with ASR colour scale |
-| `src/pages/StrategyComparison.tsx` | Done — BarChart sorted by ASR |
-| `src/pages/RegressionTracker.tsx` | Done — LineChart per model |
-| `src/pages/SampleReview.tsx` | Done — session dropdown, run table, full sample panel |
-| `src/pages/FailureClusters.tsx` | Done — cluster cards + expandable members table |
-| `src/App.tsx` | Done — QueryClientProvider + 6-tab nav |
-| `src/test/handlers.ts` | Done — MSW handlers for all 11 API endpoints |
-| `src/test/App.test.tsx` | Done — tab bar render test, passes |
-
-### Infra / Config
-
-| File | Status |
-|------|--------|
-| `docker-compose.yml` | Done — postgres:16 on port 5435 |
-| `pyproject.toml` | Done — 4 CLI scripts, pytest config |
-| `ruff.toml` | Done |
-| `.env.example` (backend) | Done |
-| `web/.env.example` | Done |
-| `benchmarks/results.md` | Done — stub |
-
----
-
-## Build Verification
-
-- `uv run ruff check . && uv run ruff format --check .` — **0 errors**
-- `pnpm build` in `web/` — **0 TypeScript errors, builds to dist/**
-- `pnpm test` in `web/` — **1/1 passed**
-
----
-
-## Known Limitations
-
-- Python pytest suite requires a live PostgreSQL DB at port 5435. Not run in this session.
-- Frontend uses plain inline styles (no Tailwind/shadcn — interactive `shadcn init` cannot run in non-TTY).
-- `web/` bundle is ~613 kB (recharts is large) — acceptable for local dev tool.
+None. All 8 deliverables produced in architect-specified order. All CONTEXT.md files follow Identity / Inputs / Process / Output / Notes structure as specified. All blank templates follow the schemas exactly.
 
 ---
 
 ## Handoff
 
-**Next step for the human:**
+Next role: reviewer
 
-```bash
-# Start postgres
-docker compose up -d
-
-# Run migrations
-cd projects/red-team-platform && uv run alembic upgrade head
-
-# Seed corpus (requires taxonomy model + HuggingFace download)
-uv run seed-corpus
-
-# Start API
-uv run api
-
-# Start frontend dev server
-cd web && pnpm dev
-```
-
-The platform is ready for a first attack session once Ollama is running with `qwen2.5-coder:7b`.
+The reviewer reads the three CONTEXT.md files against the architect spec at `roles/architect/output/output.md` and issues READY or REWORK NEEDED for the role contracts as a set. Key concerns:
+- diagram-brief output schema has all 9 sections (Title, Target Document, Audience, Diagram Type, Must Show, Must Not Show, Label Style, Layout, Handoff)
+- diagram-author manifest schema matches architect spec
+- diagram-reviewer output schema matches architect spec
+- routing.md `design-diagram` section placed correctly (after `write-doc`, before daily-brief)
+- All three CONTEXT.md Notes sections capture edge cases from architect's resolved open questions
