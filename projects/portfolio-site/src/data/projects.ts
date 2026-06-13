@@ -26,7 +26,7 @@ export const PROJECTS: Project[] = [
       { label: 'Pair classifier F1', value: '0.549' },
       { label: 'Training set', value: '50k pairs (HH-RLHF)' },
     ],
-    demoUrl: null,
+    demoUrl: 'http://localhost:5176',
   },
   {
     id: 'red-team-platform',
@@ -41,7 +41,7 @@ export const PROJECTS: Project[] = [
       { label: 'Top ASR (few_shot_json)', value: '100%' },
       { label: 'Fully-resisted strategies', value: '3 of 6' },
     ],
-    demoUrl: null,
+    demoUrl: 'http://localhost:5173',
   },
   {
     id: 'error-hide-seek',
@@ -56,6 +56,6 @@ export const PROJECTS: Project[] = [
       { label: 'Overall uplift', value: '−0.01' },
       { label: 'Inverted-conclusion uplift', value: '+0.33' },
     ],
-    demoUrl: null,
+    demoUrl: 'http://localhost:5174',
   },
 ]
