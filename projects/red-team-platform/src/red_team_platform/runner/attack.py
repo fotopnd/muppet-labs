@@ -141,11 +141,19 @@ async def run_session(
     return session_id
 
 
+_BIAS_LANGUAGES = frozenset({"en", "zh", "ru", "ar"})
+
+
 @app.command()
 def main(
     source: Annotated[str | None, typer.Option("--source")] = None,
     harm_category: Annotated[str | None, typer.Option("--harm-category")] = None,
     strategy: Annotated[str | None, typer.Option("--strategy")] = None,
+    mode: Annotated[str, typer.Option("--mode", help="'normal' or 'bias'")] = "normal",
+    language: Annotated[
+        str | None,
+        typer.Option("--language", help="Language for bias mode: en|zh|ru|ar"),
+    ] = None,
 ) -> None:
     logging.basicConfig(
         level=logging.INFO,
@@ -157,11 +165,43 @@ def main(
 
     settings = get_settings()
 
+    if mode not in ("normal", "bias"):
+        raise typer.BadParameter(f"--mode must be 'normal' or 'bias', got {mode!r}")
+
+    if mode == "bias":
+        if language is None:
+            raise typer.BadParameter("--language is required when --mode bias")
+        if language not in _BIAS_LANGUAGES:
+            raise typer.BadParameter(
+                f"--language must be one of {sorted(_BIAS_LANGUAGES)}, got {language!r}"
+            )
+
     if settings.ollama_model != "gemma2:9b":
         raise SystemExit(
             f"Preflight failed: ollama_model is '{settings.ollama_model}', expected 'gemma2:9b'. "
             "Set OLLAMA_MODEL=gemma2:9b in .env or override with the environment variable."
         )
+
+    if mode == "bias":
+        from red_team_platform.bias.runner import run_bias_session
+
+        async def _run_bias() -> None:
+            engine = create_engine(settings.database_url)
+            factory = create_session_factory(engine)
+            async with factory() as db_session:
+                written = await run_bias_session(
+                    session=db_session,
+                    language=language,  # type: ignore[arg-type]
+                    model_name=settings.ollama_model,
+                    ollama_base_url=settings.ollama_base_url,
+                    ollama_timeout_s=settings.ollama_timeout_s,
+                )
+                await db_session.commit()
+            await engine.dispose()
+            print(f"Wrote {written} new bias responses for language={language}.")
+
+        asyncio.run(_run_bias())
+        return
 
     warm_up(settings.pair_classifier_path)
 

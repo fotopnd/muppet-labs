@@ -1,55 +1,53 @@
-# Design Brief Output — portfolio-site
+# Design Brief Output — language-bias-probes
 
 **Role:** design-brief  
-**Sequence:** new-project-full (step 4)  
-**Date:** 2026-06-12
+**Sequence:** new-project-full  
+**Date:** 2026-06-13  
+**Step:** 4 of 9
 
 ---
 
 ## Interface Context
 
-**Marketing / Landing Page**
-
-This is a read-only, single-scroll persuasion surface — no data entry, no persistent state, no operational controls. The user arrives to form an impression of the portfolio, not to interact with a system. That maps exactly to the Marketing/Landing Page context from `design_style.md`: "clear value metrics, broad spacing layouts, and rapid conversion pathways... large typographic elements, generous whitespace allocations."
-
-The project cards contain a small metrics table, which borrows from the Application Dashboard context — but only as a sub-component. The dominant register is marketing.
+**Application Dashboard.**  
+This is a new tab added to the existing red-team-platform operational dashboard. The user is a technical reviewer (interviewer, portfolio reader) examining research output, not a first-time visitor. Data density is appropriate; the heatmap grid is the primary surface, not decorative copy. Marketing/Landing Page context does not apply — there is no conversion goal here.
 
 ---
 
 ## Primary Interaction
 
-**A visitor reads the three project cards and follows the demo link (or notes "coming soon") for the project that interests them most.**
+A user arrives at the `/bias` tab to **read which (government, language) pairs produced the highest semantic divergence** — to understand at a glance where the model answers the same question differently depending on the user's language.
 
-Everything else on the page — the hero, the bio, the metrics — supports this. The card + demo-link pair is the unit of conversion.
+The table is the entire interaction. There is no form, no filter, and no click-through in v1. The user scans the grid, identifies high-divergence cells (hot colour), and reads the label to understand what topic drove the divergence.
 
 ---
 
 ## Key Visual Components
 
-1. **`HeroSection`** — Full-width typographic block with eyebrow label, `<h1>` headline, subheadline, and a single CTA anchor button. Sets the "Build → Attack → Measure" frame before any project detail appears.
+1. **DivergenceTable** — the main grid. Rows are topic labels (50 total), grouped under 10 government sub-headers. Columns are ZH, RU, AR. Renders from the `/bias/scores` API response.
 
-2. **`ProjectCard`** — Card container (bordered, no shadow) holding project name, tagline, `MetricsTable`, description paragraph, and a conditional demo link / "coming soon" span at the bottom. This is the primary content unit.
+2. **BiasCell** — a single table cell showing a cosine distance value (e.g. `0.42`) with a colour-coded background: three discrete buckets (low / moderate / high), plus a grey null state. Uses monospace font for the number, consistent with metric values elsewhere in the dashboard.
 
-3. **`MetricsTable`** — Definition-list table inside each card showing 3–4 metric label/value pairs. Values in monospace; labels in muted text. Visually differentiates numbers from prose without leaving the card.
+3. **GovernmentGroupHeader** — a full-width row spanning all 4 columns that labels a group of 5 topic rows (e.g. "China", "Russia"). Visually distinct from topic rows via a subtle background tint and slightly bolder text — not a harsh border.
 
-4. **`NavBar`** — Sticky minimal header: site title on the left, two anchor links on the right. Keeps the visitor oriented during scroll without dominating the viewport.
+4. **ScoredModelBadge** — a small inline badge above the table showing which model produced the scores and when (e.g. `gemma2:9b`). Renders "No scores yet" when `scored_model` is null. Keeps the data anchored to its source without cluttering the table.
 
-5. **`BioSection`** — Muted-background closing section with two short paragraphs: professional background, then why this portfolio was built. No metrics, no links — pure text.
+5. **EmptyState** — full-width callout rendered in place of the table when the API returns zero rows (probes not yet seeded or scores not yet run). Displays the CLI commands needed to produce data: `uv run seed-bias-corpus` and `uv run score-bias`. Uses `--code-bg` / `--mono` to render the commands inline, matching the existing `code` element style in the dashboard.
 
 ---
 
 ## Done Criteria
 
-1. Hero `<h1>` text is visible above the fold at both 375px and 1440px viewport widths with no horizontal overflow.
-2. CTA button scrolls the page to `#projects` when clicked; button uses amber-600 background with legible white text.
-3. Three project cards render in a 3-column grid at ≥1024px and a single column at 375px — no card overflow or truncation at either width.
-4. Each card's `MetricsTable` renders all 4 metric rows with label text in muted/secondary color and value text in monospace.
-5. All three cards currently show "Demo coming soon" (italic, muted) — not a broken link or an empty element.
-6. `NavBar` is sticky: it remains visible at the top of the viewport after scrolling past the hero.
-7. `BioSection` renders with a visually distinct background (surface-muted) that separates it from the projects section without a harsh border.
-8. `pnpm build` exits 0 with zero TS errors and zero lint errors.
-9. `pnpm test` exits 0 with all `ProjectCard` and `MetricsTable` tests passing.
-10. No horizontal scrollbar appears at any viewport width between 375px and 1440px.
+1. The table renders all 50 topic rows grouped under 10 government sub-headers. Each group has exactly 5 topic rows beneath it.
+2. Government sub-header rows span all 4 columns (label + ZH + RU + AR) and are visually distinct from topic rows — different background tint, not a border.
+3. Each scored `BiasCell` displays the cosine distance value to 2 decimal places in monospace font.
+4. Each `BiasCell` applies the correct colour bucket: low (0.00–0.14), moderate (0.15–0.34), high (0.35+). The colour tokens are defined in `index.css` using the existing CSS variable pattern (`:root { --divergence-low: ...; }` with dark-mode overrides) — not hardcoded hex values.
+5. Null `BiasCell` values (language not yet scored) render as a grey cell containing "—", never blank or "0.00".
+6. `ScoredModelBadge` renders the model name above the table when `scored_model` is non-null, and the text "No scores yet" when null.
+7. `EmptyState` renders with the two CLI commands displayed as `<code>` elements when the API returns zero rows.
+8. No horizontal scroll at 1024px viewport width. The table fits within the existing `#root` max-width container (1126px).
+9. Dark mode: all three divergence colour tokens have dark-mode overrides in the existing `@media (prefers-color-scheme: dark)` block — they must not look identical to the light-mode values.
+10. The `/bias` NavLink appears in the existing top navigation alongside the other tabs and is styled consistently with them.
 
 ---
 
@@ -57,12 +55,12 @@ Everything else on the page — the hero, the bio, the metrics — supports this
 
 The frontend-architect reads this file alongside `roles/architect/output/output.md` and `resources/design_style.md`.
 
-The architect output already contains full component interfaces, the Tailwind `@theme` token block, the `projects.ts` data spec, and layout class strings. The frontend-architect's job is to:
-- Validate those specs against the done criteria above
-- Confirm or adjust the layout grid and spacing rhythm
-- Specify any interactive states not yet covered (hover on cards, active nav link on scroll)
-- Produce the frontend-architect output the implementer executes from
+**Open decisions for frontend-architect to resolve:**
 
-Open decisions for frontend-architect:
-- Whether `ProjectCard` gets a subtle hover state (e.g. border color lifts to amber-200) — the architect spec omits this
-- Whether the `NavBar` active link highlights on scroll position (requires `IntersectionObserver`) or is purely static anchor links — static is simpler and sufficient for a portfolio
+1. **Divergence colour token values** — the architect spec proposed amber-100/red-100 Tailwind classes. The existing dashboard uses raw CSS variables, not Tailwind. The frontend-architect must define `--divergence-low`, `--divergence-mid`, `--divergence-high` (+ dark mode) as CSS variables in `index.css`. Choose values that are legible against `--bg` (white / `#16171d`) and visually distinct from each other and from `--accent-bg` (purple-tinted) which is already in use.
+
+2. **Table element vs CSS grid** — the heatmap is a genuine grid of labelled data. Use a `<table>` with `<tbody>` grouping, not a CSS grid div layout. Screen readers and keyboard navigation work correctly on `<table>`; a div grid requires ARIA roles that are easy to get wrong.
+
+3. **GovernmentGroupHeader row structure** — the architect spec recommended against `rowspan`. Use a full-width `<tr>` with a single `<td colspan={4}>` for the government header. This is semantically clean and consistent with how Bootstrap/Tailwind table patterns handle groups.
+
+4. **Hover tooltip** — not required for v1 done criteria, but noted as high-value for portfolio demonstration: a tooltip on each `BiasCell` showing the `divergence_hypothesis` text from the probe would let a reviewer understand the research intent inline. Flag this as stretch scope; implement only after the core grid passes ui-reviewer.

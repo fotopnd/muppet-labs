@@ -1,66 +1,56 @@
-# UI Reviewer Output — portfolio-site
+# UI Reviewer Output — Language Bias Probes Frontend
 
-**Role:** ui-reviewer  
-**Sequence:** new-project-full (step 7)  
-**Date:** 2026-06-12  
-**Method:** Playwright + Chromium headless at 1440px (desktop) and 375px (mobile)
+**Date:** 2026-06-13
+**Role:** ui-reviewer
+**Project:** language-bias-probes / red-team-platform
 
 ---
 
 ## Verdict
 
-**READY**
+REWORK NEEDED
+
+---
+
+## Violations
+
+- [ ] `web/src/pages/BiasHeatmap.tsx:56` — **Criterion 6 FAIL: ScoredModelBadge null case.**
+  When `data.scored_model` is null the conditional `{data.scored_model && ...}` renders nothing. Design-brief criterion 6 requires the text "No scores yet" to render when `scored_model` is null. Fix: replace the short-circuit with a ternary that always renders the badge, showing model name when non-null and "No scores yet" otherwise.
+
+- [ ] `web/src/index.css` — **Criterion 9 FAIL: Divergence tokens missing dark-mode overrides.**
+  The `@media (prefers-color-scheme: dark) :root {}` block does not override `--color-divergence-null`, `--color-divergence-low`, `--color-divergence-mid`, or `--color-divergence-high`. Against a dark canvas the null grey (`oklch(70%...)`) may disappear. Criterion 9 explicitly requires dark-mode overrides for all divergence tokens. Fix: add all four token overrides to the dark-mode block, increasing lightness slightly so cells remain visually distinct on the dark canvas.
 
 ---
 
 ## Done Criteria Check
 
-| # | Criterion | Result |
-|---|-----------|--------|
-| 1 | Hero `<h1>` visible above fold at 375px and 1440px, no horizontal overflow | ✅ PASS — H1 renders at both viewports; scrollWidth == viewportWidth at both sizes |
-| 2 | CTA button scrolls to `#projects`; amber-600 bg with white text | ✅ PASS — `bg-accent` maps to amber-600 OKLCH; `text-text-inverse` is near-white; href="#projects" confirmed |
-| 3 | 3-col grid ≥1024px; 1-col at 375px — no card overflow or truncation | ✅ PASS — desktop: card0/1/2 all at y=766.5 (same row); mobile: y=776, 1411, 2070 (stacked) |
-| 4 | Each card's MetricsTable renders all 4 rows; muted labels, monospace values | ✅ PASS — 12 `<dt>` elements total (3 cards × 4 rows); `text-text-secondary` on dt, `font-mono font-semibold` on dd |
-| 5 | All three cards show "Demo coming soon" (italic muted) — not broken link or empty | ✅ PASS — count = 3; styled `text-sm italic text-text-secondary` |
-| 6 | NavBar sticky after scrolling past hero | ✅ PASS — `getComputedStyle(nav).position = "sticky"` |
-| 7 | BioSection distinct background without harsh border | ✅ PASS — Bio: `oklch(0.961 0 0)` (surface-muted); Projects: `oklch(0.985 0 0)` (canvas); backgrounds differ; no divider element |
-| 8 | `pnpm build` exits 0, zero TS errors, zero lint errors | ✅ PASS — confirmed in implementer phase |
-| 9 | `pnpm test` exits 0, all ProjectCard and MetricsTable tests passing | ✅ PASS — 7/7 confirmed in implementer phase |
-| 10 | No horizontal scrollbar at any viewport width | ✅ PASS — `scrollWidth == innerWidth` at both 375px and 1440px |
+- [x] 1. Table structure groups rows under government headers — PASS (structure correct; data-dependent)
+- [x] 2. Government sub-header rows span 4 columns (`colSpan={4}`), distinct via `bg-accent-subtle` — PASS
+- [x] 3. BiasCell shows cosine distance to 2 decimal places in `font-mono` — PASS
+- [x] 4. Colour buckets correct: <0.15 low, <0.35 mid, ≥0.35 high; tokens in `@theme` — PASS
+- [x] 5. Null cell renders grey "—", not blank/0.00 — PASS
+- [ ] 6. ScoredModelBadge renders "No scores yet" when `scored_model` is null — **FAIL**
+- [x] 7. EmptyState renders CLI commands in `<code>` elements — PASS
+- [x] 8. No horizontal scroll at ≤1126px; table is `w-full` inside `overflow-x-auto` — PASS
+- [ ] 9. Dark-mode overrides for all divergence tokens — **FAIL**
+- [x] 10. Bias tab in top navigation, consistent styling — PASS
 
 ---
 
 ## Passed Checks
 
-**Token discipline:** No raw Tailwind hue utilities found in any component (`grep -r "text-amber\|bg-slate\|text-slate\|border-slate" src/` → 0 results). All colors go through `@theme` tokens (`bg-canvas`, `text-text-primary`, `bg-accent`, `border-border`, etc.).
-
-**60/30/10 rule:** Amber accent is limited to: eyebrow text, CTA button, card hover border (`/60` opacity modifier), demo link text. Canvas and surface colors dominate. Structure colors handle all body text and borders. Clean allocation.
-
-**Font pairing:** `font-mono` used only on MetricsTable `<dd>` values and the HeroSection eyebrow label. All other text uses system sans-serif via `body { font-family: var(--font-sans) }`. No third font family introduced.
-
-**No arbitrary pixel values:** Only arbitrary value in the codebase is `tracking-[0.2em]` on the eyebrow (letter-spacing; no standard Tailwind scale equivalent at this value — pre-flagged by frontend-architect).
-
-**No box shadows:** No `shadow-*` utility used anywhere. Card distinction is via `border border-border` only. ✓ per design_style.md §What to Avoid.
-
-**No inline styles:** Zero `style=""` attributes across all components.
-
-**Semantic HTML:** `<nav>`, `<main>`, `<section id="projects">`, `<section id="about">`, `<article>` (cards), `<h1>`/`<h2>`/`<h3>` hierarchy correct, `<dl>/<dt>/<dd>` for MetricsTable.
-
-**Responsive layout:** Desktop grid 3-col confirmed by card bounding-box y-coordinates (all equal). Mobile stacking confirmed (card y-values increase sequentially, all at x=24 — single column with px-6 inset).
-
-**Background separation:** BioSection achieves visual separation from ProjectsSection via computed background colour difference (oklch 0.961 vs 0.985) — no harsh border. Matches design_style.md §Layout: "prefer subtle background tint shifts over thick solid borders."
-
----
-
-## Visual Observations
-
-Desktop (1440px): Hero headline fills two lines cleanly; eyebrow renders in amber; CTA button amber with white text; project cards equal height per row; MetricsTable rows have clear label/value pairing with monospace values; "Demo coming soon" italic and muted at card footers; BioSection background shift is subtle but clear.
-
-Mobile (375px): Hero text wraps to four lines; cards stack vertically; all text legible within 375px viewport; no content clipped.
+- No `style=""` in any new component — Tailwind utilities throughout
+- No arbitrary pixel values — all spacing from standard scale (`p-2`, `p-4`, `gap-4`, `w-20`, `h-3`, etc.)
+- No hardcoded hex or raw hue values in new components
+- Canonical token names used: `text-text-primary`, `bg-surface-muted`, `border-border`, `text-accent`, `bg-accent-subtle`, `font-mono`
+- Accent applied only to government group headers (focal structural element) — 60-30-10 respected
+- `font-mono` correctly applied to score values and model badge (metric / ID contexts)
+- `Fragment` keyed on `government` — no React key warning
+- Empty state is self-documenting with three CLI commands in `<code>` elements
+- `rounded-sm` on `<td>` is a no-op under `border-collapse` — harmless, not a violation
 
 ---
 
 ## Handoff
 
-**Next role: reviewer** (step 8)  
-The reviewer assesses correctness, test coverage, and code conventions. This ui-review found no violations. The one pre-flagged `tracking-[0.2em]` is noted as acceptable (no standard Tailwind letter-spacing scale equivalent at this value).
+REWORK NEEDED — ui-debugger applies the two fixes above, then ui-reviewer re-runs.

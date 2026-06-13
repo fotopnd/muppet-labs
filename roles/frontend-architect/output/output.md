@@ -1,217 +1,236 @@
-# Frontend-Architect Output — portfolio-site
+# Frontend-Architect Output — language-bias-probes
 
 **Role:** frontend-architect  
-**Sequence:** new-project-full (step 5)  
-**Date:** 2026-06-12
+**Sequence:** new-project-full  
+**Date:** 2026-06-13  
+**Step:** 5 of 9
+
+---
+
+## Setup: Add Tailwind v4 to red-team-platform web/
+
+The existing dashboard uses inline styles and raw CSS variables. The BiasHeatmap and all future additions will use Tailwind v4 with canonical `@theme` tokens. The existing components are not migrated — they continue to function unchanged.
+
+**Required changes to `web/`:**
+
+1. `pnpm add -D @tailwindcss/vite` in `web/`
+2. In `web/vite.config.ts`, add:
+   ```ts
+   import tailwindcss from '@tailwindcss/vite'
+   // in plugins: [react(), tailwindcss()]
+   ```
+3. Add `@import "tailwindcss";` at the top of `web/src/index.css` (before the existing `:root` block). The existing CSS variables are preserved and continue to work.
 
 ---
 
 ## Token Layer
 
-Tailwind v4 uses a CSS-first `@theme` block — no `tailwind.config.js`. The token layer is defined in `src/index.css`. The architect output already specified the full block; this section confirms it and resolves the `setup-design-tokens` skill requirements.
-
-**Accent hue: amber** — Anthropic-adjacent, WCAG AA on white at 600-weight. Confirmed in architect output.
+Add the following `@theme` block to `web/src/index.css` immediately after the `@import "tailwindcss";` line and before the existing `:root` block:
 
 ```css
 @import "tailwindcss";
 
 @theme {
-  /* --- Typography --- */
-  --font-sans: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-  --font-mono: ui-monospace, "SF Mono", "JetBrains Mono", "Fira Code", Consolas, monospace;
+  /* Canvas — 60% */
+  --color-canvas:        oklch(98.2% 0 0);
+  --color-surface:       oklch(100% 0 0);
+  --color-surface-muted: oklch(96.0% 0 0);
 
-  /* --- Canvas (60%) --- */
-  --color-canvas:       oklch(98.5% 0 0);    /* slate-50  — page background */
-  --color-surface:      oklch(100% 0 0);     /* white     — card / panel surface */
-  --color-surface-muted:oklch(96.1% 0 0);   /* slate-100 — BioSection bg, MetricsTable bg */
+  /* Structure — 30% */
+  --color-border:          oklch(91.5% 0 0);
+  --color-text-primary:    oklch(5.0% 0 0);
+  --color-text-secondary:  oklch(44.0% 0.01 302);
+  --color-text-muted:      oklch(58.0% 0.01 302);
+  --color-text-inverse:    oklch(98.2% 0 0);
 
-  /* --- Structure (30%) --- */
-  --color-border:         oklch(91.8% 0 0);  /* slate-200 — card borders, row dividers */
-  --color-text-primary:   oklch(15.1% 0 0);  /* slate-900 — headings, body */
-  --color-text-secondary: oklch(44.6% 0 0);  /* slate-500 — taglines, labels, muted copy */
-  --color-text-inverse:   oklch(98.5% 0 0);  /* slate-50  — text on accent backgrounds */
+  /* Accent — 10%, purple matching existing --accent: #aa3bff */
+  --color-accent:        oklch(66.0% 0.27 302);
+  --color-accent-hover:  oklch(59.0% 0.27 302);
+  --color-accent-subtle: oklch(96.5% 0.05 302);
 
-  /* --- Accent (10%) — amber-600/700 --- */
-  --color-accent:        oklch(66.6% 0.179 60.4);  /* amber-600 — CTA bg, eyebrow, demo links, metric values */
-  --color-accent-hover:  oklch(60.6% 0.179 60.4);  /* amber-700 — hover/active state */
-  --color-accent-subtle: oklch(96.9% 0.021 60.4);  /* amber-50  — not used in v1; reserved */
+  /* Semantic states */
+  --color-success: oklch(55.0% 0.17 142);
+  --color-warning: oklch(73.0% 0.17 60);
+  --color-danger:  oklch(55.0% 0.20 28);
+
+  /* Divergence heatmap extension tokens */
+  --color-divergence-low:  oklch(95.5% 0.06 145);   /* 0.00–0.14: subtle green tint */
+  --color-divergence-mid:  oklch(95.0% 0.07 80);    /* 0.15–0.34: subtle amber tint */
+  --color-divergence-high: oklch(94.5% 0.08 25);    /* 0.35+:     subtle red tint   */
+  --color-divergence-low-text:  oklch(35.0% 0.13 145);
+  --color-divergence-mid-text:  oklch(40.0% 0.13 60);
+  --color-divergence-high-text: oklch(40.0% 0.15 25);
+
+  /* Typography — canonical names */
+  --font-sans: system-ui, "Segoe UI", Roboto, sans-serif;
+  --font-mono: ui-monospace, "SF Mono", "JetBrains Mono", Consolas, monospace;
 }
 ```
 
-**Token enforcement rule for implementer:** every color in the codebase must reference a `--color-*` CSS variable. No raw Tailwind hue utilities (e.g. `text-amber-600`, `bg-slate-100`) — use `text-[--color-accent]`, `bg-[--color-surface-muted]` etc. The sole exception: hover border on `ProjectCard` uses `hover:border-[--color-accent]/60` (opacity modifier on a CSS variable — valid Tailwind v4 syntax).
+**Dark mode:** The existing `@media (prefers-color-scheme: dark)` block in index.css already adjusts `--bg`, `--text`, etc. for the legacy components. Add dark-mode overrides for the new `@theme` tokens using a `@media` block after the `@theme` block:
+
+```css
+@media (prefers-color-scheme: dark) {
+  :root {
+    /* Override @theme tokens for dark mode */
+    --color-canvas:        oklch(13.0% 0.01 302);
+    --color-surface:       oklch(17.0% 0.01 302);
+    --color-surface-muted: oklch(21.0% 0.01 302);
+    --color-border:        oklch(28.0% 0.01 302);
+    --color-text-primary:  oklch(96.0% 0 0);
+    --color-text-secondary: oklch(72.0% 0.01 302);
+    --color-text-muted:    oklch(55.0% 0.01 302);
+    --color-accent:        oklch(75.0% 0.27 302);
+    --color-accent-hover:  oklch(80.0% 0.27 302);
+    --color-accent-subtle: oklch(22.0% 0.08 302);
+    --color-divergence-low:  oklch(22.0% 0.07 145);
+    --color-divergence-mid:  oklch(22.0% 0.07 80);
+    --color-divergence-high: oklch(22.0% 0.08 25);
+    --color-divergence-low-text:  oklch(72.0% 0.13 145);
+    --color-divergence-mid-text:  oklch(72.0% 0.13 60);
+    --color-divergence-high-text: oklch(72.0% 0.15 25);
+  }
+}
+```
+
+**Note:** Tailwind v4 `@theme` tokens are resolved at build time and cannot be dynamically overridden by a `@media` block. Dark-mode values must be applied as CSS variable overrides on `:root` (as shown above), which Tailwind's generated utility classes will pick up because they reference `var(--color-*)` at runtime.
 
 ---
 
 ## Page Layout
 
-Single vertical scroll. No router. Section order top to bottom:
+The BiasHeatmap tab lives inside the existing `<main>` element in `App.tsx`. The existing tabs use ad-hoc padding. The BiasHeatmap uses a consistent container:
 
 ```
-<body bg-[--color-canvas]>
-  <NavBar>           sticky top-0 z-50        h-14     full-width
-  <main>
-    <HeroSection>    id="hero"                py-24 lg:py-32   full-width, content centered max-w-3xl
-    <ProjectsSection>id="projects"            py-20            full-width, grid max-w-6xl
-    <BioSection>     id="about"               py-20            full-width, content centered max-w-2xl
-  </main>
-</body>
+<div class="px-6 py-5 max-w-5xl mx-auto">
+  <div class="mb-4 flex items-center gap-3">   ← header row: title + ScoredModelBadge
+  <div>                                          ← DivergenceTable wrapper (no max-width override)
 ```
 
-**Responsive breakpoints (Tailwind v4 defaults):**
-- `sm`: 640px — not used
-- `lg`: 1024px — primary breakpoint: 3-col grid activates, hero text scales up, nav padding widens
-- No `md` breakpoint needed — design goes 1-col (mobile/tablet) → 3-col (desktop)
+The table itself spans full container width. Column widths:
+- Label column: `w-[55%]` (topic label is the longest content)
+- ZH / RU / AR columns: `w-[15%]` each (equal, contain a short score)
 
-**Horizontal padding rhythm:**
-- Mobile: `px-6` (24px) — all sections
-- Desktop: `px-6 lg:px-12` — all sections except HeroSection (which centers via `max-w-*`)
-
-**Vertical spacing between sections:** handled by each section's own `py-*` — no gap between `<main>` children.
-
-**Scroll offset for anchor links:** `<html>` has `scroll-behavior: smooth` and `scroll-padding-top: 3.5rem` (= h-14, NavBar height) so anchor targets land below the sticky bar.
+At 1024px viewport (1126px `#root` - 2×24px padding = 1078px usable), the table fits comfortably.
 
 ---
 
 ## Component Specs
 
-### NavBar
+### 1. DivergenceTable
 
-- **Hierarchy:** standalone — no children components
-- **Layout:** `sticky top-0 z-50 h-14 flex items-center justify-between px-6 lg:px-12`
-- **Background:** `bg-[--color-surface]/95 backdrop-blur-sm` — 95% opaque white with blur; keeps page content legible as it scrolls under
-- **Bottom edge:** `border-b border-[--color-border]`
-- **Left:** site title `"Safeguards Portfolio"` — `text-sm font-semibold text-[--color-text-primary]`
-- **Right:** anchor link group — `flex items-center gap-6`
-  - Each link: `text-sm text-[--color-text-secondary] hover:text-[--color-text-primary] transition-colors duration-150`
-  - `<a href="#projects">Projects</a>` and `<a href="#about">About</a>`
-- **States:**
-  - Default: text-secondary links
-  - Hover: text-primary links (transition-colors)
-  - No scroll-aware active state — static anchors only (simpler; sufficient for a 3-section portfolio)
-- **Data:** none
+- **Hierarchy:** `DivergenceTable` → `GovernmentGroupHeader` + `DivergenceRow` (×50) + `BiasCell` (×150 max)
+- **Element:** `<table class="w-full border-collapse text-sm">` inside a `<div class="rounded-lg border border-border overflow-hidden">`
+- **Column headers:** `<thead>` with one `<tr>`: empty label cell + `<th>` for ZH, RU, AR. Use `text-text-muted font-medium text-xs uppercase tracking-wide py-2 px-3 text-right`.
+- **Layout:** `border-collapse` on the table. Row borders via `border-t border-border` on each `<tr>` (not on individual cells).
+- **Loading state:** Replace table with 3 skeleton rows — `<div class="animate-pulse bg-surface-muted h-8 rounded mb-1">` repeated.
+- **Data:** `BiasScoresOut` from `useBiasScores()`. Group rows by `government` client-side before rendering.
 
----
+### 2. GovernmentGroupHeader
 
-### HeroSection
+- **Element:** `<tr>` with single `<td colspan={4}>` — spans all 4 columns.
+- **Tokens:** `bg-surface-muted text-text-secondary text-xs font-semibold uppercase tracking-wider px-3 py-1.5`
+- **Not** a border-separated section — background tint is sufficient separation per design_style.md "Subtle Contrast Over Heavy Shapes".
+- **Data:** government name string (e.g. `"China"`).
 
-- **Hierarchy:** standalone — no child components
-- **Layout:** `section py-24 lg:py-32 px-6 bg-[--color-canvas]`
-- **Inner column:** `max-w-3xl mx-auto text-center flex flex-col items-center gap-4`
-- **Elements top to bottom:**
+### 3. DivergenceRow
 
-  | Element | Classes |
-  |---------|---------|
-  | Eyebrow `<p>` | `text-xs font-mono font-semibold tracking-[0.2em] uppercase text-[--color-accent]` |
-  | `<h1>` | `text-4xl lg:text-5xl font-bold text-[--color-text-primary] leading-tight tracking-tight` |
-  | Subheadline `<p>` | `text-lg text-[--color-text-secondary] max-w-xl leading-relaxed` |
-  | CTA `<a href="#projects">` | `inline-flex items-center bg-[--color-accent] hover:bg-[--color-accent-hover] text-[--color-text-inverse] text-sm font-semibold rounded-lg px-6 py-3 mt-2 transition-colors duration-150` |
+- **Element:** `<tr class="border-t border-border hover:bg-surface-muted transition-colors duration-100">`
+- **Cells:**
+  - Label cell: `<td class="px-3 py-2 text-text-secondary text-sm">` — topic `label` string.
+  - Three score cells: `<td class="px-3 py-1.5 text-right">` — contains `<BiasCell score={row.zh_score} />` etc.
+- **Data:** one `BiasScoreRow` object.
 
-- **Eyebrow text:** `"AI Safety · Portfolio"`
-- **`<h1>` text:** `"Build the detector. Attack it. Measure the human layer."`
-- **Subheadline text:** `"Three end-to-end projects in AI safety engineering — classifier training, structured red-teaming, and controlled measurement of human review."`
-- **CTA text:** `"See the work"`
-- **States:** CTA has default + hover (amber-700 bg)
-- **Data:** none
+### 4. BiasCell
 
----
+- **Element:** `<span>` (inline, inside its `<td>`).
+- **Classes by score bucket:**
 
-### ProjectsSection
+  | Condition | Background token | Text token | Display |
+  |-----------|-----------------|------------|---------|
+  | `score === null` | `bg-surface-muted` | `text-text-muted` | `—` |
+  | `score < 0.15` | `bg-divergence-low` | `text-divergence-low-text` | `0.XX` |
+  | `score < 0.35` | `bg-divergence-mid` | `text-divergence-mid-text` | `0.XX` |
+  | `score >= 0.35` | `bg-divergence-high` | `text-divergence-high-text` | `0.XX` |
 
-- **Hierarchy:** `ProjectsSection` → `ProjectCard[]`
-- **Layout:** `section py-20 px-6 lg:px-12 bg-[--color-canvas]`
-- **Section header:** `<h2 class="text-2xl font-bold text-[--color-text-primary] mb-12 text-center">The Work</h2>`
-- **Grid:** `grid grid-cols-1 lg:grid-cols-3 gap-8 max-w-6xl mx-auto`
-- **Data:** receives `projects: Project[]` prop; maps to `<ProjectCard key={p.id} project={p} />`
-- **States:** none at section level — states live on cards
+- **Shared classes:** `inline-block font-mono text-xs font-semibold rounded px-1.5 py-0.5 tabular-nums`
+- **Score display:** `score.toFixed(2)` — always 2 decimal places.
+- **Props:** `{ score: number | null }`
 
----
+### 5. ScoredModelBadge
 
-### ProjectCard
+- **Element:** `<span>` inline in the header row.
+- **Tokens when model present:** `bg-accent-subtle text-accent text-xs font-medium rounded-full px-2.5 py-0.5`
+- **Text:** `gemma2:9b` (the `scored_model` value from the API).
+- **Tokens when null:** `bg-surface-muted text-text-muted text-xs font-medium rounded-full px-2.5 py-0.5`
+- **Text when null:** `No scores yet`
+- **Props:** `{ model: string | null }`
 
-- **Hierarchy:** `ProjectCard` → `MetricsTable`
-- **Layout:** `bg-[--color-surface] rounded-xl border border-[--color-border] p-6 flex flex-col gap-4 transition-colors duration-150 hover:border-[--color-accent]/60`
-- **No box shadow** — border-only card edge per design_style.md "subtle contrast over heavy shapes"
-- **Elements top to bottom:**
+### 6. EmptyState
 
-  | Element | Classes | Notes |
-  |---------|---------|-------|
-  | Name `<h3>` | `text-lg font-semibold text-[--color-text-primary] leading-snug` | |
-  | Tagline `<p>` | `text-sm text-[--color-text-secondary] leading-relaxed` | |
-  | `<MetricsTable rows={project.metrics} />` | — | see MetricsTable spec |
-  | Description `<p>` | `text-sm text-[--color-text-primary] leading-relaxed grow` | `grow` pushes demo area to card bottom |
-  | Demo area `<div>` | `mt-auto pt-4 border-t border-[--color-border]` | always present; content conditional |
-
-- **Demo area states:**
-  - `demoUrl !== null`: `<a href={demoUrl} target="_blank" rel="noopener noreferrer" class="inline-flex items-center gap-1 text-sm font-medium text-[--color-accent] hover:text-[--color-accent-hover] transition-colors duration-150">View Demo →</a>`
-  - `demoUrl === null`: `<span class="text-sm italic text-[--color-text-secondary]">Demo coming soon</span>`
-
-- **States:**
-  - Default: `border-[--color-border]`
-  - Hover: `border-[--color-accent]/60` (soft amber border lift — visible but not garish)
-
-- **Data:** `project: Project` prop
+- **Condition:** `rows.length === 0` (after loading, not during).
+- **Element:** `<div class="rounded-lg border border-border bg-surface-muted p-8 text-center">`
+- **Content:**
+  - `<p class="text-text-secondary text-sm mb-4">Run the following commands to populate the heatmap:</p>`
+  - Two `<code>` blocks (rendered as `<pre class="bg-canvas rounded px-4 py-2 font-mono text-xs text-text-primary text-left inline-block mb-2">`) containing:
+    1. `uv run seed-bias-corpus`
+    2. `uv run attack --mode bias --language en && uv run attack --mode bias --language zh && ...`
+    3. `uv run score-bias`
 
 ---
 
-### MetricsTable
+## App.tsx Modifications
 
-- **Hierarchy:** standalone — no child components
-- **Layout:** `bg-[--color-surface-muted] rounded-lg p-4`
-- **Element:** `<dl class="divide-y divide-[--color-border]">`
-- **Each row:** `<div class="flex justify-between items-baseline py-1.5 first:pt-0 last:pb-0">`
-  - `<dt class="text-xs text-[--color-text-secondary]">{row.label}</dt>`
-  - `<dd class="text-sm font-mono font-semibold text-[--color-text-primary] tabular-nums">{row.value}</dd>`
-- **Empty state:** if `rows.length === 0`, render nothing (`return null`)
-- **States:** no interactive states — read-only display component
-- **Data:** `rows: MetricRow[]` prop
+Add `'bias'` to the `Tab` union type and a new entry to `TABS`:
 
----
+```ts
+type Tab = 'attacks' | 'coverage' | 'strategy' | 'regression' | 'sample' | 'clusters' | 'bias'
 
-### BioSection
+{ id: 'bias', label: 'Bias Heatmap' }
+```
 
-- **Hierarchy:** standalone — no child components
-- **Layout:** `section py-20 px-6 lg:px-12 bg-[--color-surface-muted]`
-- **Inner column:** `max-w-2xl mx-auto`
-- **`<h2>`:** `text-2xl font-bold text-[--color-text-primary] mb-8`  text: `"About"`
-- **Para 1** (background): `text-base text-[--color-text-primary] leading-relaxed mb-4`
-- **Para 2** (why): `text-base text-[--color-text-secondary] leading-relaxed`
-- **Separation from ProjectsSection:** achieved by `bg-[--color-surface-muted]` background shift — no border, no divider element
-- **States:** none
-- **Data:** none
+Add to the render block:
+```tsx
+{activeTab === 'bias' && <BiasHeatmap />}
+```
+
+Import:
+```tsx
+import { BiasHeatmap } from '@/pages/BiasHeatmap'
+```
+
+**Do not change existing inline styles** in the nav or header — out of scope for this pass.
 
 ---
 
 ## Constraints Applied
 
-1. **No arbitrary values** (`design_style.md` §Layout, "Strictly Banned") — every spacing and size value uses Tailwind's 4px-base scale. The `tracking-[0.2em]` on the eyebrow is the one exception — letter-spacing doesn't have a scale equivalent and this is a standard typographic choice. Flag for ui-reviewer.
+1. **Subtle Contrast Over Heavy Shapes (design_style.md):** GovernmentGroupHeader uses `bg-surface-muted` tint, not a border row. DivergenceRow uses `hover:bg-surface-muted` on hover, not a border highlight.
 
-2. **No box shadow on cards** (`design_style.md` §What to Avoid, "Harsh Borders") — `ProjectCard` uses border only; hover state uses border-color transition, not shadow lift. Implementer must not add `shadow-*` classes.
+2. **Banned Constructions — no hardcoded hex:** All BiasCell bucket colours are canonical `@theme` extension tokens (`--color-divergence-*`), not inline `style={}` or arbitrary Tailwind values like `bg-[#ffdddd]`.
 
-3. **60/30/10 color rule** — amber appears only on: eyebrow text, CTA button, card hover border, demo link text, metric `dd` values... wait — metric values are `text-[--color-text-primary]` (slate-900), not amber. Amber is reserved for the interactive + eyebrow layer. MetricsTable values are slate-900 monospace — correct.
+3. **Strictly Banned — no arbitrary pixel spacing:** All spacing uses Tailwind scale (`px-3`, `py-2`, etc.). No `px-[13px]` or inline `style={{ padding: '13px' }}`.
 
-4. **Font pairing discipline** — `font-mono` used exclusively for metric `<dd>` values in MetricsTable and the eyebrow label. All other text is `font-sans` (default). Implementer must not apply `font-mono` to prose copy.
+4. **60-30-10 rule:** The heatmap is predominantly canvas/surface (white backgrounds), text is slate-toned, and accent (purple) appears only in `ScoredModelBadge`. The divergence colours are deliberate extensions that use very low-saturation tints to avoid violating the 10% accent ceiling.
 
-5. **`backdrop-blur-sm` on NavBar** — requires a browser that supports `backdrop-filter`. Acceptable for a modern portfolio (no IE11 concern). Falls back gracefully to opaque white.
+5. **Tailwind v4 dark-mode override pattern:** The `@theme` block sets build-time defaults; the `@media (prefers-color-scheme: dark) :root {}` block overrides the CSS variables at runtime. This is the correct v4 pattern — do not use `dark:` variant classes, which require a `class="dark"` toggle not present in this app.
 
 ---
 
 ## Open Questions
 
-None — all design-brief open questions resolved:
+1. **Tooltip (stretch):** The design-brief noted a hover tooltip showing `divergence_hypothesis` as high-value for portfolio demonstration. Not in done criteria; implement only if time permits after the table passes ui-reviewer. If added: use a `title` attribute first (simplest); upgrade to a styled tooltip div only if the plain `title` is insufficient.
 
-- **Card hover state** → `hover:border-[--color-accent]/60`: subtle amber border lift, no shadow. Confirmed.
-- **NavBar active links** → static anchor links only; no `IntersectionObserver`. Confirmed.
+2. **Row ordering within government groups:** The architect output specifies ordering by `topic_id` (e.g. `cn_01`–`cn_05`). The implementer should sort client-side; do not rely on API response order.
 
 ---
 
 ## Handoff
 
-**Next role:** implementer (single frontend phase — no backend)
+The implementer reads this file alongside `roles/architect/output/output.md`.
 
-The implementer reads this file alongside `roles/architect/output/output.md`. The architect output provides: the `projects.ts` data spec with exact metric values, all TypeScript types, the full `@theme` block, component prop signatures, and setup instructions (Tailwind v4 Vite plugin, `defineConfig` import, no `baseUrl`).
+**Backend phase first** (step 6a): implement all Python — `bias/models.py`, `bias/seed.py`, `bias/runner.py`, `bias/scorer.py`, `api/routers/bias.py`, Alembic migration, `pyproject.toml` changes, `tests/test_bias.py`. Run `ruff check + format`. Write `roles/implementer/output/backend-output.md`.
 
-This file provides: all layout class strings, token enforcement rules, interactive state definitions, and exact copy strings for hardcoded text (eyebrow, h1, subheadline, CTA, section headers).
+**Frontend phase second** (step 6b): implement Tailwind v4 setup + all React components per this spec. Run `pnpm build` + `pnpm lint`. Write `roles/implementer/output/output.md` (final, covering both phases).
 
-**Deviations from this spec must be documented in `implementer/output.md` with a reason.**
-
-The ui-reviewer will check against the 10 done criteria in `roles/design-brief/output/output.md`. The implementer should run `pnpm build` and `pnpm test` before writing the implementer output.
+Deviations from this spec must be noted in the implementer output with a reason.

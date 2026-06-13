@@ -34,6 +34,7 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
 def create_app() -> FastAPI:
     from red_team_platform.api.routers import (
         attacks,
+        bias,
         clusters,
         coverage,
         regression,
@@ -62,6 +63,7 @@ def create_app() -> FastAPI:
     app.include_router(strategy.router)
     app.include_router(regression.router)
     app.include_router(clusters.router)
+    app.include_router(bias.router)
 
     @app.get("/health")
     async def health() -> dict[str, str]:

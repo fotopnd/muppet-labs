@@ -131,3 +131,17 @@ export type ClusterMembersOut = {
   cluster_id: number
   members: ClusterMember[]
 }
+
+export type BiasScoreRow = {
+  topic_id: string
+  government: string
+  label: string
+  zh_score: number | null
+  ru_score: number | null
+  ar_score: number | null
+}
+
+export type BiasScoresOut = {
+  rows: BiasScoreRow[]
+  scored_model: string | null
+}

@@ -107,6 +107,55 @@ When shifting color palettes, the agent must translate the color roles strictly 
 
 ---
 
+## Canonical Token Specification
+
+All new and updated frontend projects use Tailwind v4 (`@tailwindcss/vite`) with an `@theme {}` block in `src/index.css`. Token names below are **canonical** — use them exactly. No project should invent alternatives.
+
+### Required tokens
+
+| Token | Semantic role | Tailwind utility |
+|-------|--------------|-----------------|
+| `--color-canvas` | Page / viewport background | `bg-canvas` |
+| `--color-surface` | Card, panel, modal background | `bg-surface` |
+| `--color-surface-muted` | Inset sections, metrics tables, code blocks | `bg-surface-muted` |
+| `--color-border` | Dividers, input borders, table lines | `border-border` |
+| `--color-text-primary` | Headings, labels, high-priority copy | `text-text-primary` |
+| `--color-text-secondary` | Body text, descriptions | `text-text-secondary` |
+| `--color-text-muted` | Timestamps, hints, tertiary metadata | `text-text-muted` |
+| `--color-text-inverse` | Text rendered on accent-coloured backgrounds | `text-text-inverse` |
+| `--color-accent` | Primary interactive colour — buttons, active nav, focus rings | `text-accent`, `bg-accent`, `border-accent` |
+| `--color-accent-hover` | Hover variant of accent | `hover:text-accent-hover` |
+| `--color-accent-subtle` | Accent background tints — row highlights, pill backgrounds | `bg-accent-subtle` |
+| `--color-success` | Positive state badges, pass indicators | `text-success`, `bg-success` |
+| `--color-warning` | Cautionary / degraded states | `text-warning` |
+| `--color-danger` | Error, destructive, fail states | `text-danger` |
+| `--font-sans` | All interface and body text | `font-sans` |
+| `--font-mono` | Metrics, IDs, code, CLI snippets | `font-mono` |
+
+**Values:** Use OKLCH for all colour tokens (resilient to P3/sRGB display differences and easy to adjust lightness without hue shift). Anchor to the 60-30-10 rule: canvas+surface = 60%, text+borders = 30%, accent family = 10%.
+
+**Accent hue is per-project** — portfolio-site uses amber, error-hide-seek uses blue, red-team-platform uses purple. The token names are the same; only the OKLCH values differ.
+
+### Alignment status of existing projects
+
+| Project | Status | Non-canonical names in use |
+|---------|--------|-----------------------------|
+| portfolio-site | ✓ Canonical | — |
+| error-hide-seek | Partial — rename needed | `--color-background` → `--color-canvas`; `--color-text-intense` → `--color-text-primary`; `--color-text-default` → `--color-text-secondary`; `--font-interface` → `--font-sans`; `--font-data` → `--font-mono` |
+| red-team-platform | Pre-Tailwind — raw CSS vars | `--bg`, `--text`, `--text-h`, `--border`, `--accent`, `--mono`. Existing tabs keep these; new components (BiasHeatmap and later) use canonical `@theme` tokens added alongside existing CSS. |
+
+### Feature-specific extension tokens
+
+Projects may add semantic extension tokens for domain-specific states. Extension tokens must follow the `--color-[domain]-[role]` pattern and be defined in the `@theme` block. Example for bias divergence heatmap cells:
+
+```css
+--color-divergence-low:  /* 0.00–0.14 cosine distance */
+--color-divergence-mid:  /* 0.15–0.34 */
+--color-divergence-high: /* 0.35+     */
+```
+
+---
+
 ## What to Avoid
 
 - **The "Trendy" Landing-Page Trap:** Avoid overly large typography, chaotic asymmetrical overlapping layers, or aggressive floating elements that disrupt the functional content flow.

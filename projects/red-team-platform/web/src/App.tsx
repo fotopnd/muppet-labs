@@ -6,10 +6,11 @@ import { StrategyComparison } from '@/pages/StrategyComparison'
 import { RegressionTracker } from '@/pages/RegressionTracker'
 import { SampleReview } from '@/pages/SampleReview'
 import { FailureClusters } from '@/pages/FailureClusters'
+import { BiasHeatmap } from '@/pages/BiasHeatmap'
 
 const queryClient = new QueryClient()
 
-type Tab = 'attacks' | 'coverage' | 'strategy' | 'regression' | 'sample' | 'clusters'
+type Tab = 'attacks' | 'coverage' | 'strategy' | 'regression' | 'sample' | 'clusters' | 'bias'
 
 const TABS: { id: Tab; label: string }[] = [
   { id: 'attacks', label: 'Attack Browser' },
@@ -18,6 +19,7 @@ const TABS: { id: Tab; label: string }[] = [
   { id: 'regression', label: 'Regression Tracker' },
   { id: 'sample', label: 'Sample Review' },
   { id: 'clusters', label: 'Failure Clusters' },
+  { id: 'bias', label: 'Bias Heatmap' },
 ]
 
 function Dashboard() {
@@ -56,6 +58,7 @@ function Dashboard() {
         {activeTab === 'regression' && <RegressionTracker />}
         {activeTab === 'sample' && <SampleReview />}
         {activeTab === 'clusters' && <FailureClusters />}
+        {activeTab === 'bias' && <BiasHeatmap />}
       </main>
     </div>
   )

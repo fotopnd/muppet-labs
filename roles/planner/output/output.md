@@ -1,31 +1,30 @@
-# Planner Output — portfolio-site
+# Planner Output — language-bias-probes
 
 **Role:** planner  
 **Sequence:** new-project-full  
-**Step:** 2 of 9  
-**Date:** 2026-06-12
+**Date:** 2026-06-13  
+**Step:** 2 of 9
 
 ---
 
 ## Project
 
-**portfolio-site** — A static single-page marketing site presenting the Anthropic Safeguards portfolio as a three-project argument (Build → Attack → Measure), with key metrics, project cards, and links to deployed live demos.
+**Name:** language-bias-probes  
+**Description:** Extends red-team-platform in-place with a cross-lingual bias probe pipeline — running the same safety-relevant prompts in EN, ZH, RU, and AR against a local Ollama model, scoring semantic divergence between languages using all-MiniLM-L6-v2 cosine similarity, and rendering results in a new BiasHeatmap dashboard tab.
 
 ---
 
 ## Requirements
 
-1. The page renders a hero section with a headline framing the "Build → Attack → Measure" narrative and a single CTA anchor-scrolling to the projects section.
-2. Three `ProjectCard` components render in a responsive grid: 3-column on desktop (≥1024px), 1-column on mobile.
-3. Each `ProjectCard` displays: project name, one-sentence description, a `MetricsTable` with hardcoded key metrics, and a demo link that renders as "Demo coming soon" when no URL is provided.
-4. `MetricsTable` accepts a typed `rows` prop and renders metric name + value pairs; it does not fetch data.
-5. A `BioSection` renders a brief professional bio situating the portfolio work relative to Anthropic Safeguards roles (SWE + DE).
-6. A sticky minimal `NavBar` provides anchor links to `#projects` and `#about`.
-7. All metric values are hardcoded in `src/data/projects.ts` — no API calls at runtime.
-8. `pnpm build` produces a `dist/` folder with zero TypeScript errors and zero ESLint errors.
-9. The site is fully responsive: no horizontal overflow at any viewport width; tested at 375px and 1440px.
-10. No external analytics, tracking scripts, web fonts with third-party requests, or API calls are included.
-11. `vitest` runs cleanly; at minimum `ProjectCard` and `MetricsTable` have component tests.
+1. `uv run seed-bias-corpus` loads the 50-entry corpus from `src/red_team_platform/bias/data/bias-corpus.json` into a new `bias_probes` table, and loads all non-null per-language prompt variants into a `bias_prompt_variants` table (`probe_id`, `language`, `prompt_text`). If a language field is null (ZH/RU/AR not yet authored), the row is skipped with a warning, not an error.
+2. `uv run attack --mode bias --language zh` (and `ru`, `ar`, `en`) executes all `bias_prompt_variants` rows for that language against the configured Ollama model, stores one `bias_responses` row per variant execution (`variant_id`, `response_text`, `model_name`, `latency_ms`), and does not re-run variants that already have a response for that model.
+3. `uv run score-bias` computes cosine similarity between the EN response and each non-EN response for the same `probe_id`, stores one `bias_divergence_scores` row per `(probe_id, language_pair, run_id)`, and prints a summary table to stdout.
+4. `uv run score-bias --write-report` writes `benchmarks/bias-results.md` with a government × language divergence table and the top-5 highest-divergence (probe, language) pairs.
+5. `GET /bias/scores` returns a JSON array of `{ topic_id, government, label, zh_score, ru_score, ar_score }` rows, with `null` for any language where scoring has not yet run.
+6. A `BiasHeatmap` page at route `/bias` in the existing React dashboard renders a government × language divergence grid using score data from `GET /bias/scores`. Each cell is colour-coded by divergence magnitude (0.0–1.0 cosine distance); cells with no data render as grey.
+7. All existing red-team tests continue to pass after the migration and new module are added.
+8. New bias scorer has ≥ 5 unit/integration tests covering: loading corpus JSON, cosine similarity computation, null-variant skipping in seed, idempotent re-run (no duplicate responses inserted), and the `/bias/scores` aggregation endpoint with seeded data.
+9. `uv run ruff check .` and `ruff format --check` pass with zero errors on all new Python files.
 
 ---
 
@@ -33,101 +32,113 @@
 
 | Concern | Choice | Reason |
 |---------|--------|--------|
-| Language | TypeScript 5.x | Strict mode; consistent with all existing projects |
-| UI library | React 19 | Functional components, hooks; no SSR needed |
-| Bundler | Vite 6 | Fast dev server; `pnpm build` → `dist/` static output |
-| Styling | Tailwind v4 | CSS-first `@theme` block; consistent with red-team-platform and error-hide-seek |
-| Package manager | pnpm | Workspace standard |
-| Formatter | prettier | Single config, enforced via script |
-| Linter | eslint (flat config, `eslint.config.ts`) | typescript-eslint + react-hooks plugin |
-| Testing | vitest + @testing-library/react | Colocated component tests; jsdom environment |
-| Router | none | Single-page with anchor scroll; no route segments needed |
-| Data fetching | none | All content is hardcoded static data |
+| Language (backend) | Python 3.12 | Existing project constraint |
+| Language (frontend) | TypeScript | Existing web/ stack |
+| Package manager (backend) | uv | Existing project constraint |
+| Package manager (frontend) | pnpm | Existing web/ stack |
+| Formatter / linter | ruff | Existing project constraint |
+| DB migrations | Alembic | Already configured; new migration `003_add_bias_tables` |
+| Sentence embeddings | sentence-transformers (all-MiniLM-L6-v2) | Brief requirement; CPU-only; auto-downloads on first use via HuggingFace cache |
+| Ollama client | Existing `red_team_platform.runner.ollama_client` | Reuse; no new HTTP client |
+| Frontend state | TanStack Query | Already in web/ |
+| Testing | pytest + pytest-asyncio | Existing constraint |
+
+**New Python dependency:** `sentence-transformers>=3.0`
 
 ---
 
 ## File and Module Structure
 
+### New Python module
+
 ```
-projects/portfolio-site/
-├── index.html                    Vite entry point; sets page title and meta description
-├── package.json                  Scripts: dev, build, preview, lint, test
-├── pnpm-lock.yaml
-├── vite.config.ts                Path alias @/ → src/; vitest config
-├── tsconfig.json                 References app + node
-├── tsconfig.app.json             Strict TS; moduleResolution bundler; @/* paths; no baseUrl
-├── tsconfig.node.json            For vite.config.ts
-├── eslint.config.ts              Flat config; typescript-eslint + react-hooks
-├── .prettierrc                   semi:false, singleQuote:true, trailingComma:all, printWidth:100
-├── .gitignore
-└── src/
-    ├── main.tsx                  React root; mounts App into #root
-    ├── App.tsx                   Top-level layout: NavBar + main sections
-    ├── index.css                 Tailwind v4 @import + @theme token block
-    ├── data/
-    │   └── projects.ts           Hardcoded project records (name, description, metrics, demoUrl)
-    ├── components/
-    │   ├── NavBar.tsx            Sticky minimal nav; anchor links to #projects and #about
-    │   ├── HeroSection.tsx       Build → Attack → Measure headline; CTA button
-    │   ├── ProjectCard.tsx       Card wrapper; renders name, description, MetricsTable, demo link
-    │   ├── MetricsTable.tsx      Accepts MetricRow[]; renders name/value pairs in tabular style
-    │   └── BioSection.tsx        Professional bio paragraph; situates work re: Anthropic Safeguards
-    └── test/
-        ├── setup.ts              @testing-library/jest-dom import
-        ├── ProjectCard.test.tsx  Renders name, description, metric values, demo link behavior
-        └── MetricsTable.test.tsx Renders all rows; handles empty rows prop
+src/red_team_platform/bias/
+├── __init__.py
+├── models.py          ← SQLAlchemy ORM: BiasProbe, BiasPromptVariant, BiasResponse, BiasDivergenceScore
+├── seed.py            ← seed-bias-corpus CLI entry point
+├── runner.py          ← attack --mode bias extension (new subcommand on existing attack CLI)
+├── scorer.py          ← cosine similarity scoring; --write-report output
+└── data/
+    └── bias-corpus.json  ← 50-entry corpus JSON (already placed 2026-06-13)
+```
+
+### New API router
+
+```
+src/red_team_platform/api/routers/
+└── bias.py            ← GET /bias/scores
+```
+
+### New Alembic migration
+
+```
+alembic/versions/
+└── 003_add_bias_tables.py
+```
+
+### New frontend files
+
+```
+web/src/
+├── pages/
+│   └── BiasHeatmap.tsx     ← /bias route; government × language grid
+├── components/
+│   └── BiasCell.tsx        ← single heatmap cell with score + colour coding
+└── api/
+    └── bias.ts             ← useBiasScores hook; GET /bias/scores
+```
+
+### Modified files
+
+```
+src/red_team_platform/api/main.py   ← register bias router at /bias prefix
+web/src/App.tsx                     ← add /bias route + NavLink "Bias Heatmap"
+pyproject.toml                      ← add seed-bias-corpus, score-bias entry points; add sentence-transformers dep
+benchmarks/bias-results.md          ← created by score-bias --write-report (does not exist yet)
+```
+
+### Test files
+
+```
+tests/
+└── test_bias.py    ← ≥5 unit/integration tests (see requirement 8)
 ```
 
 ---
 
-## Key Data Shape (for architect)
+## Pre-condition: Corpus Authoring
 
-`src/data/projects.ts` exports an array of project records. The architect should define the exact types, but the shape is:
+The corpus JSON at `src/red_team_platform/bias/data/bias-corpus.json` currently has 50 entries with `probe_question_en` populated. The `probe_question_zh`, `probe_question_ru`, and `probe_question_ar` fields do not yet exist in the JSON.
 
-```ts
-type MetricRow = { label: string; value: string }
+**Human task (before seed can run end-to-end):** Add ZH, RU, and AR prompt fields to each entry. Use Claude to generate variants in one batch per language, then spot-check for meaning drift. The seed script handles null fields gracefully (skips with a warning), so a partial corpus is safe — EN-only probes can be run while ZH/RU/AR are still being authored.
 
-type Project = {
-  id: string
-  name: string
-  tagline: string
-  description: string
-  metrics: MetricRow[]
-  demoUrl: string | null   // null → render "Demo coming soon"
-}
-```
-
-The three records are:
-- **LLM Safety Monitor** — metrics: Prompt F1 (0.818), Taxonomy macro-F1 (0.787), Pair F1 (0.549)
-- **Red-Team Platform** — metrics: Attacks generated (1,797), Strategies covered (10), Avg ASR gap (architect to confirm format from SUMMARY.md)
-- **Error Hide and Seek** — metrics: Uplift (Human+AI vs Human-only), n=110; architect to confirm exact metric labels from SUMMARY.md
+The architect should lock the corpus JSON schema (Q6 below) — this determines the exact field names the human needs to add.
 
 ---
 
 ## Open Questions for Architect
 
-1. **Metrics exact values for Red-Team Platform and Error Hide and Seek** — the brief specifies "ASR split" and "uplift result" but doesn't give numeric values. Architect should read `projects/red-team-platform/SUMMARY.md` and `projects/error-hide-seek/SUMMARY.md` to extract the headline numbers before writing `projects.ts` data.  
-   *Proposed answer:* Architect reads SUMMARY.md files and populates exact MetricRow labels and values in the type definition.
+**Q1 — DB schema: single table with language columns vs normalised variant table?**  
+Proposed answer: Normalised. `bias_probes` (50 rows, one per topic_id). `bias_prompt_variants` (up to 200 rows, one per probe × language). This keeps `bias_responses` clean: one FK to `variant_id`, not a composite (probe_id + language). Partial corpus state (null variants never inserted) is cleanly handled.
 
-2. **Color accent** — neutral slate-only vs. a 10% accent hue.  
-   *Proposed answer:* Use amber-600 as primary accent (CTA button, active nav link, metric value text) — Anthropic-adjacent, readable on white at WCAG AA. 60% slate/white canvas, 30% slate structure, 10% amber-600 accent.
+**Q2 — Should `bias_responses` reuse the existing `runs` table?**  
+Proposed answer: No. `runs` has a non-nullable FK to `attacks.id`. Bias responses reference `bias_prompt_variants.id`. Nullable FKs for one-or-the-other would pollute existing runs queries. New table is the clean boundary.
 
-3. **Hero CTA behavior** — external link to GitHub/demo vs. anchor scroll to #projects.  
-   *Proposed answer:* Anchor scroll to `#projects` — no external URL assumed at build time; avoids broken links.
+**Q3 — How does `attack --mode bias` integrate with the existing Typer CLI?**  
+Proposed answer: Add `--mode` option (default `normal`) and `--language` option to the existing `attack` Typer app in `runner/attack.py`. When `--mode bias`, the runner reads from `bias_prompt_variants` filtered by language. Existing attack path unchanged. The `--language` flag is only valid and required in bias mode (Typer callback validates).
 
-4. **Font loading** — self-hosted font vs. system font stack.  
-   *Proposed answer:* System font stack for body (SF Pro / Inter / Segoe UI sans-serif); system monospace (SF Mono / JetBrains Mono) for metric values in MetricsTable. No external font requests.
+**Q4 — BiasHeatmap: new route `/bias` or embedded tab in an existing page?**  
+Proposed answer: New route `/bias` with a NavLink. The existing tabs (Attack Browser, Coverage, Strategy Comparison, etc.) are separate React Router routes. A new route is consistent and avoids overloading an existing page's query param space.
 
-5. **Project grid layout on tablet (768–1023px)** — 2-column or 1-column?  
-   *Proposed answer:* 1-column at <1024px, 3-column at ≥1024px. Tablet gets same readable single-column layout as mobile. Three equal-width cards at ≥1024px.
+**Q5 — Sentence embedding model initialisation: lazy singleton or explicit init step?**  
+Proposed answer: Lazy singleton in `scorer.py` — initialise `SentenceTransformer("all-MiniLM-L6-v2")` on first call to `compute_scores()`, cached at module level. Consistent with how `taxonomy_classifier.py` handles its HuggingFace model.
+
+**Q6 — Corpus JSON schema: add language fields inline vs separate variant files?**  
+Proposed answer: Add `probe_question_zh`, `probe_question_ru`, `probe_question_ar` fields directly to each entry in `bias-corpus.json`. Nullable strings. Keeps the corpus self-contained in one file. Seed script reads one file, no joins needed at import time.
 
 ---
 
 ## Handoff
 
-**Next role:** architect  
-The architect reads this file to design component interfaces (prop types), the `projects.ts` data structure (with exact metric values from SUMMARY.md files), the Tailwind `@theme` token block, and the layout grid strategy. Open questions above each have a proposed answer — architect confirms or overrides.
-
-The architect should also read `resources/design_style.md` (Marketing/Landing Page context) to apply the correct visual register: wide-column centered container, high-contrast typographic hero, 3-column asymmetric features list, 60/30/10 color rule with amber-600 accent.
-
-After architect: `design-brief` + `frontend-architect` sequence applies (project has a frontend).
+Next role: architect  
+The architect reads this file and designs: (1) the four new SQLAlchemy ORM models with columns and indices; (2) the Alembic migration `003_add_bias_tables`; (3) the full `attack --mode bias` CLI flow including idempotency check; (4) the scorer's embedding pipeline, cosine distance computation, and report format; (5) the `/bias/scores` API schema and SQL aggregation; (6) the BiasHeatmap component data contract and cell colour scale. Confirm or override the six proposed answers above. Lock Q6 first — it determines what the human needs to author into the corpus JSON.

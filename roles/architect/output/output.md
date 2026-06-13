@@ -1,270 +1,429 @@
-# Architect Output — portfolio-site
+# Architect Output — language-bias-probes
 
 **Role:** architect  
 **Sequence:** new-project-full  
-**Step:** 3 of 9  
-**Date:** 2026-06-12
+**Date:** 2026-06-13  
+**Step:** 3 of 9
 
 ---
 
 ## System Overview
 
-`portfolio-site` is a fully static React 19 + Vite 6 + Tailwind v4 single-page application. It has no runtime API calls, no router, and no server-side logic. The entire site is one scroll page composed of four sections: `NavBar` (sticky header with anchor links), `HeroSection` (headline + CTA), `ProjectsSection` (3-column grid of `ProjectCard`), and `BioSection` (professional context paragraph). All content — project names, descriptions, metric values, and demo URLs — is defined in a single `src/data/projects.ts` module and passed down as props. The `dist/` output is served directly by nginx with no Node.js process.
+language-bias-probes extends red-team-platform in-place with four new concerns: (1) a seeder that loads a hand-authored multilingual corpus into new DB tables; (2) a bias attack runner that fires each language variant at Ollama and stores responses; (3) a scorer that computes cosine distance between language pairs using a sentence embedding model; (4) a FastAPI endpoint and React route that render results as a government × language divergence heatmap. All four concerns live in a new `red_team_platform/bias/` module. The existing `runner/attack.py` gains `--mode` and `--language` flags that dispatch to the new runner when `--mode bias` is given. Nothing in the existing modules is restructured — only `api/main.py`, `runner/attack.py`, and `pyproject.toml` are modified.
 
 ---
 
-## Open Questions Resolved
+## Planner Open Questions — Resolved
 
-| # | Question | Decision |
-|---|----------|----------|
-| 1 | Metric values for Red-Team Platform and Error Hide and Seek | Resolved below from SUMMARY.md files |
-| 2 | Color accent | amber-600 as primary accent (10% rule); slate-900/50 for text; white/slate-50 surfaces |
-| 3 | Hero CTA behavior | Anchor scroll to `#projects` |
-| 4 | Font loading | System font stack only — no external font requests |
-| 5 | Tablet grid (768–1023px) | 1-column below 1024px, 3-column at ≥1024px |
+| Q | Decision |
+|---|----------|
+| Q1 — DB schema | Normalised: `bias_probes` + `bias_prompt_variants` + `bias_responses` + `bias_divergence_scores`. Variant-level FK keeps `bias_responses` clean. |
+| Q2 — Reuse `runs` table | No. `runs` has a non-nullable FK to `attacks.id`. New table, clean boundary. |
+| Q3 — CLI integration | Add `--mode` / `--language` options to the existing Typer command in `runner/attack.py`. Dispatch to `bias.runner.run_bias_session()` when `--mode bias`. |
+| Q4 — BiasHeatmap placement | New route `/bias` + NavLink in existing top nav. |
+| Q5 — Embedder init | Lazy module-level singleton in `bias/scorer.py`. Consistent with `runner/taxonomy_classifier.py`. |
+| Q6 — Corpus JSON schema | Add `probe_question_zh`, `probe_question_ru`, `probe_question_ar` nullable string fields to each entry in `bias-corpus.json`. Seed script skips null. |
+
+---
+
+## Corpus JSON Schema
+
+`bias-corpus.json` entries must have this shape (update all 50 entries before seed can run end-to-end):
+
+```json
+{
+  "topic_id": "cn_01",
+  "government": "China",
+  "label": "Xinjiang Vocational Education Training Centers",
+  "probe_question_en": "What was the purpose...",
+  "probe_question_zh": null,
+  "probe_question_ru": null,
+  "probe_question_ar": null,
+  "divergence_hypothesis": "The ZH model will likely frame..."
+}
+```
+
+The seed script validates that `topic_id` matches `^[a-z]{2}_\d{2}$` and that `probe_question_en` is non-empty. Other language fields may be null.
 
 ---
 
 ## Data Models
 
-### `src/data/projects.ts`
+### `bias/models.py` — SQLAlchemy ORM
 
-```ts
-export type MetricRow = {
-  label: string   // e.g. "Prompt F1"
-  value: string   // e.g. "0.818"
-}
+Uses `Base` imported from `red_team_platform.models` (same metadata as existing tables).
 
-export type Project = {
-  id: string           // slug, used as React key and aria-labelledby anchor
-  name: string         // display name
-  tagline: string      // one-sentence summary shown below the name
-  description: string  // two-to-three sentence narrative paragraph in card body
-  metrics: MetricRow[] // 3–4 rows; rendered by MetricsTable
-  demoUrl: string | null  // null → render "Demo coming soon" (disabled link)
-  githubUrl: string | null
-}
+```python
+class BiasProbe(Base):
+    __tablename__ = "bias_probes"
 
-export const PROJECTS: Project[] = [
-  {
-    id: 'llm-safety-monitor',
-    name: 'LLM Safety Monitor',
-    tagline: 'Fine-tuned classifiers that score production traffic for harmfulness, prompt injection, and taxonomy category in real time.',
-    description:
-      'Three RoBERTa-base classifiers trained on HH-RLHF and WildGuard data — one for pair-level harmfulness, one for prompt injection, one for 13-category harm taxonomy. The monitor streams live events through a Kafka pipeline and exposes a FastAPI metrics endpoint consumed by the moderation dashboard.',
-    metrics: [
-      { label: 'Prompt classifier F1', value: '0.818' },
-      { label: 'Taxonomy macro-F1', value: '0.787' },
-      { label: 'Pair classifier F1', value: '0.549' },
-      { label: 'Training set', value: '50k pairs (HH-RLHF)' },
-    ],
-    demoUrl: null,
-    githubUrl: null,
-  },
-  {
-    id: 'red-team-platform',
-    name: 'Red-Team Platform',
-    tagline: 'Corpus-driven jailbreak campaigns with classifier scoring, semantic clustering, and live safety monitor integration.',
-    description:
-      'Runs structured attack campaigns against an Ollama-compatible model, scores every response with the shared safety classifier, clusters successful attacks by mechanism, and publishes all 1,797 events to the live monitor via Kafka outbox. A React dashboard surfaces attack-success-rate splits by strategy, semantic cluster breakdowns, and regression tracking across runs.',
-    metrics: [
-      { label: 'Attacks (Phase 1)', value: '1,797' },
-      { label: 'Strategies tested', value: '6' },
-      { label: 'Top ASR (few_shot_json)', value: '100%' },
-      { label: 'Fully-resisted strategies', value: '3 of 6' },
-    ],
-    demoUrl: null,
-    githubUrl: null,
-  },
-  {
-    id: 'error-hide-seek',
-    name: 'Error Hide and Seek',
-    tagline: 'A randomised controlled trial measuring whether AI hints improve human detection of planted errors in academic abstracts.',
-    description:
-      'Two experiments across 100 papers and 67 human review sessions compared unaided detection against human+agent detection. Overall TPR uplift was −0.01 (null result). Category-level decomposition found +0.33 uplift for inverted-conclusion errors — the one category where Claude can reason without ground-truth access — and zero or negative uplift for domain-dependent categories.',
-    metrics: [
-      { label: 'Human+Agent TPR', value: '0.29' },
-      { label: 'Unaided TPR', value: '0.30' },
-      { label: 'Overall uplift', value: '−0.01' },
-      { label: 'Inverted-conclusion uplift', value: '+0.33' },
-    ],
-    demoUrl: null,
-    githubUrl: null,
-  },
-]
+    id:                  UUID PK default uuid4
+    topic_id:            String(20) NOT NULL
+    government:          String(100) NOT NULL
+    label:               String(200) NOT NULL
+    probe_question_en:   Text NOT NULL
+    divergence_hypothesis: Text NOT NULL
+    created_at:          DateTime(timezone=True) default now()
+
+    variants: list[BiasPromptVariant]  # relationship
+
+    __table_args__: UniqueIndex("uix_bias_probes_topic_id", "topic_id")
+
+
+class BiasPromptVariant(Base):
+    __tablename__ = "bias_prompt_variants"
+
+    id:          UUID PK default uuid4
+    probe_id:    UUID FK(bias_probes.id) NOT NULL
+    language:    String(5) NOT NULL   # "en" | "zh" | "ru" | "ar"
+    prompt_text: Text NOT NULL
+    created_at:  DateTime(timezone=True) default now()
+
+    probe:     BiasProbe                # relationship back_populates
+    responses: list[BiasResponse]       # relationship
+
+    __table_args__: UniqueIndex("uix_bias_prompt_variants_probe_language", "probe_id", "language")
+
+
+class BiasResponse(Base):
+    __tablename__ = "bias_responses"
+
+    id:            UUID PK default uuid4
+    variant_id:    UUID FK(bias_prompt_variants.id) NOT NULL
+    model_name:    String(200) NOT NULL
+    response_text: Text NOT NULL
+    latency_ms:    Integer NOT NULL
+    created_at:    DateTime(timezone=True) default now()
+
+    variant: BiasPromptVariant          # relationship back_populates
+
+    __table_args__: UniqueIndex("uix_bias_responses_variant_model", "variant_id", "model_name")
+    # Idempotency: do not re-run the same (variant, model) pair.
+
+
+class BiasDivergenceScore(Base):
+    __tablename__ = "bias_divergence_scores"
+
+    id:               UUID PK default uuid4
+    probe_id:         UUID FK(bias_probes.id) NOT NULL
+    language:         String(5) NOT NULL        # "zh" | "ru" | "ar" (never "en")
+    en_response_id:   UUID FK(bias_responses.id) NOT NULL
+    other_response_id: UUID FK(bias_responses.id) NOT NULL
+    model_name:       String(200) NOT NULL
+    cosine_distance:  Float NOT NULL            # 1 - cosine_similarity, range [0.0, 1.0]
+    created_at:       DateTime(timezone=True) default now()
+
+    __table_args__: UniqueIndex("uix_bias_div_scores_probe_lang_model", "probe_id", "language", "model_name")
+    # On conflict: update cosine_distance (re-scoring is allowed).
 ```
 
----
+### Pydantic schemas — `api/schemas.py` additions
 
-## Tailwind v4 Token Block (`src/index.css`)
+```python
+class BiasScoreRow(BaseModel):
+    topic_id:   str
+    government: str
+    label:      str
+    zh_score:   float | None
+    ru_score:   float | None
+    ar_score:   float | None
 
-```css
-@import "tailwindcss";
-
-@theme {
-  /* Typography */
-  --font-sans: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-  --font-mono: ui-monospace, "SF Mono", "JetBrains Mono", "Fira Code", Consolas, monospace;
-
-  /* Color roles — 60/30/10 rule */
-  /* 60% canvas */
-  --color-canvas: oklch(98.5% 0 0);        /* ~slate-50 */
-  --color-surface: oklch(100% 0 0);        /* white */
-  --color-surface-muted: oklch(96.1% 0 0); /* ~slate-100 */
-
-  /* 30% structure */
-  --color-border: oklch(91.8% 0 0);        /* ~slate-200 */
-  --color-text-primary: oklch(15.1% 0 0);  /* ~slate-900 */
-  --color-text-secondary: oklch(44.6% 0 0);/* ~slate-500 */
-  --color-text-inverse: oklch(98.5% 0 0);  /* ~slate-50 */
-
-  /* 10% accent — amber-600 */
-  --color-accent: oklch(66.6% 0.179 60.4);       /* amber-600 */
-  --color-accent-hover: oklch(60.6% 0.179 60.4); /* amber-700 */
-  --color-accent-subtle: oklch(96.9% 0.021 60.4);/* amber-50 */
-}
+class BiasScoresOut(BaseModel):
+    rows: list[BiasScoreRow]
+    scored_model: str | None   # model_name of most recent scoring run, or None
 ```
 
 ---
 
 ## Module Interfaces
 
-### `src/data/projects.ts`
-```ts
-export type MetricRow = { label: string; value: string }
-export type Project = { id, name, tagline, description, metrics, demoUrl, githubUrl }
-export const PROJECTS: Project[]
+### `bias/seed.py`
+
+```python
+class BiasCorpusEntry(BaseModel):
+    topic_id: str
+    government: str
+    label: str
+    probe_question_en: str
+    probe_question_zh: str | None
+    probe_question_ru: str | None
+    probe_question_ar: str | None
+    divergence_hypothesis: str
+
+def load_corpus(path: Path) -> list[BiasCorpusEntry]:
+    """Reads bias-corpus.json, validates each entry, returns list."""
+
+async def seed_bias_corpus(
+    session: AsyncSession,
+    entries: list[BiasCorpusEntry],
+) -> tuple[int, int, int]:
+    """
+    Upserts BiasProbe rows, then upserts BiasPromptVariant rows for non-null language fields.
+    Returns (probes_upserted, variants_upserted, variants_skipped_null).
+    """
+
+def main() -> None:
+    """CLI entry point for seed-bias-corpus."""
 ```
-No imports. Pure data. Consumed by `App.tsx` and `ProjectsSection`.
+
+Entry point: `seed-bias-corpus = "red_team_platform.bias.seed:main"`
+
+### `bias/runner.py`
+
+```python
+async def run_bias_session(
+    session: AsyncSession,
+    language: str,
+    ollama_base_url: str,
+    ollama_model: str,
+    ollama_timeout_s: int,
+) -> int:
+    """
+    Queries bias_prompt_variants WHERE language = language.
+    For each variant, skips if a BiasResponse already exists for (variant_id, model_name).
+    Otherwise fires ollama_client.chat(), writes BiasResponse row.
+    Returns count of new responses written.
+    """
+```
+
+No new CLI entry point. Called from modified `runner/attack.py`.
+
+### `bias/scorer.py`
+
+```python
+_embedder: SentenceTransformer | None = None   # module-level singleton
+
+def get_embedder() -> SentenceTransformer:
+    """Initialises all-MiniLM-L6-v2 on first call, returns cached instance."""
+
+def compute_cosine_distance(text_a: str, text_b: str) -> float:
+    """
+    Embeds both strings, returns 1 - cosine_similarity.
+    Result is clamped to [0.0, 1.0].
+    """
+
+async def score_all(
+    session: AsyncSession,
+    model_name: str,
+) -> list[tuple[str, str, float]]:
+    """
+    For each BiasProbe:
+      - Fetches the EN BiasResponse for model_name.
+      - For each non-EN language with a BiasResponse for model_name:
+          computes cosine_distance(en_response_text, other_response_text)
+          upserts BiasDivergenceScore row.
+    Returns list of (topic_id, language, cosine_distance) for logging/report.
+    Skips probes where EN response or non-EN response is missing.
+    """
+
+def write_report(
+    scores: list[tuple[str, str, float]],
+    probes_by_topic_id: dict[str, BiasProbe],
+    path: Path,
+) -> None:
+    """
+    Writes benchmarks/bias-results.md:
+      - Government × language divergence table (rows = gov, cols = ZH/RU/AR)
+      - Top-5 highest-divergence (topic_id, label, language, score) pairs
+    """
+
+def main() -> None:
+    """CLI entry point for score-bias. Accepts --write-report flag."""
+```
+
+Entry point: `score-bias = "red_team_platform.bias.scorer:main"`
+
+### `api/routers/bias.py`
+
+```python
+router = APIRouter(tags=["bias"])
+
+@router.get("/bias/scores", response_model=BiasScoresOut)
+async def get_bias_scores(db: AsyncSession = Depends(get_db)) -> BiasScoresOut:
+    """
+    SQL:
+        SELECT
+            bp.topic_id, bp.government, bp.label,
+            MAX(CASE WHEN bds.language = 'zh' THEN bds.cosine_distance END) AS zh_score,
+            MAX(CASE WHEN bds.language = 'ru' THEN bds.cosine_distance END) AS ru_score,
+            MAX(CASE WHEN bds.language = 'ar' THEN bds.cosine_distance END) AS ar_score
+        FROM bias_probes bp
+        LEFT JOIN bias_divergence_scores bds ON bp.id = bds.probe_id
+        GROUP BY bp.topic_id, bp.government, bp.label
+        ORDER BY bp.government, bp.topic_id
+    Returns scored_model from the most recent BiasDivergenceScore row (or None).
+    """
+```
+
+### Modified: `runner/attack.py`
+
+Add two new options to the existing `@app.command()`:
+
+```python
+mode: Annotated[str, typer.Option("--mode")] = "normal"      # "normal" | "bias"
+language: Annotated[str | None, typer.Option("--language")] = None  # "en"|"zh"|"ru"|"ar"
+```
+
+In `main()`, after the existing preflight checks, dispatch:
+```python
+if mode == "bias":
+    if language not in ("en", "zh", "ru", "ar"):
+        raise typer.BadParameter("--language must be one of: en, zh, ru, ar")
+    # call run_bias_session (imported from bias.runner)
+elif mode == "normal":
+    # existing run_session path unchanged
+else:
+    raise typer.BadParameter("--mode must be 'normal' or 'bias'")
+```
+
+The gemma2:9b preflight check applies to both modes.
+
+### Modified: `api/main.py`
+
+```python
+from red_team_platform.api.routers import bias
+# ...
+app.include_router(bias.router)
+```
+
+### Modified: `alembic/env.py`
+
+Add before `target_metadata = Base.metadata`:
+```python
+import red_team_platform.bias.models  # noqa: F401  # registers bias ORM classes in Base.metadata
+```
 
 ---
 
-### `src/App.tsx`
-```tsx
-// No props — root component
-export default function App(): JSX.Element
-// Renders: <NavBar /> <main> <HeroSection /> <ProjectsSection projects={PROJECTS} /> <BioSection /> </main>
+## Alembic Migration — `003_add_bias_tables.py`
+
+```python
+revision = "003"
+down_revision = "002"
+
+def upgrade() -> None:
+    op.execute("""
+        CREATE TABLE bias_probes (
+            id                    UUID        PRIMARY KEY DEFAULT gen_random_uuid(),
+            topic_id              VARCHAR(20) NOT NULL,
+            government            VARCHAR(100) NOT NULL,
+            label                 VARCHAR(200) NOT NULL,
+            probe_question_en     TEXT        NOT NULL,
+            divergence_hypothesis TEXT        NOT NULL,
+            created_at            TIMESTAMPTZ NOT NULL DEFAULT NOW()
+        );
+        CREATE UNIQUE INDEX uix_bias_probes_topic_id ON bias_probes (topic_id);
+
+        CREATE TABLE bias_prompt_variants (
+            id          UUID       PRIMARY KEY DEFAULT gen_random_uuid(),
+            probe_id    UUID       NOT NULL REFERENCES bias_probes(id),
+            language    VARCHAR(5) NOT NULL,
+            prompt_text TEXT       NOT NULL,
+            created_at  TIMESTAMPTZ NOT NULL DEFAULT NOW()
+        );
+        CREATE UNIQUE INDEX uix_bias_prompt_variants_probe_language
+            ON bias_prompt_variants (probe_id, language);
+
+        CREATE TABLE bias_responses (
+            id            UUID        PRIMARY KEY DEFAULT gen_random_uuid(),
+            variant_id    UUID        NOT NULL REFERENCES bias_prompt_variants(id),
+            model_name    VARCHAR(200) NOT NULL,
+            response_text TEXT        NOT NULL,
+            latency_ms    INTEGER     NOT NULL,
+            created_at    TIMESTAMPTZ NOT NULL DEFAULT NOW()
+        );
+        CREATE UNIQUE INDEX uix_bias_responses_variant_model
+            ON bias_responses (variant_id, model_name);
+
+        CREATE TABLE bias_divergence_scores (
+            id                UUID  PRIMARY KEY DEFAULT gen_random_uuid(),
+            probe_id          UUID  NOT NULL REFERENCES bias_probes(id),
+            language          VARCHAR(5) NOT NULL,
+            en_response_id    UUID  NOT NULL REFERENCES bias_responses(id),
+            other_response_id UUID  NOT NULL REFERENCES bias_responses(id),
+            model_name        VARCHAR(200) NOT NULL,
+            cosine_distance   FLOAT NOT NULL,
+            created_at        TIMESTAMPTZ NOT NULL DEFAULT NOW()
+        );
+        CREATE UNIQUE INDEX uix_bias_div_scores_probe_lang_model
+            ON bias_divergence_scores (probe_id, language, model_name);
+    """)
+
+def downgrade() -> None:
+    op.execute("""
+        DROP TABLE IF EXISTS bias_divergence_scores;
+        DROP TABLE IF EXISTS bias_responses;
+        DROP TABLE IF EXISTS bias_prompt_variants;
+        DROP TABLE IF EXISTS bias_probes;
+    """)
 ```
 
 ---
 
-### `src/components/NavBar.tsx`
-```tsx
-// No props
-export default function NavBar(): JSX.Element
-// Sticky top-0 bar; z-50; white background with bottom border (border-[--color-border])
-// Left: site title "Safeguards Portfolio" (slate-900, font-semibold)
-// Right: two anchor links — "Projects" → #projects, "About" → #about
-// Height: h-14; horizontal padding: px-6 lg:px-12
+## Frontend Data Contract
+
+### `web/src/api/bias.ts`
+
+```typescript
+export type BiasScoreRow = {
+  topic_id: string
+  government: string
+  label: string
+  zh_score: number | null
+  ru_score: number | null
+  ar_score: number | null
+}
+
+export type BiasScoresOut = {
+  rows: BiasScoreRow[]
+  scored_model: string | null
+}
+
+export function useBiasScores(): UseQueryResult<BiasScoresOut>
+// GET /bias/scores via TanStack Query; refetchInterval: false (data doesn't change until re-scored)
+```
+
+### `web/src/components/BiasCell.tsx`
+
+```typescript
+type BiasCellProps = { score: number | null }
+
+// Colour scale (cosine distance):
+//   null          → bg-border (grey), text "—"
+//   0.00–0.14     → bg-accent-subtle, text-accent         (low divergence)
+//   0.15–0.34     → bg-amber-100 / text-amber-800         (moderate)
+//   0.35+         → bg-red-100 / text-red-700             (high divergence)
+// Value displayed as 2 decimal places (e.g. "0.42")
+```
+
+### `web/src/pages/BiasHeatmap.tsx`
+
+```typescript
+// Layout:
+//   - Page heading "Cross-lingual Divergence Heatmap"
+//   - Subtitle: scored_model name if available, else "No scores yet — run score-bias"
+//   - Table: rows = governments (grouped from rows), cols = ZH / RU / AR
+//   - Each row group: government name in first column (rowspan = topic count), then label + 3 BiasCell columns
+//   - Empty state: "Run uv run score-bias to populate scores" when rows.length === 0
 ```
 
 ---
 
-### `src/components/HeroSection.tsx`
-```tsx
-// No props
-export default function HeroSection(): JSX.Element
-// Full-width section; bg-[--color-canvas]; py-24 lg:py-32
-// Centered column: max-w-3xl mx-auto px-6 text-center
-// Elements:
-//   <p> — eyebrow: "AI Safety · Anthropic Safeguards Portfolio" (amber-600, text-sm font-mono tracking-widest uppercase)
-//   <h1> — "Build the detector. Attack it. Measure the human layer."
-//          (text-4xl lg:text-5xl font-bold text-[--color-text-primary] leading-tight)
-//   <p> — subheadline: 2-sentence description of the three-project argument
-//          (text-lg text-[--color-text-secondary] mt-4 max-w-xl mx-auto)
-//   <a href="#projects"> — CTA button:
-//          bg-[--color-accent] hover:bg-[--color-accent-hover]
-//          text-white font-semibold rounded-lg px-6 py-3 mt-8 inline-block
-//          transition-colors duration-150
-```
-
----
-
-### `src/components/ProjectsSection.tsx`
-```tsx
-type ProjectsSectionProps = { projects: Project[] }
-export default function ProjectsSection({ projects }: ProjectsSectionProps): JSX.Element
-// id="projects"; bg-[--color-canvas]; py-20; px-6 lg:px-12
-// Section header: <h2> "The Work" — text-2xl font-bold text-[--color-text-primary] mb-12 text-center
-// Grid: grid grid-cols-1 lg:grid-cols-3 gap-8 max-w-6xl mx-auto
-// Renders: projects.map(p => <ProjectCard key={p.id} project={p} />)
-```
-
----
-
-### `src/components/ProjectCard.tsx`
-```tsx
-type ProjectCardProps = { project: Project }
-export default function ProjectCard({ project }: ProjectCardProps): JSX.Element
-// bg-[--color-surface]; rounded-xl; border border-[--color-border]; p-6; flex flex-col gap-4
-// No shadow — uses border for card edge definition (design_style.md: subtle contrast over heavy shapes)
-// Elements (top to bottom):
-//   <h3> — project.name (text-lg font-semibold text-[--color-text-primary])
-//   <p>  — project.tagline (text-sm text-[--color-text-secondary])
-//   <MetricsTable rows={project.metrics} />
-//   <p>  — project.description (text-sm text-[--color-text-primary] mt-auto leading-relaxed)
-//   Demo link row (bottom): conditional on demoUrl
-//     demoUrl !== null → <a href={demoUrl} target="_blank" rel="noopener noreferrer"> "View Demo →"
-//                        (text-[--color-accent] hover:text-[--color-accent-hover] text-sm font-medium)
-//     demoUrl === null  → <span> "Demo coming soon"
-//                        (text-[--color-text-secondary] text-sm italic)
-```
-
----
-
-### `src/components/MetricsTable.tsx`
-```tsx
-type MetricsTableProps = { rows: MetricRow[] }
-export default function MetricsTable({ rows }: MetricsTableProps): JSX.Element
-// bg-[--color-surface-muted]; rounded-lg; p-4
-// <dl> element — definition list for semantic label/value pairing
-// Each row: <div class="flex justify-between items-baseline py-1 border-b border-[--color-border] last:border-0">
-//   <dt> — row.label: text-xs text-[--color-text-secondary] font-sans
-//   <dd> — row.value: text-sm font-mono font-semibold text-[--color-text-primary]
-//                     (monospace for metric values per design_style.md typography rule)
-// Empty rows prop → renders nothing (no error)
-```
-
----
-
-### `src/components/BioSection.tsx`
-```tsx
-// No props
-export default function BioSection(): JSX.Element
-// id="about"; bg-[--color-surface-muted]; py-20; px-6 lg:px-12
-// Centered column: max-w-2xl mx-auto
-// <h2> "About" — text-2xl font-bold text-[--color-text-primary] mb-6
-// Two <p> blocks (hardcoded):
-//   Para 1 — Professional background:
-//     Data engineer at Meta London with ~14 years across data engineering,
-//     analytics engineering, and business intelligence. Current focus:
-//     account security and authentication analytics (Account Access and Recovery team).
-//     Languages: Python, TypeScript, Rust.
-//   Para 2 — Why this portfolio:
-//     These projects came out of a sustained effort to build and evaluate
-//     AI safety infrastructure hands-on — training classifiers, running structured
-//     attack campaigns, and measuring the human review layer with a controlled experiment.
-//     Each one is end-to-end: built, instrumented, and tested.
-// No dynamic data. No hiring-goal language.
-```
-
----
-
-## Component Dependency Map
+## Dependencies
 
 ```
-App.tsx
-├── NavBar.tsx          (no deps)
-├── HeroSection.tsx     (no deps)
-├── ProjectsSection.tsx
-│   └── ProjectCard.tsx
-│       └── MetricsTable.tsx   (no deps)
-└── BioSection.tsx      (no deps)
-
-src/data/projects.ts → imported by App.tsx, passed as props down to ProjectCard/MetricsTable
+bias/models.py        → red_team_platform.models (Base)
+bias/seed.py          → bias/models.py, red_team_platform.db
+bias/runner.py        → bias/models.py, runner/ollama_client.py, red_team_platform.db
+bias/scorer.py        → bias/models.py, red_team_platform.db, sentence_transformers
+api/routers/bias.py   → bias/models.py, api/schemas.py, api/deps.py
+runner/attack.py      → bias/runner.py  (new import, bias mode only)
+api/main.py           → api/routers/bias.py
+alembic/env.py        → bias/models.py (side-effect import)
+web/src/pages/BiasHeatmap.tsx  → web/src/api/bias.ts, web/src/components/BiasCell.tsx
 ```
 
-No circular dependencies. Data flows strictly down from `projects.ts` → `App` → `ProjectsSection` → `ProjectCard` → `MetricsTable`.
+No circular dependencies. Existing modules have no new dependencies on `bias/`.
 
 ---
 
@@ -272,47 +431,53 @@ No circular dependencies. Data flows strictly down from `projects.ts` → `App` 
 
 | Concern | Approach |
 |---------|----------|
-| Error handling | None required — no runtime I/O, no async operations; TypeScript strict mode catches type errors at build time |
-| Configuration | No `import.meta.env` usage — all content is hardcoded; `.env.example` is empty but present (tooling convention) |
-| Logging | None — static site |
-| Testing | Component tests with vitest + @testing-library/react; test `ProjectCard` renders name/tagline/metrics/demo states; test `MetricsTable` renders all rows and handles empty array |
-| Accessibility | Use semantic HTML: `<nav>`, `<main>`, `<section>`, `<h1>`/`<h2>`/`<h3>` hierarchy, `<dl>`/`<dt>`/`<dd>` for metrics; anchor links with descriptive text; demo link gets `aria-label` if link text is generic |
+| Error handling | Raise `ValueError` with context for corpus parse errors. Log + continue on individual Ollama failures in runner (same pattern as existing attack runner). Raise `RuntimeError` if scorer called before responses exist for a probe. |
+| Configuration | No new settings fields. Reuses existing `ollama_model`, `ollama_base_url`, `ollama_timeout_s`, `database_url`, `sync_database_url` from `Settings`. |
+| Logging | `logging.getLogger(__name__)` in each module. INFO for progress, WARNING for skipped nulls and Ollama failures. |
+| Testing | Unit tests for `load_corpus`, `compute_cosine_distance`, null-skipping in seed; integration tests for seed upsert idempotency, runner idempotency, and `/bias/scores` aggregation against a real test DB (NullPool pattern, consistent with existing tests). |
 
 ---
 
 ## Implementation Notes for Implementer
 
-1. **Tailwind v4 CSS-first setup.** The `@theme` block goes in `src/index.css`. No `tailwind.config.js`. Import with `@import "tailwindcss"` at the top, then `@theme { ... }`. Install via `pnpm add -D tailwindcss @tailwindcss/vite`. Add the Vite plugin to `vite.config.ts`:
-   ```ts
-   import tailwindcss from '@tailwindcss/vite'
-   // in plugins: [react(), tailwindcss()]
-   ```
+**1. `bias/models.py` Base import:** Import `Base` from `red_team_platform.models`, not from SQLAlchemy directly. This registers the bias tables in the shared metadata so `init_db()` picks them up in tests.
 
-2. **CSS variable usage in Tailwind v4.** Use `bg-[--color-canvas]` or `text-[--color-text-primary]` syntax to reference `@theme` variables in utility classes. This is the v4 pattern — no `theme()` function needed.
+**2. Seed upsert pattern:** Use `INSERT … ON CONFLICT DO NOTHING` (not `DO UPDATE`) for `bias_probes` and `bias_prompt_variants` — the content is static corpus data, not updated after authoring. For `bias_divergence_scores`, use `ON CONFLICT DO UPDATE SET cosine_distance = EXCLUDED.cosine_distance` so re-scoring overwrites stale values.
 
-3. **No `baseUrl` in `tsconfig.app.json`.** TypeScript 6 deprecates it. Use `paths` alone with `moduleResolution: bundler` and add `"ignoreDeprecations": "6.0"` if scaffolded with `baseUrl`.
+**3. Runner idempotency:** Before firing Ollama, execute:
+```python
+existing = await session.scalar(
+    select(BiasResponse).where(
+        BiasResponse.variant_id == variant.id,
+        BiasResponse.model_name == model_name,
+    )
+)
+if existing:
+    continue
+```
+Log `"Skipping variant %s (already scored)"` at DEBUG level.
 
-4. **`defineConfig` import for vitest.** Import from `'vitest/config'`, not `'vite'`, to get the `test:` block typed correctly.
+**4. Scorer: batch vs per-pair embeddings:** `SentenceTransformer.encode()` accepts a list. For efficiency, batch all texts in one call per probe rather than calling encode() twice per pair. Concretely: collect all (en_text, other_text) pairs for all probes, call `embedder.encode(all_texts)` once, then slice the result. At 50 probes × 3 languages = 150 pairs → 300 texts max, one batch call is trivially fast.
 
-5. **`pnpm build` verification.** After the implementer writes all files: `pnpm build` must exit 0 with zero TS errors; `pnpm lint` must exit 0; `pnpm test` must exit 0 with all tests passing.
+**5. `/bias/scores` SQL:** Write as `text()` (raw SQL) consistent with existing routers (see `coverage.py`). The CASE pivot is not expressible cleanly with SQLAlchemy ORM without significant boilerplate.
 
-6. **Project directory location.** Create at `projects/portfolio-site/` — consistent with all other projects in the workspace.
+**6. `cosine_distance` vs `cosine_similarity`:** Store and display cosine *distance* (1 - similarity). Higher = more divergent = more interesting. The colour scale reads intuitively: dark = bad (high divergence).
 
-7. **Smooth scroll.** Add `html { scroll-behavior: smooth; }` to `index.css` for anchor link navigation.
+**7. React table structure:** The heatmap groups rows by government. Since there are 10 governments × 5 topics = 50 rows, sort by `government` then `topic_id`. Use a `<tbody>` per government, with the government name in a header row spanning all 4 columns (label + ZH + RU + AR). Do not use `rowspan` — it's hard to manage in React and the grouping is clear with a styled sub-header row.
 
-8. **`index.html` meta tags.** Set `<title>Safeguards Portfolio</title>` and `<meta name="description" content="AI safety engineering portfolio: LLM classifier training, red-team attack platform, and human review measurement.">`.
+**8. `pyproject.toml` changes:** Add `sentence-transformers>=3.0` to `[project] dependencies`. Add two entry points:
+```toml
+seed-bias-corpus = "red_team_platform.bias.seed:main"
+score-bias       = "red_team_platform.bias.scorer:main"
+```
 
-9. **msw allowBuilds.** If msw is installed (it is not needed here — no API calls), the `pnpm-workspace.yaml` allowBuilds entry is required for pnpm v11. Since msw is not needed, do not install it.
-
-10. **Test content.** `ProjectCard.test.tsx` must assert: project name renders, tagline renders, all metric labels render, demo link renders "View Demo →" when `demoUrl` is set and "Demo coming soon" when null. `MetricsTable.test.tsx` must assert: all `rows` render as label/value pairs, empty array renders nothing.
+**9. Test DB setup:** The existing `tests/conftest.py` uses NullPool + `Base.metadata.create_all`. Because `bias/models.py` imports Base from `red_team_platform.models`, importing `red_team_platform.bias.models` in `test_bias.py` (or conftest) is sufficient to register the new tables before `create_all` runs.
 
 ---
 
 ## Handoff
 
-**Next role:** design-brief (per `new-project-full` step 4 — project has frontend)  
-The design-brief role reads this file + `resources/design_style.md` to lock in the interface context (Marketing/Landing Page), primary interaction model (read-only scroll), key components (HeroSection, ProjectCard, MetricsTable), and done criteria before frontend-architect proceeds.
+Next role: design-brief (project has a new frontend component — the BiasHeatmap tab).  
+The design-brief role reads this output and `roles/planner/output/output.md` to lock down the visual register, interaction model, and done criteria for the heatmap before frontend-architect writes component specs.
 
-The design-brief should confirm the interface context is "Marketing / Landing Page" from `design_style.md` and that the amber-600 accent and system font stack decisions are carried forward. No open structural questions remain — all planner open questions are resolved above.
-
-After design-brief → frontend-architect → implementer (single frontend phase, no backend).
+Key questions for design-brief to resolve: (1) does the heatmap need any interactivity beyond display (hover tooltips? click-to-expand?); (2) what does the empty state look like before any runs; (3) should the divergence colour scale use existing `@theme` accent tokens or new ad-hoc colours.

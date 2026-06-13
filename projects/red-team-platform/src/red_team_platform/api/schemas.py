@@ -155,3 +155,18 @@ class ClusterMemberOut(BaseModel):
 class ClusterMembersOut(BaseModel):
     cluster_id: int
     members: list[ClusterMemberOut]
+
+
+# --- Bias Heatmap ---
+class BiasScoreRow(BaseModel):
+    topic_id: str
+    government: str
+    label: str
+    zh_score: float | None
+    ru_score: float | None
+    ar_score: float | None
+
+
+class BiasScoresOut(BaseModel):
+    rows: list[BiasScoreRow]
+    scored_model: str | None

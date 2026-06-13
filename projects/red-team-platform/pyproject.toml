@@ -17,6 +17,7 @@ dependencies = [
     "pydantic-settings>=2.14.1",
     "scikit-learn>=1.9.0",
     "scipy>=1.17.1",
+    "sentence-transformers>=3.0",
     "sqlalchemy>=2.0.50",
     "transformers>=5.10.2",
     "uvicorn[standard]>=0.49.0",
@@ -28,6 +29,8 @@ attack           = "red_team_platform.runner.attack:app"
 cluster          = "red_team_platform.cluster.kmeans:main"
 api              = "red_team_platform.api.main:run_server"
 outbox-publisher = "red_team_platform.outbox.publisher:main"
+seed-bias-corpus = "red_team_platform.bias.seed:main"
+score-bias       = "red_team_platform.bias.scorer:main"
 
 [build-system]
 requires = ["hatchling"]
