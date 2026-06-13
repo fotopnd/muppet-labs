@@ -1,11 +1,16 @@
 from __future__ import annotations
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from red_team_platform.api.deps import get_db
-from red_team_platform.api.schemas import BiasScoreRow, BiasScoresOut
+from red_team_platform.api.schemas import (
+    BiasLangDetail,
+    BiasScoreRow,
+    BiasScoresOut,
+    BiasTopicResponseOut,
+)
 
 router = APIRouter(tags=["bias"])
 
@@ -47,3 +52,64 @@ async def get_bias_scores(db: AsyncSession = Depends(get_db)) -> BiasScoresOut:
     scored_model = model_row[0] if model_row else None
 
     return BiasScoresOut(rows=rows, scored_model=scored_model)
+
+
+@router.get("/bias/responses/{topic_id}", response_model=BiasTopicResponseOut)
+async def get_bias_responses(
+    topic_id: str,
+    model: str | None = None,
+    db: AsyncSession = Depends(get_db),
+) -> BiasTopicResponseOut:
+    probe_result = await db.execute(
+        text(
+            "SELECT id, topic_id, government, label"
+            " FROM bias_probes WHERE topic_id = :tid LIMIT 1"
+        ),
+        {"tid": topic_id},
+    )
+    probe_row = probe_result.mappings().first()
+    if probe_row is None:
+        raise HTTPException(status_code=404, detail=f"Topic {topic_id!r} not found")
+
+    resolved_model = model
+    if resolved_model is None:
+        m_result = await db.execute(
+            text("SELECT model_name FROM bias_divergence_scores ORDER BY created_at DESC LIMIT 1")
+        )
+        m_row = m_result.fetchone()
+        resolved_model = m_row[0] if m_row else None
+
+    lang_result = await db.execute(
+        text("""
+            SELECT
+                bpv.language,
+                bpv.prompt_text,
+                br.response_text,
+                bds.cosine_distance
+            FROM bias_prompt_variants bpv
+            LEFT JOIN bias_responses br
+                ON br.variant_id = bpv.id AND br.model_name = :model
+            LEFT JOIN bias_divergence_scores bds
+                ON bds.probe_id = bpv.probe_id
+                AND bds.language = bpv.language
+                AND bds.model_name = :model
+            WHERE bpv.probe_id = :probe_id
+            ORDER BY bpv.language
+        """),
+        {"probe_id": str(probe_row["id"]), "model": resolved_model},
+    )
+
+    languages: dict[str, BiasLangDetail] = {}
+    for row in lang_result.mappings():
+        languages[row["language"]] = BiasLangDetail(
+            prompt=row["prompt_text"],
+            response=row["response_text"],
+            cosine_distance=row["cosine_distance"],
+        )
+
+    return BiasTopicResponseOut(
+        topic_id=probe_row["topic_id"],
+        government=probe_row["government"],
+        label=probe_row["label"],
+        languages=languages,
+    )

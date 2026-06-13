@@ -145,3 +145,36 @@ export type BiasScoresOut = {
   rows: BiasScoreRow[]
   scored_model: string | null
 }
+
+export type AttackSummaryOut = {
+  total: number
+  top_category: string | null
+  top_strategy: string | null
+}
+
+export type CategoryDeltaItem = {
+  harm_category: string
+  baseline_asr: number
+  latest_asr: number
+  delta: number
+}
+
+export type CategoryDeltaOut = {
+  items: CategoryDeltaItem[]
+  baseline_session_id: string | null
+  latest_session_id: string | null
+  model_name: string | null
+}
+
+export type BiasLangDetail = {
+  prompt: string
+  response: string | null
+  cosine_distance: number | null
+}
+
+export type BiasTopicResponseOut = {
+  topic_id: string
+  government: string
+  label: string
+  languages: Record<string, BiasLangDetail>
+}

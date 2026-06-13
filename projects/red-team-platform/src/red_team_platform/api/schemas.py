@@ -170,3 +170,39 @@ class BiasScoreRow(BaseModel):
 class BiasScoresOut(BaseModel):
     rows: list[BiasScoreRow]
     scored_model: str | None
+
+
+# --- Attack Summary ---
+class AttackSummaryOut(BaseModel):
+    total: int
+    top_category: str | None
+    top_strategy: str | None
+
+
+# --- Regression Category Delta ---
+class CategoryDeltaItem(BaseModel):
+    harm_category: str
+    baseline_asr: float
+    latest_asr: float
+    delta: float
+
+
+class CategoryDeltaOut(BaseModel):
+    items: list[CategoryDeltaItem]
+    baseline_session_id: uuid.UUID | None
+    latest_session_id: uuid.UUID | None
+    model_name: str | None
+
+
+# --- Bias Response Viewer ---
+class BiasLangDetail(BaseModel):
+    prompt: str
+    response: str | None
+    cosine_distance: float | None
+
+
+class BiasTopicResponseOut(BaseModel):
+    topic_id: str
+    government: str
+    label: str
+    languages: dict[str, BiasLangDetail]

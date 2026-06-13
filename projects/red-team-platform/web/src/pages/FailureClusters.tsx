@@ -1,72 +1,168 @@
-import { useState } from 'react'
+import { useRef, useState } from 'react'
+import { Scatter, ScatterChart, Tooltip, XAxis, YAxis, ZAxis } from 'recharts'
 import { useClusters, useClusterMembers } from '@/hooks/useClusters'
+import { categoryColour, labelName } from '@/lib/categoryLabels'
+import type { ClusterSummary } from '@/types'
+
+type BubbleDatum = {
+  x: number
+  y: number
+  z: number
+  fill: string
+  cluster: ClusterSummary
+}
+
+type CustomDotProps = {
+  cx?: number
+  cy?: number
+  payload?: BubbleDatum
+  r?: number
+}
+
+function CustomBubble(props: CustomDotProps) {
+  const { cx = 0, cy = 0, payload, r = 10 } = props
+  if (!payload) return null
+  return <circle cx={cx} cy={cy} r={r} fill={payload.fill} fillOpacity={0.8} stroke={payload.fill} strokeWidth={1.5} />
+}
+
+type BubbleTooltipProps = {
+  active?: boolean
+  payload?: { payload: BubbleDatum }[]
+}
+
+function BubbleTooltip({ active, payload }: BubbleTooltipProps) {
+  if (!active || !payload?.length) return null
+  const c = payload[0]?.payload.cluster
+  if (!c) return null
+  return (
+    <div className="bg-canvas border border-border rounded p-2 text-xs shadow">
+      <p className="font-semibold text-text-primary">Cluster {c.cluster_id}</p>
+      <p className="text-text-secondary">{c.size} failures</p>
+      <p className="text-text-secondary">{labelName(c.top_harm_category)}</p>
+      <p className="text-text-secondary font-mono">{c.top_strategy}</p>
+    </div>
+  )
+}
 
 export function FailureClusters() {
+  const [highlightedId, setHighlightedId] = useState<number | null>(null)
   const [expandedClusterId, setExpandedClusterId] = useState<number | null>(null)
   const { data, isLoading, isError } = useClusters()
   const { data: members, isLoading: membersLoading } = useClusterMembers(expandedClusterId)
+  const cardRefs = useRef<Record<number, HTMLDivElement | null>>({})
 
-  if (isLoading) return <p style={{ padding: '1rem' }}>Loading...</p>
-  if (isError) return <p style={{ padding: '1rem', color: 'red' }}>Error loading clusters.</p>
+  if (isLoading) return <p className="p-4 text-text-secondary text-sm">Loading…</p>
+  if (isError) return <p className="p-4 text-danger text-sm">Error loading clusters.</p>
   if (!data || data.summaries.length === 0) {
     return (
-      <p style={{ padding: '1rem' }}>
-        No failure clusters yet. Run <code>uv run cluster</code> after an attack session.
+      <p className="p-4 text-text-muted text-sm">
+        No failure clusters yet. Run <code className="font-mono bg-surface-muted px-1 rounded text-xs">uv run cluster</code> after an attack session.
       </p>
     )
   }
 
+  const totalFailures = data.summaries.reduce((s, c) => s + c.size, 0)
+
+  const bubbleData: BubbleDatum[] = data.summaries.map((c) => ({
+    x: c.cluster_id,
+    y: c.size,
+    z: c.size,
+    fill: categoryColour(c.top_harm_category),
+    cluster: c,
+  }))
+
+  function handleBubbleClick(datum: BubbleDatum) {
+    const id = datum.cluster.cluster_id
+    setHighlightedId(id)
+    setExpandedClusterId(id)
+    cardRefs.current[id]?.scrollIntoView({ behavior: 'smooth', block: 'nearest' })
+  }
+
   return (
-    <div style={{ padding: '1rem' }}>
-      <h2>Failure Clusters</h2>
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '1rem' }}>
+    <div className="p-4">
+      <h2 className="text-base font-semibold text-text-primary mb-4">Failure Clusters</h2>
+
+      {/* Bubble chart */}
+      <div className="bg-surface border border-border rounded-lg p-4 mb-6 overflow-x-auto">
+        <p className="text-xs text-text-muted mb-2">Bubble size = failure count · Colour = top harm category · Click to expand</p>
+        <ScatterChart
+          width={640}
+          height={240}
+          margin={{ top: 16, right: 20, bottom: 20, left: 20 }}
+          onClick={(state) => {
+            if (state?.activePayload?.[0]?.payload) {
+              handleBubbleClick(state.activePayload[0].payload as BubbleDatum)
+            }
+          }}
+        >
+          <XAxis
+            dataKey="x"
+            type="number"
+            name="Cluster"
+            label={{ value: 'Cluster', position: 'insideBottom', offset: -10, fontSize: 10 }}
+            tick={{ fontSize: 10 }}
+            domain={[-0.5, data.summaries.length - 0.5]}
+          />
+          <YAxis
+            dataKey="y"
+            type="number"
+            name="Failures"
+            tick={{ fontSize: 10 }}
+          />
+          <ZAxis dataKey="z" range={[60, 1600]} />
+          <Tooltip content={<BubbleTooltip />} />
+          <Scatter
+            data={bubbleData}
+            shape={<CustomBubble />}
+            style={{ cursor: 'pointer' }}
+          />
+        </ScatterChart>
+      </div>
+
+      {/* Card grid */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         {data.summaries.map((c) => (
           <div
             key={c.cluster_id}
-            style={{
-              border: '1px solid #ddd',
-              borderRadius: '6px',
-              padding: '0.75rem',
-              background: expandedClusterId === c.cluster_id ? '#eff6ff' : '#fafafa',
-            }}
+            ref={(el) => { cardRefs.current[c.cluster_id] = el }}
+            className={`border rounded-lg p-3 bg-surface transition-shadow ${
+              highlightedId === c.cluster_id ? 'ring-2 ring-accent border-accent' : 'border-border'
+            }`}
           >
-            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.5rem' }}>
-              <span style={{
-                background: '#1e40af',
-                color: '#fff',
-                padding: '0.1rem 0.5rem',
-                borderRadius: '999px',
-                fontSize: '0.8rem',
-              }}>
+            <div className="flex items-center gap-2 mb-2">
+              <span className="bg-accent text-text-inverse text-xs font-semibold px-2 py-0.5 rounded-full">
                 Cluster {c.cluster_id}
               </span>
-              <span style={{ color: '#555', fontSize: '0.85rem' }}>{c.size} failures</span>
+              <span className="text-text-secondary text-sm">{c.size} failures</span>
             </div>
-            <div style={{ display: 'flex', gap: '0.4rem', flexWrap: 'wrap', marginBottom: '0.5rem' }}>
-              <span style={{ background: '#fee2e2', color: '#991b1b', padding: '0.1rem 0.4rem', borderRadius: '4px', fontSize: '0.75rem' }}>
-                {c.top_harm_category}
+
+            <div className="flex gap-1.5 flex-wrap mb-2">
+              <span className="bg-surface-muted text-danger text-xs px-1.5 py-0.5 rounded">
+                {labelName(c.top_harm_category)}
               </span>
-              <span style={{ background: '#fef3c7', color: '#92400e', padding: '0.1rem 0.4rem', borderRadius: '4px', fontSize: '0.75rem' }}>
+              <span className="bg-surface-muted text-warning text-xs px-1.5 py-0.5 rounded font-mono">
                 {c.top_strategy}
               </span>
             </div>
-            <code style={{
-              display: 'block',
-              background: '#f3f4f6',
-              padding: '0.3rem 0.5rem',
-              borderRadius: '4px',
-              fontSize: '0.8rem',
-              marginBottom: '0.5rem',
-              whiteSpace: 'pre-wrap',
-              wordBreak: 'break-word',
-            }}>
+
+            <code className="block bg-surface-muted rounded p-2 text-xs font-mono whitespace-pre-wrap break-words text-text-primary mb-2">
               {c.representative_text.slice(0, 120)}{c.representative_text.length > 120 ? '…' : ''}
             </code>
+
+            {/* Proportion bar */}
+            <div className="h-1.5 w-full rounded-full bg-surface-muted mb-1">
+              <div
+                className="h-1.5 rounded-full bg-accent"
+                style={{ width: `${(c.size / totalFailures * 100).toFixed(1)}%` }}
+              />
+            </div>
+            <p className="text-xs text-text-muted mb-2">
+              {(c.size / totalFailures * 100).toFixed(1)}% of all failures
+            </p>
+
             <button
-              onClick={() =>
-                setExpandedClusterId(expandedClusterId === c.cluster_id ? null : c.cluster_id)
-              }
-              style={{ fontSize: '0.8rem', padding: '0.2rem 0.6rem' }}
+              onClick={() => setExpandedClusterId(expandedClusterId === c.cluster_id ? null : c.cluster_id)}
+              className="text-xs text-accent hover:text-accent-hover font-medium"
             >
               {expandedClusterId === c.cluster_id ? 'Hide members' : 'Show members'}
             </button>
@@ -74,34 +170,40 @@ export function FailureClusters() {
         ))}
       </div>
 
+      {/* Member table */}
       {expandedClusterId !== null && (
-        <div style={{ marginTop: '1.5rem', border: '1px solid #ddd', borderRadius: '6px', padding: '1rem' }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.75rem' }}>
-            <h3 style={{ margin: 0 }}>Cluster {expandedClusterId} members</h3>
-            <button onClick={() => setExpandedClusterId(null)}>Close</button>
+        <div className="mt-6 border border-border rounded-lg p-4 bg-surface">
+          <div className="flex justify-between items-center mb-3">
+            <p className="text-sm font-semibold text-text-primary">Cluster {expandedClusterId} members</p>
+            <button
+              onClick={() => setExpandedClusterId(null)}
+              className="text-text-muted hover:text-text-primary text-lg leading-none"
+            >
+              ×
+            </button>
           </div>
 
-          {membersLoading && <p>Loading members…</p>}
+          {membersLoading && <p className="text-text-secondary text-sm">Loading members…</p>}
 
           {members && (
-            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.82rem' }}>
+            <table className="w-full text-xs border-collapse">
               <thead>
-                <tr style={{ background: '#f5f5f5' }}>
-                  <th style={th}>Attack Text</th>
-                  <th style={th}>Category</th>
-                  <th style={th}>Strategy</th>
-                  <th style={th}>Score</th>
-                  <th style={th}>Latency</th>
+                <tr className="bg-surface-muted">
+                  <th className="text-left px-2 py-1.5 font-medium text-text-secondary border-b border-border">Attack Text</th>
+                  <th className="text-left px-2 py-1.5 font-medium text-text-secondary border-b border-border">Category</th>
+                  <th className="text-left px-2 py-1.5 font-medium text-text-secondary border-b border-border">Strategy</th>
+                  <th className="text-right px-2 py-1.5 font-medium text-text-secondary border-b border-border">Score</th>
+                  <th className="text-right px-2 py-1.5 font-medium text-text-secondary border-b border-border">Latency</th>
                 </tr>
               </thead>
               <tbody>
                 {members.members.map((m) => (
-                  <tr key={m.run_id} style={{ borderBottom: '1px solid #eee' }}>
-                    <td style={td}>{m.attack_text.slice(0, 80)}…</td>
-                    <td style={td}>{m.harm_category}</td>
-                    <td style={td}>{m.strategy}</td>
-                    <td style={td}>{m.classifier_score.toFixed(2)}</td>
-                    <td style={td}>{m.latency_ms}ms</td>
+                  <tr key={m.run_id} className="border-b border-border">
+                    <td className="px-2 py-1.5 text-text-primary">{m.attack_text.slice(0, 80)}…</td>
+                    <td className="px-2 py-1.5 text-text-secondary">{labelName(m.harm_category)}</td>
+                    <td className="px-2 py-1.5 text-text-secondary font-mono">{m.strategy}</td>
+                    <td className="px-2 py-1.5 text-right font-mono text-text-secondary">{m.classifier_score.toFixed(2)}</td>
+                    <td className="px-2 py-1.5 text-right text-text-muted">{m.latency_ms}ms</td>
                   </tr>
                 ))}
               </tbody>
@@ -112,6 +214,3 @@ export function FailureClusters() {
     </div>
   )
 }
-
-const th: React.CSSProperties = { padding: '0.4rem 0.6rem', textAlign: 'left', borderBottom: '2px solid #ddd' }
-const td: React.CSSProperties = { padding: '0.35rem 0.6rem', verticalAlign: 'top' }

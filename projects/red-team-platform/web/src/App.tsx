@@ -26,32 +26,26 @@ function Dashboard() {
   const [activeTab, setActiveTab] = useState<Tab>('attacks')
 
   return (
-    <div style={{ fontFamily: 'system-ui, sans-serif', minHeight: '100vh' }}>
-      <header style={{ background: '#1e293b', color: '#fff', padding: '0.75rem 1rem' }}>
-        <h1 style={{ margin: 0, fontSize: '1.1rem', letterSpacing: '0.02em' }}>Red-Team Platform</h1>
+    <div className="min-h-screen bg-canvas font-sans">
+      <header className="bg-surface border-b border-border px-4 py-3">
+        <h1 className="text-sm font-semibold text-text-primary tracking-wide">Red-Team Platform</h1>
       </header>
-      <nav style={{ display: 'flex', borderBottom: '2px solid #e2e8f0', background: '#f8fafc' }}>
+      <nav className="flex border-b-2 border-border bg-surface overflow-x-auto">
         {TABS.map((tab) => (
           <button
             key={tab.id}
             onClick={() => setActiveTab(tab.id)}
-            style={{
-              padding: '0.6rem 1rem',
-              border: 'none',
-              borderBottom: activeTab === tab.id ? '2px solid #4f46e5' : '2px solid transparent',
-              background: 'none',
-              cursor: 'pointer',
-              fontWeight: activeTab === tab.id ? 600 : 400,
-              color: activeTab === tab.id ? '#4f46e5' : '#475569',
-              fontSize: '0.9rem',
-              marginBottom: '-2px',
-            }}
+            className={`px-4 py-2.5 text-sm whitespace-nowrap border-b-2 -mb-0.5 transition-colors ${
+              activeTab === tab.id
+                ? 'border-accent text-accent font-semibold'
+                : 'border-transparent text-text-secondary hover:text-text-primary font-normal'
+            }`}
           >
             {tab.label}
           </button>
         ))}
       </nav>
-      <main>
+      <main className="p-0">
         {activeTab === 'attacks' && <AttackBrowser />}
         {activeTab === 'coverage' && <CoverageHeatmap />}
         {activeTab === 'strategy' && <StrategyComparison />}

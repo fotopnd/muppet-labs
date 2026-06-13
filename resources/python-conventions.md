@@ -73,6 +73,7 @@
 - `create_engine` allocates a connection pool — call it once per process, not per request, message, or loop iteration.
 - Store the engine as a class attribute (created in `__init__`) or module-level singleton. Never call `create_engine` inside a Kafka consumer loop, FastAPI route handler, or background worker tick.
 - `Session(engine)` as a context manager is correct for sync writes; `AsyncSession` for async routes.
+- **asyncpg NULL parameter rule:** Never pass `None` as a parameter to a `text()` query where the SQL pattern is `$1 IS NULL OR col = $1`. asyncpg uses the PostgreSQL extended protocol, which requires type inference upfront — for `$1 IS NULL`, there is no type context, and asyncpg raises `AmbiguousParameterError`. Rule: if any filter parameter can be `None`, build conditional WHERE clauses using ORM `.where()` calls instead. Use `text()` only when all parameters are guaranteed non-null at the call site.
 
 ## API Aggregation Endpoints
 

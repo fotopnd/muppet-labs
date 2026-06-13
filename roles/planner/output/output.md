@@ -1,144 +1,167 @@
-# Planner Output — language-bias-probes
+# Planner Output — Red-Team Platform Dashboard Refinement
 
 **Role:** planner  
-**Sequence:** new-project-full  
 **Date:** 2026-06-13  
-**Step:** 2 of 9
+**Input brief:** `roles/brief/archive/2026-06-13-dashboard-refinement-brief.md`
 
 ---
 
 ## Project
 
-**Name:** language-bias-probes  
-**Description:** Extends red-team-platform in-place with a cross-lingual bias probe pipeline — running the same safety-relevant prompts in EN, ZH, RU, and AR against a local Ollama model, scoring semantic divergence between languages using all-MiniLM-L6-v2 cosine similarity, and rendering results in a new BiasHeatmap dashboard tab.
+red-team-platform-dashboard-refinement — a full UX and information-density pass over all seven dashboard tabs: fix LABEL_x category names, add topline insight widgets, replace ScatterChart-faked grids with CSS grids, migrate all inline styles to Tailwind tokens, add three new backend endpoints, and build a three-column bias response viewer.
 
 ---
 
 ## Requirements
 
-1. `uv run seed-bias-corpus` loads the 50-entry corpus from `src/red_team_platform/bias/data/bias-corpus.json` into a new `bias_probes` table, and loads all non-null per-language prompt variants into a `bias_prompt_variants` table (`probe_id`, `language`, `prompt_text`). If a language field is null (ZH/RU/AR not yet authored), the row is skipped with a warning, not an error.
-2. `uv run attack --mode bias --language zh` (and `ru`, `ar`, `en`) executes all `bias_prompt_variants` rows for that language against the configured Ollama model, stores one `bias_responses` row per variant execution (`variant_id`, `response_text`, `model_name`, `latency_ms`), and does not re-run variants that already have a response for that model.
-3. `uv run score-bias` computes cosine similarity between the EN response and each non-EN response for the same `probe_id`, stores one `bias_divergence_scores` row per `(probe_id, language_pair, run_id)`, and prints a summary table to stdout.
-4. `uv run score-bias --write-report` writes `benchmarks/bias-results.md` with a government × language divergence table and the top-5 highest-divergence (probe, language) pairs.
-5. `GET /bias/scores` returns a JSON array of `{ topic_id, government, label, zh_score, ru_score, ar_score }` rows, with `null` for any language where scoring has not yet run.
-6. A `BiasHeatmap` page at route `/bias` in the existing React dashboard renders a government × language divergence grid using score data from `GET /bias/scores`. Each cell is colour-coded by divergence magnitude (0.0–1.0 cosine distance); cells with no data render as grey.
-7. All existing red-team tests continue to pass after the migration and new module are added.
-8. New bias scorer has ≥ 5 unit/integration tests covering: loading corpus JSON, cosine similarity computation, null-variant skipping in seed, idempotent re-run (no duplicate responses inserted), and the `/bias/scores` aggregation endpoint with seeded data.
-9. `uv run ruff check .` and `ruff format --check` pass with zero errors on all new Python files.
+### Shared / cross-cutting
+
+1. A `web/src/lib/categoryLabels.ts` module exports `labelName(raw: string): string` mapping `LABEL_0`–`LABEL_12` to human names; unmapped values pass through unchanged.
+2. A `web/src/lib/strategyDescriptions.ts` module exports `STRATEGY_DESCRIPTIONS` covering all six corpus strategies with `{ label, description, example }` per entry.
+3. No `style={{…}}` prop appears in any tab or shared component file after implementation.
+4. All colour, spacing, and typography references use `@theme` Tailwind tokens (`bg-canvas`, `text-text-primary`, `bg-surface-muted`, `border-border`, `text-accent`, `bg-accent-subtle`, `bg-divergence-*`).
+
+### Backend
+
+5. `GET /attacks/summary?source=&harm_category=&strategy=` returns `{ total, top_category, top_strategy }` computed over all attacks matching the filters (not just the current page).
+6. `GET /regression/category-delta?model=` returns `[{ harm_category, baseline_asr, latest_asr, delta }]`; baseline = first RunSession for model, latest = most recent; returns empty array when fewer than two sessions exist.
+7. `GET /bias/responses/{topic_id}?model=` returns `{ topic_id, government, label, languages: { [lang]: { prompt, response, cosine_distance } } }`; `model` defaults to most recently scored model; languages present only when a BiasResponse exists.
+
+### Attack Browser
+
+8. Three `StatWidget` cards render above the filter bar: total attacks, top harm category (human-readable), top strategy; cards update reactively when filters change.
+9. Clicking a table row opens a right-side detail panel (≥ 40 % of page width); panel shows: full attack text, a `<dl>` strategy + category context box, and (if a run record exists) response text with `ScoreBar` and jailbreak badge.
+10. Panel can be dismissed; row click does not navigate.
+
+### Coverage Heatmap
+
+11. The Recharts `ScatterChart` is replaced by the shared `CoverageGrid` component — cells touch (no gap), each cell renders its ASR% in readable text without hover.
+12. Cells with no data show a neutral surface background with `"—"`.
+13. Category row labels use `labelName()` and are fully readable; not rotated.
+14. Hover tooltip shows full category name, strategy, run count, success count.
+
+### Strategy Comparison
+
+15. Three panels in a `grid grid-cols-1 lg:grid-cols-3` layout:
+    - A: ASR % bar chart sorted descending, with `n=` run-count label on each bar.
+    - B: horizontal bar chart of `total_runs` per strategy, using accent-purple colour.
+    - C: compact `CoverageGrid` (~35×30 px cells) showing strategy × category coverage gaps.
+
+### Regression Tracker
+
+16. Four panels in a `grid grid-cols-1 lg:grid-cols-2` layout:
+    - A: ASR-over-sessions line chart; first session's ASR shown as dashed baseline.
+    - B: per-category delta bar chart from `/regression/category-delta` (red = regression, green = improvement); renders an explanatory empty state when fewer than 2 sessions exist.
+    - C: session summary table (date, model, total runs, ASR, Δ vs previous) sortable by date.
+    - D: two stat boxes: most-improved category and most-regressed category vs latest session.
+
+### Sample Review
+
+17. A mode toggle (All / Compare) renders above the run table; Compare is the default.
+18. In Compare mode, runs are grouped by `attack_text` client-side; one row per unique attack shows `#Success`, `#Safe`, `#Total` columns; Compare mode fetches up to 200 runs per session.
+19. Clicking a grouped row opens a two-column side panel: best-scoring run (left) vs lowest-scoring run (right); if all runs share an outcome, show only the highest scorer with a note.
+
+### Failure Clusters
+
+20. A Recharts `ScatterChart` bubble chart renders above the card grid; X = cluster index, Y = `size` (failure count), bubble radius ∝ `sqrt(size)`, colour = `top_harm_category` (categorical palette).
+21. Clicking a bubble scrolls to and highlights the corresponding cluster card.
+22. Each card includes a horizontal proportion bar showing this cluster's share of total failures.
+23. All card `style={{}}` replaced with Tailwind utilities.
+
+### Bias Heatmap
+
+24. An `EN` column renders as `0.00` with `bg-divergence-low`; a footnote below the table reads "EN = 0.00 baseline; all values measure divergence from the EN response."
+25. A government `<select>` and topic text `<input>` filter rows client-side; both controls appear above the table.
+26. Clicking a topic row expands a response viewer panel below the table.
+27. The response viewer shows three columns: EN (prompt + response), target language (prompt + response), back-translated (static placeholder `[Back-translation not yet available]`).
+28. A ZH / RU / AR language selector switches columns 2 and 3.
+29. A `useBiasResponses(topicId: string | null)` hook fetches `/bias/responses/{topic_id}` only when `topicId` is non-null.
 
 ---
 
 ## Technology Stack
 
 | Concern | Choice | Reason |
-|---------|--------|--------|
-| Language (backend) | Python 3.12 | Existing project constraint |
-| Language (frontend) | TypeScript | Existing web/ stack |
-| Package manager (backend) | uv | Existing project constraint |
-| Package manager (frontend) | pnpm | Existing web/ stack |
-| Formatter / linter | ruff | Existing project constraint |
-| DB migrations | Alembic | Already configured; new migration `003_add_bias_tables` |
-| Sentence embeddings | sentence-transformers (all-MiniLM-L6-v2) | Brief requirement; CPU-only; auto-downloads on first use via HuggingFace cache |
-| Ollama client | Existing `red_team_platform.runner.ollama_client` | Reuse; no new HTTP client |
-| Frontend state | TanStack Query | Already in web/ |
-| Testing | pytest + pytest-asyncio | Existing constraint |
-
-**New Python dependency:** `sentence-transformers>=3.0`
+|---|---|---|
+| Frontend language | TypeScript 5.x strict | existing project |
+| Framework | React 18 functional | existing project |
+| Build | Vite + `@tailwindcss/vite` | existing project, port 5173 |
+| Styling | Tailwind v4 `@theme` tokens | existing; mandatory migration for all tabs |
+| Charts | Recharts | existing; retain for bar/line/bubble; replace ScatterChart-as-grid with CSS grid |
+| Server state | TanStack Query | existing project |
+| Backend language | Python 3.12 | existing project |
+| API framework | FastAPI | existing project |
+| DB access | SQLAlchemy async + asyncpg | existing project |
+| Linting | ruff | existing project |
+| FE testing | vitest + @testing-library/react | existing project |
+| BE testing | pytest + pytest-asyncio | existing project |
 
 ---
 
 ## File and Module Structure
 
-### New Python module
-
-```
-src/red_team_platform/bias/
-├── __init__.py
-├── models.py          ← SQLAlchemy ORM: BiasProbe, BiasPromptVariant, BiasResponse, BiasDivergenceScore
-├── seed.py            ← seed-bias-corpus CLI entry point
-├── runner.py          ← attack --mode bias extension (new subcommand on existing attack CLI)
-├── scorer.py          ← cosine similarity scoring; --write-report output
-└── data/
-    └── bias-corpus.json  ← 50-entry corpus JSON (already placed 2026-06-13)
-```
-
-### New API router
-
-```
-src/red_team_platform/api/routers/
-└── bias.py            ← GET /bias/scores
-```
-
-### New Alembic migration
-
-```
-alembic/versions/
-└── 003_add_bias_tables.py
-```
-
 ### New frontend files
 
 ```
-web/src/
-├── pages/
-│   └── BiasHeatmap.tsx     ← /bias route; government × language grid
-├── components/
-│   └── BiasCell.tsx        ← single heatmap cell with score + colour coding
-└── api/
-    └── bias.ts             ← useBiasScores hook; GET /bias/scores
+web/src/lib/
+  categoryLabels.ts           — LABEL_x → human name map + labelName() helper
+  strategyDescriptions.ts     — strategy key → {label, description, example}
+
+web/src/components/
+  StatWidget.tsx              — metric card: icon + label + large value
+  ScoreBar.tsx                — continuous 0–1 classifier score as a filled bar
+  CoverageGrid.tsx            — reusable CSS grid heatmap; props: cells[], row/col labels, optional cellW/cellH
+
+web/src/hooks/
+  useAttackSummary.ts         — GET /attacks/summary with filter params
+  useCategoryDelta.ts         — GET /regression/category-delta?model=
+  useBiasResponses.ts         — GET /bias/responses/{topic_id}?model=
 ```
 
-### Modified files
+### Modified frontend files
 
 ```
-src/red_team_platform/api/main.py   ← register bias router at /bias prefix
-web/src/App.tsx                     ← add /bias route + NavLink "Bias Heatmap"
-pyproject.toml                      ← add seed-bias-corpus, score-bias entry points; add sentence-transformers dep
-benchmarks/bias-results.md          ← created by score-bias --write-report (does not exist yet)
+web/src/pages/AttackBrowser.tsx       — stat widgets, row detail panel, style migration
+web/src/pages/CoverageHeatmap.tsx     — replace ScatterChart with CoverageGrid, style migration
+web/src/pages/StrategyComparison.tsx  — 3-panel layout using CoverageGrid for panel C
+web/src/pages/RegressionTracker.tsx   — 4-panel layout, category delta + session table
+web/src/pages/SampleReview.tsx        — Compare mode, dedup grouping, 2-col detail panel
+web/src/pages/FailureClusters.tsx     — bubble chart, proportion bars, style migration
+web/src/pages/BiasHeatmap.tsx         — EN column, filters, response viewer
 ```
 
-### Test files
+### New backend files
+
+None — all changes go into existing routers.
+
+### Modified backend files
 
 ```
-tests/
-└── test_bias.py    ← ≥5 unit/integration tests (see requirement 8)
+src/red_team_platform/api/routers/attacks.py     — add GET /attacks/summary
+src/red_team_platform/api/routers/regression.py  — add GET /regression/category-delta
+src/red_team_platform/api/routers/bias.py        — add GET /bias/responses/{topic_id}
+src/red_team_platform/api/schemas.py             — add AttackSummaryOut, CategoryDeltaItem,
+                                                     CategoryDeltaOut, BiasLangDetail,
+                                                     BiasTopicResponseOut
 ```
-
----
-
-## Pre-condition: Corpus Authoring
-
-The corpus JSON at `src/red_team_platform/bias/data/bias-corpus.json` currently has 50 entries with `probe_question_en` populated. The `probe_question_zh`, `probe_question_ru`, and `probe_question_ar` fields do not yet exist in the JSON.
-
-**Human task (before seed can run end-to-end):** Add ZH, RU, and AR prompt fields to each entry. Use Claude to generate variants in one batch per language, then spot-check for meaning drift. The seed script handles null fields gracefully (skips with a warning), so a partial corpus is safe — EN-only probes can be run while ZH/RU/AR are still being authored.
-
-The architect should lock the corpus JSON schema (Q6 below) — this determines the exact field names the human needs to add.
 
 ---
 
 ## Open Questions for Architect
 
-**Q1 — DB schema: single table with language columns vs normalised variant table?**  
-Proposed answer: Normalised. `bias_probes` (50 rows, one per topic_id). `bias_prompt_variants` (up to 200 rows, one per probe × language). This keeps `bias_responses` clean: one FK to `variant_id`, not a composite (probe_id + language). Partial corpus state (null variants never inserted) is cleanly handled.
+1. **`/regression/category-delta` query.** Computing per-category ASR requires grouping `Run.jailbreak_success` by `Attack.harm_category` within a session. The simplest form is two subqueries (one for the first session, one for the latest) then a Python-side merge. Confirm this approach or propose a SQL-level pivot.
 
-**Q2 — Should `bias_responses` reuse the existing `runs` table?**  
-Proposed answer: No. `runs` has a non-nullable FK to `attacks.id`. Bias responses reference `bias_prompt_variants.id`. Nullable FKs for one-or-the-other would pollute existing runs queries. New table is the clean boundary.
+2. **SampleReview dedup ceiling.** Compare mode fetches 200 runs per session. With 1,797 attacks and typically one run per attack per session, 200 rows covers ~11% of a full session. Decide: accept this limitation (display a "Showing first 200 — use filters to narrow" note), or add `GET /runs/grouped?session_id=` for server-side dedup.
 
-**Q3 — How does `attack --mode bias` integrate with the existing Typer CLI?**  
-Proposed answer: Add `--mode` option (default `normal`) and `--language` option to the existing `attack` Typer app in `runner/attack.py`. When `--mode bias`, the runner reads from `bias_prompt_variants` filtered by language. Existing attack path unchanged. The `--language` flag is only valid and required in bias mode (Typer callback validates).
+3. **CoverageGrid compact labels.** Post-mapping category names are 20–35 chars. In the ~35×30 px compact cells used by StrategyComparison panel C, full names won't fit. Decide: truncate column headers to ~10 chars + tooltip, or rotate headers, or use an abbreviated version in a second mapping.
 
-**Q4 — BiasHeatmap: new route `/bias` or embedded tab in an existing page?**  
-Proposed answer: New route `/bias` with a NavLink. The existing tabs (Attack Browser, Coverage, Strategy Comparison, etc.) are separate React Router routes. A new route is consistent and avoids overloading an existing page's query param space.
+4. **Bubble chart categorical colour palette.** `top_harm_category` spans up to 13 LABEL values. Recharts ships 8 default colours. Decide: define a 13-colour palette in `categoryLabels.ts` alongside the label map (preferable), or cap at 8 with an "Other" bucket.
 
-**Q5 — Sentence embedding model initialisation: lazy singleton or explicit init step?**  
-Proposed answer: Lazy singleton in `scorer.py` — initialise `SentenceTransformer("all-MiniLM-L6-v2")` on first call to `compute_scores()`, cached at module level. Consistent with how `taxonomy_classifier.py` handles its HuggingFace model.
-
-**Q6 — Corpus JSON schema: add language fields inline vs separate variant files?**  
-Proposed answer: Add `probe_question_zh`, `probe_question_ru`, `probe_question_ar` fields directly to each entry in `bias-corpus.json`. Nullable strings. Keeps the corpus self-contained in one file. Seed script reads one file, no joins needed at import time.
+5. **`/attacks/summary` top_category/top_strategy computation.** MODE over all matching attacks requires a `GROUP BY + ORDER BY count DESC LIMIT 1` subquery. Two subqueries (one per field) is clean; a single CTE is more efficient. Confirm which.
 
 ---
 
 ## Handoff
 
 Next role: architect  
-The architect reads this file and designs: (1) the four new SQLAlchemy ORM models with columns and indices; (2) the Alembic migration `003_add_bias_tables`; (3) the full `attack --mode bias` CLI flow including idempotency check; (4) the scorer's embedding pipeline, cosine distance computation, and report format; (5) the `/bias/scores` API schema and SQL aggregation; (6) the BiasHeatmap component data contract and cell colour scale. Confirm or override the six proposed answers above. Lock Q6 first — it determines what the human needs to author into the corpus JSON.
+The architect must resolve all five open questions and produce: (1) exact SQL or ORM query for `/regression/category-delta`; (2) decision on server vs client SampleReview dedup; (3) CoverageGrid abbreviated label strategy; (4) 13-colour palette definition; (5) `/attacks/summary` query pattern. The implementer works tab-by-tab, migrating inline styles as part of each tab's feature work — not as a separate pass.

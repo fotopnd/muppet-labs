@@ -75,6 +75,26 @@ For projects using `@tailwindcss/vite` (Tailwind v4):
 
 ---
 
+## Inline Styles (`style={{}}`)
+
+Inline styles are justified only for values that cannot be expressed as Tailwind classes:
+
+- **Dynamic computed values** — percentages based on props (`width: ${score * 100}%`), computed HSL colours based on data (`hsl(${120*(1-asr)}, 65%, 45%)`), grid dimensions from runtime props.
+- **Recharts / SVG element props** — `<LabelList style={{ fontSize: 9 }}`, `<Scatter style={{ cursor: 'pointer' }}`. Tailwind utility classes do not reach SVG elements rendered by Recharts.
+- **Tooltip / overlay coordinates** — `left: x + 12, top: y - 8` at mouse position.
+
+Inline styles are **not** justified for static literal values. Legend colour swatches (`style={{ backgroundColor: 'hsl(120, 65%, 45%)' }}`), hardcoded widths, hardcoded font sizes in plain HTML — use Tailwind classes (including arbitrary values like `bg-[hsl(120,65%,45%)]`) instead.
+
+---
+
+## Recharts Patterns
+
+- **Do not use `ScatterChart` as a grid or heatmap.** Placing scatter points at integer coordinates to simulate a grid requires manual coordinate math, produces pixel misalignment, and has no tooltip anchoring. Use a CSS grid component instead (`CoverageGrid` pattern: `display: grid`, `gridTemplateColumns`, absolute-positioned tooltip at mouse coords).
+- **Bubble charts:** `ScatterChart` + `ZAxis` is the correct Recharts pattern when bubble area should be proportional to a data value. Set `ZAxis range={[minPx, maxPx]}` to control the area scale.
+- **SVG text on bars:** `<LabelList>` renders inside Recharts SVG. Style with `style={{ fontSize: N }}`, not Tailwind classes.
+
+---
+
 ## React Conventions
 
 - Functional components only. No class components.

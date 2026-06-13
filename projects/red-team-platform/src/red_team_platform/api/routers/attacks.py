@@ -7,10 +7,63 @@ from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from red_team_platform.api.deps import get_db
-from red_team_platform.api.schemas import AttackListOut, AttackOut, FilterValuesOut
+from red_team_platform.api.schemas import (
+    AttackListOut,
+    AttackOut,
+    AttackSummaryOut,
+    FilterValuesOut,
+)
 from red_team_platform.models import Attack
 
 router = APIRouter(prefix="/attacks", tags=["attacks"])
+
+
+@router.get("/summary", response_model=AttackSummaryOut)
+async def get_attack_summary(
+    source: str | None = None,
+    harm_category: str | None = None,
+    strategy: str | None = None,
+    db: AsyncSession = Depends(get_db),
+) -> AttackSummaryOut:
+    def _apply(q: select) -> select:
+        if source:
+            q = q.where(Attack.source == source)
+        if harm_category:
+            q = q.where(Attack.harm_category == harm_category)
+        if strategy:
+            q = q.where(Attack.strategy == strategy)
+        return q
+
+    total_res = await db.execute(
+        _apply(select(func.count()).select_from(Attack))
+    )
+    total = total_res.scalar_one()
+
+    top_cat: str | None = None
+    top_strat: str | None = None
+
+    if total > 0:
+        cat_res = await db.execute(
+            _apply(
+                select(Attack.harm_category)
+                .group_by(Attack.harm_category)
+                .order_by(func.count(Attack.id).desc())
+                .limit(1)
+            )
+        )
+        top_cat = cat_res.scalar_one_or_none()
+
+        strat_res = await db.execute(
+            _apply(
+                select(Attack.strategy)
+                .group_by(Attack.strategy)
+                .order_by(func.count(Attack.id).desc())
+                .limit(1)
+            )
+        )
+        top_strat = strat_res.scalar_one_or_none()
+
+    return AttackSummaryOut(total=total, top_category=top_cat, top_strategy=top_strat)
 
 
 @router.get("", response_model=AttackListOut)
