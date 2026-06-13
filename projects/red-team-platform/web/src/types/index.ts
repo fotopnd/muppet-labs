@@ -178,3 +178,6 @@ export type BiasTopicResponseOut = {
   label: string
   languages: Record<string, BiasLangDetail>
 }
+
+export type BackTranslateIn = { text: string; source_lang: 'zh' | 'ru' | 'ar' }
+export type BackTranslateOut = { translated: string }

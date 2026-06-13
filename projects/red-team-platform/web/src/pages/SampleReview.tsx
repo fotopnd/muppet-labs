@@ -41,8 +41,14 @@ export function SampleReview() {
   const [selectedRunId, setSelectedRunId] = useState<string | null>(null)
 
   const { data: sessions } = useSessions()
-  const pageSize = mode === 'compare' ? 200 : 20
-  const { data: runs } = useRuns({ sessionId: selectedSessionId ?? undefined, page, pageSize })
+  const isCompare = mode === 'compare'
+  const pageSize = 20
+  const { data: runs } = useRuns({
+    sessionId: selectedSessionId ?? undefined,
+    page,
+    pageSize,
+    dedup: isCompare && !!selectedSessionId,
+  })
 
   const grouped = useMemo(() => {
     if (mode !== 'compare' || !runs) return []
@@ -101,9 +107,9 @@ export function SampleReview() {
         </select>
       </div>
 
-      {mode === 'compare' && runs && (
+      {mode === 'compare' && !selectedSessionId && (
         <p className="text-xs text-text-muted mb-2">
-          Compare mode — showing first 200 runs. Use session filter to narrow.
+          Compare mode — select a session to load deduplicated attacks.
         </p>
       )}
 

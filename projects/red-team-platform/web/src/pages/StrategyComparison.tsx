@@ -1,9 +1,18 @@
 import { useMemo } from 'react'
-import { Bar, BarChart, CartesianGrid, LabelList, Tooltip, XAxis, YAxis } from 'recharts'
+import {
+  Bar, BarChart, CartesianGrid, Cell, LabelList, Tooltip, XAxis, YAxis,
+} from 'recharts'
 import { useStrategyComparison } from '@/hooks/useStrategyComparison'
 import { useCoverage } from '@/hooks/useCoverage'
 import { CoverageGrid } from '@/components/CoverageGrid'
+import { AnalyticsSummary } from '@/components/AnalyticsSummary'
 import type { CoverageGridCell } from '@/components/CoverageGrid'
+
+function asrColour(asr_pct: number): string {
+  if (asr_pct < 30) return '#22c55e'
+  if (asr_pct < 60) return '#f59e0b'
+  return '#ef4444'
+}
 
 export function StrategyComparison() {
   const { data, isLoading, isError } = useStrategyComparison()
@@ -20,9 +29,9 @@ export function StrategyComparison() {
     }))
   }, [coverageData])
 
-  if (isLoading) return <p className="p-4 text-text-secondary text-sm">Loading…</p>
-  if (isError) return <p className="p-4 text-danger text-sm">Error loading strategy data.</p>
-  if (!data || data.bars.length === 0) return <p className="p-4 text-text-muted text-sm">No strategy data yet.</p>
+  if (isLoading) return <p className="text-text-secondary text-sm">Loading…</p>
+  if (isError) return <p className="text-danger text-sm">Error loading strategy data.</p>
+  if (!data || data.bars.length === 0) return <p className="text-text-muted text-sm">No strategy data yet.</p>
 
   const sortedByAsr = [...data.bars].sort((a, b) => b.asr - a.asr)
   const sortedByVol = [...data.bars].sort((a, b) => b.total_runs - a.total_runs)
@@ -38,9 +47,7 @@ export function StrategyComparison() {
   }))
 
   return (
-    <div className="p-4">
-      <h2 className="text-base font-semibold text-text-primary mb-4">Strategy Comparison</h2>
-
+    <div>
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Panel A: ASR by strategy */}
         <div className="bg-surface border border-border rounded-lg p-4">
@@ -54,7 +61,7 @@ export function StrategyComparison() {
             <Tooltip
               content={({ payload }) => {
                 if (!payload?.length) return null
-                const d = payload[0]?.payload as typeof asrData[number]
+                const d = payload[0]?.payload as (typeof asrData)[number]
                 return (
                   <div className="bg-canvas border border-border rounded p-2 text-xs shadow">
                     <p className="font-semibold text-text-primary">{d.strategy}</p>
@@ -64,7 +71,10 @@ export function StrategyComparison() {
                 )
               }}
             />
-            <Bar dataKey="asr_pct" fill="var(--color-danger)" name="ASR %">
+            <Bar dataKey="asr_pct" name="ASR %">
+              {asrData.map((entry, i) => (
+                <Cell key={i} fill={asrColour(entry.asr_pct)} />
+              ))}
               <LabelList dataKey="n" position="top" formatter={(v: number) => `n=${v}`} style={{ fontSize: 9 }} />
             </Bar>
           </BarChart>
@@ -88,7 +98,7 @@ export function StrategyComparison() {
             <Tooltip
               content={({ payload }) => {
                 if (!payload?.length) return null
-                const d = payload[0]?.payload as typeof volData[number]
+                const d = payload[0]?.payload as (typeof volData)[number]
                 return (
                   <div className="bg-canvas border border-border rounded p-2 text-xs shadow">
                     <p className="font-semibold text-text-primary">{d.strategy}</p>
@@ -118,6 +128,8 @@ export function StrategyComparison() {
           )}
         </div>
       </div>
+
+      <AnalyticsSummary />
     </div>
   )
 }

@@ -1,167 +1,169 @@
-# Planner Output — Red-Team Platform Dashboard Refinement
+# Planner Output — Red-Team Platform Dashboard Refinement v2
 
 **Role:** planner  
+**Sequence:** add-feature  
 **Date:** 2026-06-13  
-**Input brief:** `roles/brief/archive/2026-06-13-dashboard-refinement-brief.md`
+**Reads:** `roles/brief/output/output.md`, `_config/project-state.md`
 
 ---
 
-## Project
+## Open Questions Resolved
 
-red-team-platform-dashboard-refinement — a full UX and information-density pass over all seven dashboard tabs: fix LABEL_x category names, add topline insight widgets, replace ScatterChart-faked grids with CSS grids, migrate all inline styles to Tailwind tokens, add three new backend endpoints, and build a three-column bias response viewer.
+**Q1 — Which strategy keys are in the DB?**  
+API returns 35 distinct strategy keys. Current `strategyDescriptions.ts` covers 6. All 35 need entries.
 
----
+**Q2 — `dedup=true`: most-recent or highest-score?**  
+Most-recent run per `attack_id`. Rationale: the Compare mode goal is "did this attack succeed at least once?" and most-recent reflects the latest test state. Highest-score could be misleading (cherry-picks a lucky successful run). Use `DISTINCT ON (attack_id) ORDER BY attack_id, created_at DESC`.
 
-## Requirements
+**Q3 — Analytics.tsx: import vs inline?**  
+Import `StrategyComparison` and `RegressionTracker` as components directly into `Analytics.tsx`. Remove the outer `<div className="p-4">` from both page components — `Analytics.tsx` controls section padding. This avoids code duplication and keeps each section independently testable.
 
-### Shared / cross-cutting
-
-1. A `web/src/lib/categoryLabels.ts` module exports `labelName(raw: string): string` mapping `LABEL_0`–`LABEL_12` to human names; unmapped values pass through unchanged.
-2. A `web/src/lib/strategyDescriptions.ts` module exports `STRATEGY_DESCRIPTIONS` covering all six corpus strategies with `{ label, description, example }` per entry.
-3. No `style={{…}}` prop appears in any tab or shared component file after implementation.
-4. All colour, spacing, and typography references use `@theme` Tailwind tokens (`bg-canvas`, `text-text-primary`, `bg-surface-muted`, `border-border`, `text-accent`, `bg-accent-subtle`, `bg-divergence-*`).
-
-### Backend
-
-5. `GET /attacks/summary?source=&harm_category=&strategy=` returns `{ total, top_category, top_strategy }` computed over all attacks matching the filters (not just the current page).
-6. `GET /regression/category-delta?model=` returns `[{ harm_category, baseline_asr, latest_asr, delta }]`; baseline = first RunSession for model, latest = most recent; returns empty array when fewer than two sessions exist.
-7. `GET /bias/responses/{topic_id}?model=` returns `{ topic_id, government, label, languages: { [lang]: { prompt, response, cosine_distance } } }`; `model` defaults to most recently scored model; languages present only when a BiasResponse exists.
-
-### Attack Browser
-
-8. Three `StatWidget` cards render above the filter bar: total attacks, top harm category (human-readable), top strategy; cards update reactively when filters change.
-9. Clicking a table row opens a right-side detail panel (≥ 40 % of page width); panel shows: full attack text, a `<dl>` strategy + category context box, and (if a run record exists) response text with `ScoreBar` and jailbreak badge.
-10. Panel can be dismissed; row click does not navigate.
-
-### Coverage Heatmap
-
-11. The Recharts `ScatterChart` is replaced by the shared `CoverageGrid` component — cells touch (no gap), each cell renders its ASR% in readable text without hover.
-12. Cells with no data show a neutral surface background with `"—"`.
-13. Category row labels use `labelName()` and are fully readable; not rotated.
-14. Hover tooltip shows full category name, strategy, run count, success count.
-
-### Strategy Comparison
-
-15. Three panels in a `grid grid-cols-1 lg:grid-cols-3` layout:
-    - A: ASR % bar chart sorted descending, with `n=` run-count label on each bar.
-    - B: horizontal bar chart of `total_runs` per strategy, using accent-purple colour.
-    - C: compact `CoverageGrid` (~35×30 px cells) showing strategy × category coverage gaps.
-
-### Regression Tracker
-
-16. Four panels in a `grid grid-cols-1 lg:grid-cols-2` layout:
-    - A: ASR-over-sessions line chart; first session's ASR shown as dashed baseline.
-    - B: per-category delta bar chart from `/regression/category-delta` (red = regression, green = improvement); renders an explanatory empty state when fewer than 2 sessions exist.
-    - C: session summary table (date, model, total runs, ASR, Δ vs previous) sortable by date.
-    - D: two stat boxes: most-improved category and most-regressed category vs latest session.
-
-### Sample Review
-
-17. A mode toggle (All / Compare) renders above the run table; Compare is the default.
-18. In Compare mode, runs are grouped by `attack_text` client-side; one row per unique attack shows `#Success`, `#Safe`, `#Total` columns; Compare mode fetches up to 200 runs per session.
-19. Clicking a grouped row opens a two-column side panel: best-scoring run (left) vs lowest-scoring run (right); if all runs share an outcome, show only the highest scorer with a note.
-
-### Failure Clusters
-
-20. A Recharts `ScatterChart` bubble chart renders above the card grid; X = cluster index, Y = `size` (failure count), bubble radius ∝ `sqrt(size)`, colour = `top_harm_category` (categorical palette).
-21. Clicking a bubble scrolls to and highlights the corresponding cluster card.
-22. Each card includes a horizontal proportion bar showing this cluster's share of total failures.
-23. All card `style={{}}` replaced with Tailwind utilities.
-
-### Bias Heatmap
-
-24. An `EN` column renders as `0.00` with `bg-divergence-low`; a footnote below the table reads "EN = 0.00 baseline; all values measure divergence from the EN response."
-25. A government `<select>` and topic text `<input>` filter rows client-side; both controls appear above the table.
-26. Clicking a topic row expands a response viewer panel below the table.
-27. The response viewer shows three columns: EN (prompt + response), target language (prompt + response), back-translated (static placeholder `[Back-translation not yet available]`).
-28. A ZH / RU / AR language selector switches columns 2 and 3.
-29. A `useBiasResponses(topicId: string | null)` hook fetches `/bias/responses/{topic_id}` only when `topicId` is non-null.
+**Q4 — Back-translate: backend cache vs client-side?**  
+Client-side `useState` cache per (topicId, lang) is sufficient. Responses are immutable once generated. No backend caching needed. Backend endpoint should NOT store to DB (no migration).
 
 ---
 
-## Technology Stack
+## Tech Stack (existing, no changes)
 
-| Concern | Choice | Reason |
-|---|---|---|
-| Frontend language | TypeScript 5.x strict | existing project |
-| Framework | React 18 functional | existing project |
-| Build | Vite + `@tailwindcss/vite` | existing project, port 5173 |
-| Styling | Tailwind v4 `@theme` tokens | existing; mandatory migration for all tabs |
-| Charts | Recharts | existing; retain for bar/line/bubble; replace ScatterChart-as-grid with CSS grid |
-| Server state | TanStack Query | existing project |
-| Backend language | Python 3.12 | existing project |
-| API framework | FastAPI | existing project |
-| DB access | SQLAlchemy async + asyncpg | existing project |
-| Linting | ruff | existing project |
-| FE testing | vitest + @testing-library/react | existing project |
-| BE testing | pytest + pytest-asyncio | existing project |
+- Backend: FastAPI + SQLAlchemy async + asyncpg, PostgreSQL port 5435, `uv`
+- Frontend: React 19, TypeScript strict, Vite, TanStack Query, Recharts, Tailwind v4
+- New backend dependency: `anthropic` SDK already available (used by `attack` runner)
 
 ---
 
-## File and Module Structure
+## File-Level Task List
 
-### New frontend files
+### Backend changes
 
-```
-web/src/lib/
-  categoryLabels.ts           — LABEL_x → human name map + labelName() helper
-  strategyDescriptions.ts     — strategy key → {label, description, example}
+| File | Change |
+|------|--------|
+| `api/routers/runs.py` | Add `dedup: bool = False` query param; when true, use `DISTINCT ON (attack_id)` ORM or raw SQL |
+| `api/routers/bias.py` | Add `POST /bias/back-translate` endpoint; call Anthropic haiku |
+| `api/schemas.py` | Add `BackTranslateIn`, `BackTranslateOut` schemas; add `dedup` field to existing `RunListOut` if needed |
 
-web/src/components/
-  StatWidget.tsx              — metric card: icon + label + large value
-  ScoreBar.tsx                — continuous 0–1 classifier score as a filled bar
-  CoverageGrid.tsx            — reusable CSS grid heatmap; props: cells[], row/col labels, optional cellW/cellH
+### Frontend: new files
 
-web/src/hooks/
-  useAttackSummary.ts         — GET /attacks/summary with filter params
-  useCategoryDelta.ts         — GET /regression/category-delta?model=
-  useBiasResponses.ts         — GET /bias/responses/{topic_id}?model=
-```
+| File | Purpose |
+|------|---------|
+| `src/pages/Analytics.tsx` | New Analytics tab: imports StrategyComparison + RegressionTracker |
+| `src/components/AnalyticsSummary.tsx` | Computed prose summary for strategy data |
+| `src/components/RegressionSummary.tsx` | Computed prose summary for regression data |
+| `src/hooks/useBackTranslation.ts` | TanStack mutation for `POST /bias/back-translate`; client-side cache |
 
-### Modified frontend files
+### Frontend: modified files
 
-```
-web/src/pages/AttackBrowser.tsx       — stat widgets, row detail panel, style migration
-web/src/pages/CoverageHeatmap.tsx     — replace ScatterChart with CoverageGrid, style migration
-web/src/pages/StrategyComparison.tsx  — 3-panel layout using CoverageGrid for panel C
-web/src/pages/RegressionTracker.tsx   — 4-panel layout, category delta + session table
-web/src/pages/SampleReview.tsx        — Compare mode, dedup grouping, 2-col detail panel
-web/src/pages/FailureClusters.tsx     — bubble chart, proportion bars, style migration
-web/src/pages/BiasHeatmap.tsx         — EN column, filters, response viewer
-```
-
-### New backend files
-
-None — all changes go into existing routers.
-
-### Modified backend files
-
-```
-src/red_team_platform/api/routers/attacks.py     — add GET /attacks/summary
-src/red_team_platform/api/routers/regression.py  — add GET /regression/category-delta
-src/red_team_platform/api/routers/bias.py        — add GET /bias/responses/{topic_id}
-src/red_team_platform/api/schemas.py             — add AttackSummaryOut, CategoryDeltaItem,
-                                                     CategoryDeltaOut, BiasLangDetail,
-                                                     BiasTopicResponseOut
-```
+| File | Change |
+|------|--------|
+| `src/lib/strategyDescriptions.ts` | Expand from 6 → 35 strategy entries |
+| `src/App.tsx` | Remove Coverage / Strategy / Regression tabs; add Analytics tab |
+| `src/pages/StrategyComparison.tsx` | Remove outer `p-4` div; add `<Cell>` colour thresholds; add `<AnalyticsSummary>` |
+| `src/pages/RegressionTracker.tsx` | Remove outer `p-4` div; add `<RegressionSummary>` |
+| `src/pages/AttackBrowser.tsx` | Expand detail panel: scrollable pre, char count, example field rendered |
+| `src/pages/FailureClusters.tsx` | Bubble chart axes: X = strategy, Y = category; card grid sorted by % |
+| `src/pages/SampleReview.tsx` | Compare mode: use `dedup=true`, remove 200-row hack |
+| `src/hooks/useRuns.ts` | Add `dedup?: boolean` to query params |
+| `src/components/BiasResponseViewer.tsx` | Call `useBackTranslation` on tab switch; show result in 3rd column |
 
 ---
 
-## Open Questions for Architect
+## Sequencing
 
-1. **`/regression/category-delta` query.** Computing per-category ASR requires grouping `Run.jailbreak_success` by `Attack.harm_category` within a session. The simplest form is two subqueries (one for the first session, one for the latest) then a Python-side merge. Confirm this approach or propose a SQL-level pivot.
+Phase 1 — Backend (no new migrations):
+1. `runs.py`: dedup param
+2. `bias.py`: back-translate endpoint
+3. `schemas.py`: new Pydantic types
 
-2. **SampleReview dedup ceiling.** Compare mode fetches 200 runs per session. With 1,797 attacks and typically one run per attack per session, 200 rows covers ~11% of a full session. Decide: accept this limitation (display a "Showing first 200 — use filters to narrow" note), or add `GET /runs/grouped?session_id=` for server-side dedup.
+Phase 2 — Frontend shared:
+4. `strategyDescriptions.ts`: all 35 entries
+5. `AnalyticsSummary.tsx`
+6. `RegressionSummary.tsx`
+7. `useBackTranslation.ts`
 
-3. **CoverageGrid compact labels.** Post-mapping category names are 20–35 chars. In the ~35×30 px compact cells used by StrategyComparison panel C, full names won't fit. Decide: truncate column headers to ~10 chars + tooltip, or rotate headers, or use an abbreviated version in a second mapping.
+Phase 3 — Frontend pages:
+8. `App.tsx`: nav restructure
+9. `Analytics.tsx`: new combined page
+10. `StrategyComparison.tsx`: colour + summary + remove outer padding
+11. `RegressionTracker.tsx`: summary + remove outer padding
+12. `AttackBrowser.tsx`: detail panel improvements
+13. `FailureClusters.tsx`: axes + sort
+14. `SampleReview.tsx`: dedup
+15. `BiasResponseViewer.tsx`: back-translation column
 
-4. **Bubble chart categorical colour palette.** `top_harm_category` spans up to 13 LABEL values. Recharts ships 8 default colours. Decide: define a 13-colour palette in `categoryLabels.ts` alongside the label map (preferable), or cap at 8 with an "Other" bucket.
+---
 
-5. **`/attacks/summary` top_category/top_strategy computation.** MODE over all matching attacks requires a `GROUP BY + ORDER BY count DESC LIMIT 1` subquery. Two subqueries (one per field) is clean; a single CTE is more efficient. Confirm which.
+## Strategy Key → Description Assignments
+
+All 35 strategy keys need entries. Grouped by mechanism:
+
+**Persona injection:**
+- `AIM` — Always Intelligent & Machiavellian persona (covered)
+- `evil_confidant` — "Confidant" persona: asks model to be a trusted friend with no restrictions
+- `evil_system_prompt` — System-prompt override redefining model role (covered)
+- `dev_mode_v2` — "Developer mode v2": claims to unlock a hidden developer mode with no content filters
+
+**In-context / few-shot manipulation:**
+- `few_shot_json` — Few-shot compliance priming via JSON format (covered)
+- `multi_shot_5` — 5 fabricated in-context compliance examples before the harmful request
+- `multi_shot_25` — 25 fabricated in-context compliance examples (saturation attack)
+- `combination_1`, `combination_2`, `combination_3` — Composites of multiple strategies
+
+**Refusal suppression:**
+- `refusal_suppression` — Pre-emptive instruction not to refuse (covered)
+- `refusal_suppression_inv` — Inverted: ask model to write what a refusal would look like, then invert the output
+- `prefix_injection` — Injects "Sure, here is..." prefix to prime the model to continue
+- `prefix_injection_hello` — Same with "Hello! Sure, here is..." variant
+
+**Obfuscation / encoding:**
+- `base64` — Full prompt encoded in Base64
+- `base64_input_only` — Only the harmful substring encoded in Base64
+- `base64_output_only` — Ask model to return its answer encoded in Base64
+- `base64_raw` — Raw Base64 without standard padding (edge-case variant)
+- `rot13` — ROT13 rotation cipher applied to the harmful content
+- `leetspeak` — Character substitution: a→4, e→3, i→1, o→0
+- `disemvowel` — All vowels removed from the harmful payload
+- `obfuscation` — General character-level obfuscation mix
+- `low_resource` — Harmful request written in a low-resource language (e.g. Swahili, Yoruba)
+- `low_resource_english` — Broken or simplified English intended to evade English-tuned filters
+
+**Output format manipulation:**
+- `style_injection_json` — Request output in strict JSON schema to bypass safety filters
+- `style_injection_short` — Request an extremely short response to reduce filter surface
+- `poems` — Wrap harmful request in a creative poetry framing
+- `wikipedia` — Request harmful info in the form of a neutral Wikipedia-style article
+- `wikipedia_with_title` — Same with an explicit Wikipedia-style article title provided
+
+**Distractor / noise:**
+- `distractors` — Precede or surround the harmful request with irrelevant benign text
+- `distractors_negated` — Negated version: explicitly deny harmful intent while embedding the request
+
+**Gradient / automated:**
+- `gcg` — Greedy Coordinate Gradient adversarial suffix (covered)
+- `autodan` — AutoDAN: automatically generated multi-step jailbreak prompts via discrete optimisation
+
+**Baseline / control:**
+- `none` — No jailbreak technique; baseline raw harmful request
+- `original_prompt` — The unmodified original attack prompt from the source dataset
+
+---
+
+## Risk Flags
+
+**R1 — `DISTINCT ON` in asyncpg:** `DISTINCT ON` is PostgreSQL-specific syntax. If using `text()` in SQLAlchemy, all params must be non-null (per asyncpg rule from retro). Use ORM or text() with no None params. Recommended: use raw `text()` query since `session_id` will be provided (non-null when dedup=true is used with a session selected), or build with `select(Run).distinct(Run.attack_id)` — verify this maps to `DISTINCT ON` in asyncpg.
+
+Actually: SQLAlchemy's `.distinct()` maps to `SELECT DISTINCT`, not `DISTINCT ON`. `DISTINCT ON` requires raw SQL. Use `text()` with a hardcoded non-null `session_id` — safe since dedup mode requires a session to be selected.
+
+**R2 — Anthropic SDK import in bias.py:** The `anthropic` package must be available in the `red-team-platform` pyproject.toml dependencies. Verify it's already listed (likely is, since the attack runner uses it).
+
+**R3 — Analytics.tsx tab scroll:** Stacking Strategy + Regression in one page creates a long scroll. Add anchor links at the top of the Analytics tab so users can jump to each section.
 
 ---
 
 ## Handoff
 
 Next role: architect  
-The architect must resolve all five open questions and produce: (1) exact SQL or ORM query for `/regression/category-delta`; (2) decision on server vs client SampleReview dedup; (3) CoverageGrid abbreviated label strategy; (4) 13-colour palette definition; (5) `/attacks/summary` query pattern. The implementer works tab-by-tab, migrating inline styles as part of each tab's feature work — not as a separate pass.
+Reads this output to design exact API contracts, component interfaces, and data flow. Key decisions to lock:
+- Exact SQL for `DISTINCT ON` dedup query
+- `POST /bias/back-translate` request/response schema
+- `AnalyticsSummary` and `RegressionSummary` prop types
+- `useBackTranslation` return type and cache key structure
+- Recharts categorical axis design for cluster chart (numeric indices → string labels)

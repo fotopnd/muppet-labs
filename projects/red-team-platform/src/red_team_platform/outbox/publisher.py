@@ -15,7 +15,6 @@ from __future__ import annotations
 import json
 import logging
 import time
-import uuid
 from datetime import UTC, datetime
 
 logger = logging.getLogger(__name__)
@@ -39,7 +38,6 @@ def _build_kafka_message(row: dict) -> bytes:
 
 def run_publisher() -> None:
     import psycopg2
-
     from confluent_kafka import Producer
 
     from red_team_platform.config import get_settings

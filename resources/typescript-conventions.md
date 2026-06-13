@@ -92,6 +92,30 @@ Inline styles are **not** justified for static literal values. Legend colour swa
 - **Do not use `ScatterChart` as a grid or heatmap.** Placing scatter points at integer coordinates to simulate a grid requires manual coordinate math, produces pixel misalignment, and has no tooltip anchoring. Use a CSS grid component instead (`CoverageGrid` pattern: `display: grid`, `gridTemplateColumns`, absolute-positioned tooltip at mouse coords).
 - **Bubble charts:** `ScatterChart` + `ZAxis` is the correct Recharts pattern when bubble area should be proportional to a data value. Set `ZAxis range={[minPx, maxPx]}` to control the area scale.
 - **SVG text on bars:** `<LabelList>` renders inside Recharts SVG. Style with `style={{ fontSize: N }}`, not Tailwind classes.
+- **Categorical scatter/bubble axes:** Recharts `XAxis`/`YAxis` only support numeric or time scales natively. For categorical axes, map each category to an ordinal integer index and use `tickFormatter` to render the label:
+  ```tsx
+  const stratOrder = Object.entries(stratTotals).sort(([,a],[,b]) => b-a).map(([s]) => s)
+  // XAxis:
+  <XAxis dataKey="x" type="number" domain={[0, stratOrder.length - 1]}
+    tickFormatter={(i) => stratOrder[i] ?? ''} />
+  ```
+  Sort `stratOrder` by total weight (e.g. total cluster failures) so the most significant categories appear first on the axis.
+
+---
+
+## TanStack Query
+
+- **`staleTime: Infinity` for immutable computed results.** Use when the result for a given query key can never change — back-translations, embeddings, content hashes. Eliminates all background refetches without manual cache invalidation. Pattern:
+  ```ts
+  return useQuery({
+    queryKey: ['back-translate', lang, text],
+    queryFn: () => fetch(...).then(r => r.json()),
+    enabled: !!text,
+    staleTime: Infinity,
+  })
+  ```
+  This ensures each `(lang, text)` pair calls the API at most once per browser session, even if multiple components request it.
+- **`enabled: !!text` guard.** When a query depends on user-provided or API-returned data that may be null or empty string, gate the query with `enabled: !!value`. This prevents firing with empty inputs that would produce incorrect or hallucinated results.
 
 ---
 

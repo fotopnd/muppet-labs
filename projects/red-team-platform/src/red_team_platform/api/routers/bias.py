@@ -6,6 +6,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from red_team_platform.api.deps import get_db
 from red_team_platform.api.schemas import (
+    BackTranslateIn,
+    BackTranslateOut,
     BiasLangDetail,
     BiasScoreRow,
     BiasScoresOut,
@@ -113,3 +115,29 @@ async def get_bias_responses(
         label=probe_row["label"],
         languages=languages,
     )
+
+
+@router.post("/bias/back-translate", response_model=BackTranslateOut)
+async def back_translate(body: BackTranslateIn) -> BackTranslateOut:
+    if not body.text.strip():
+        return BackTranslateOut(translated="")
+
+    import anthropic
+
+    lang_names = {"zh": "Chinese", "ru": "Russian", "ar": "Arabic"}
+    client = anthropic.Anthropic()
+    msg = client.messages.create(
+        model="claude-haiku-4-5-20251001",
+        max_tokens=1024,
+        messages=[
+            {
+                "role": "user",
+                "content": (
+                    f"Translate the following {lang_names[body.source_lang]} text to English."
+                    f" Return only the translation, no explanation:\n\n{body.text}"
+                ),
+            }
+        ],
+    )
+    translated = msg.content[0].text if msg.content else ""
+    return BackTranslateOut(translated=translated)

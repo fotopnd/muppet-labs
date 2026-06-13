@@ -12,9 +12,10 @@ logger = logging.getLogger(__name__)
 
 @asynccontextmanager
 async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
+    import llm_safety_classifier
+
     from red_team_platform.config import get_settings
     from red_team_platform.db import create_engine, create_session_factory
-    import llm_safety_classifier
 
     settings = get_settings()
 

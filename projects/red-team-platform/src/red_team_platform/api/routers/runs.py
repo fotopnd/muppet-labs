@@ -4,7 +4,7 @@ import uuid
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException, Query
-from sqlalchemy import func, select
+from sqlalchemy import func, select, text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from red_team_platform.api.deps import get_db
@@ -13,14 +13,59 @@ from red_team_platform.models import Attack, Run
 
 router = APIRouter(tags=["runs"])
 
+_DEDUP_SQL = text("""
+    SELECT DISTINCT ON (r.attack_id)
+        r.id,
+        r.session_id,
+        r.attack_id,
+        r.model_name,
+        r.response_text,
+        r.jailbreak_success,
+        r.classifier_score,
+        r.latency_ms,
+        r.created_at,
+        a.harm_category,
+        a.strategy,
+        a.attack_text
+    FROM runs r
+    JOIN attacks a ON a.id = r.attack_id
+    WHERE r.session_id = :session_id
+    ORDER BY r.attack_id, r.created_at DESC
+""")
+
 
 @router.get("/runs", response_model=RunListOut)
 async def list_runs(
     session_id: uuid.UUID | None = None,
     page: Annotated[int, Query(ge=1)] = 1,
     page_size: Annotated[int, Query(ge=1, le=200)] = 50,
+    dedup: bool = False,
     db: AsyncSession = Depends(get_db),
 ) -> RunListOut:
+    if dedup:
+        if session_id is None:
+            raise HTTPException(status_code=400, detail="session_id required when dedup=true")
+        result = await db.execute(_DEDUP_SQL, {"session_id": str(session_id)})
+        rows = result.mappings().all()
+        items = [
+            RunOut(
+                id=row["id"],
+                session_id=row["session_id"],
+                attack_id=row["attack_id"],
+                model_name=row["model_name"],
+                response_text=row["response_text"],
+                jailbreak_success=row["jailbreak_success"],
+                classifier_score=row["classifier_score"],
+                latency_ms=row["latency_ms"],
+                created_at=row["created_at"],
+                harm_category=row["harm_category"],
+                strategy=row["strategy"],
+                attack_text=row["attack_text"],
+            )
+            for row in rows
+        ]
+        return RunListOut(items=items, total=len(items), page=1, page_size=len(items))
+
     base = select(Run)
     if session_id:
         base = base.where(Run.session_id == session_id)
@@ -33,12 +78,11 @@ async def list_runs(
     )
     runs = result.scalars().all()
 
-    # Fetch joined attack data
-    items: list[RunOut] = []
+    items_out: list[RunOut] = []
     for run in runs:
         atk_result = await db.execute(select(Attack).where(Attack.id == run.attack_id))
         atk = atk_result.scalar_one()
-        items.append(
+        items_out.append(
             RunOut(
                 id=run.id,
                 session_id=run.session_id,
@@ -55,7 +99,7 @@ async def list_runs(
             )
         )
 
-    return RunListOut(items=items, total=total, page=page, page_size=page_size)
+    return RunListOut(items=items_out, total=total, page=page, page_size=page_size)
 
 
 @router.get("/sample/{run_id}", response_model=SampleOut)

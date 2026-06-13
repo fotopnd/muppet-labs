@@ -141,9 +141,19 @@ export function AttackBrowser() {
               </button>
             </div>
 
-            <pre className="bg-surface-muted rounded p-2 text-xs font-mono whitespace-pre-wrap break-words text-text-primary max-h-48 overflow-y-auto mb-4">
-              {selectedAttack.attack_text}
-            </pre>
+            <div className="mb-4">
+              <div className="flex items-center justify-between mb-1">
+                <span className="text-xs font-semibold text-text-secondary uppercase tracking-wider">
+                  Attack Text
+                </span>
+                <span className="text-xs text-text-muted font-mono">
+                  {selectedAttack.attack_text.length} chars
+                </span>
+              </div>
+              <pre className="bg-surface-muted rounded p-2 text-xs font-mono whitespace-pre-wrap break-words text-text-primary max-h-64 overflow-y-auto">
+                {selectedAttack.attack_text}
+              </pre>
+            </div>
 
             <dl className="border border-border rounded p-3 bg-canvas text-xs space-y-3 mb-4">
               <div>
@@ -153,8 +163,13 @@ export function AttackBrowser() {
                 </dd>
                 {stratMeta && (
                   <>
-                    <dd className="text-text-secondary mt-0.5">{stratMeta.description}</dd>
-                    <dd className="text-text-muted italic mt-1">{stratMeta.example}</dd>
+                    <dd className="text-text-secondary mt-1 leading-relaxed">{stratMeta.description}</dd>
+                    <dd className="mt-2">
+                      <span className="text-text-muted text-xs uppercase tracking-wider font-semibold">Example template</span>
+                      <code className="block bg-surface-muted rounded p-2 text-xs font-mono whitespace-pre-wrap mt-1 text-text-primary">
+                        {stratMeta.example}
+                      </code>
+                    </dd>
                   </>
                 )}
               </div>

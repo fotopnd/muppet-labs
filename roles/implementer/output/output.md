@@ -1,105 +1,74 @@
-# Implementer Output — portfolio-site
+# Implementer Output — red-team-platform dashboard refinement v2
 
 **Role:** implementer  
-**Sequence:** new-project-full (step 6 — single frontend phase)  
-**Date:** 2026-06-12
+**Sequence:** add-feature  
+**Date:** 2026-06-13
 
 ---
 
-## Phase
+## Files Produced / Modified
 
-Single-language — TypeScript (React 19 + Vite 8 + Tailwind v4)
+### Backend
+| File | Change |
+|------|--------|
+| `pyproject.toml` | Added `anthropic>=0.107.1` |
+| `.env` | Added `ANTHROPIC_API_KEY` |
+| `api/schemas.py` | Added `BackTranslateIn`, `BackTranslateOut`; added `Literal` import |
+| `api/routers/runs.py` | Added `dedup: bool = False` param; `DISTINCT ON` SQL for dedup mode |
+| `api/routers/bias.py` | Added `POST /bias/back-translate` endpoint using Anthropic haiku |
 
----
-
-## Files Produced
-
+### Frontend — new files
 | File | Purpose |
 |------|---------|
-| `index.html` | Page title "Safeguards Portfolio" + meta description |
-| `vite.config.ts` | Tailwind v4 plugin, `@/` alias, vitest config (jsdom, globals, setup file) |
-| `tsconfig.app.json` | Added strict, noUncheckedIndexedAccess, exactOptionalPropertyTypes, paths |
-| `.prettierrc` | semi:false, singleQuote:true, trailingComma:all, printWidth:100 |
-| `src/index.css` | Tailwind v4 `@import` + full `@theme` token block + html/body base styles |
-| `src/main.tsx` | React entry; guard check replaces `!` non-null assertion |
-| `src/App.tsx` | Top-level layout: NavBar + main sections + PROJECTS data injection |
-| `src/data/projects.ts` | `MetricRow`, `Project` types + `PROJECTS` array with all metric values |
-| `src/components/NavBar.tsx` | Sticky header; anchor links to #projects and #about |
-| `src/components/HeroSection.tsx` | Eyebrow, h1, subheadline, CTA anchor button |
-| `src/components/ProjectsSection.tsx` | Section heading + responsive 3-col grid; maps projects to cards |
-| `src/components/ProjectCard.tsx` | Card with name, tagline, MetricsTable, description, demo area |
-| `src/components/MetricsTable.tsx` | `<dl>` rows of label/value pairs; returns null on empty |
-| `src/components/BioSection.tsx` | Two-paragraph About section; CV-grounded, no hiring-goal language |
-| `src/test/setup.ts` | `@testing-library/jest-dom` setup |
-| `src/test/ProjectCard.test.tsx` | 5 tests: name, tagline, metrics, demo-null, demo-set |
-| `src/test/MetricsTable.test.tsx` | 2 tests: all rows render, empty array returns null |
+| `src/pages/Analytics.tsx` | Combined Analytics tab: Strategy + Regression sections with jump links |
+| `src/components/AnalyticsSummary.tsx` | Computed prose: highest/lowest ASR strategy, most-tested, highest-risk category |
+| `src/components/RegressionSummary.tsx` | Computed prose: latest ASR, regression delta, best/worst category |
+| `src/hooks/useBackTranslation.ts` | TanStack Query hook for POST /bias/back-translate; staleTime: Infinity |
 
----
-
-## Setup Steps Taken
-
-1. `pnpm create vite portfolio-site --template react-ts` — Vite 8 scaffold (react-ts)
-2. `pnpm install`
-3. `pnpm add -D tailwindcss @tailwindcss/vite`
-4. `pnpm add -D vitest jsdom @testing-library/react @testing-library/user-event @testing-library/jest-dom prettier`
-5. Added `"test": "vitest run"` script to `package.json`
-
-The scaffold included `@eslint/js`, `typescript-eslint`, `eslint-plugin-react-hooks`, `@types/node`, and React 19 — no manual installation needed for those.
+### Frontend — modified files
+| File | Change |
+|------|--------|
+| `src/lib/strategyDescriptions.ts` | Expanded from 6 → 35 strategy entries with 2–3-sentence descriptions and examples |
+| `src/types/index.ts` | Added `BackTranslateIn`, `BackTranslateOut` types |
+| `src/hooks/useRuns.ts` | Added `dedup?: boolean` query param |
+| `src/App.tsx` | Removed Coverage/Strategy/Regression tabs; added Analytics tab (5 tabs total) |
+| `src/pages/StrategyComparison.tsx` | Removed outer p-4 wrapper and heading; Cell colour thresholds (green/amber/red); AnalyticsSummary added |
+| `src/pages/RegressionTracker.tsx` | Removed outer p-4 wrapper and heading; RegressionSummary added |
+| `src/pages/AttackBrowser.tsx` | Detail panel: scrollable pre with char count badge; example field in code block |
+| `src/pages/FailureClusters.tsx` | Bubble chart: X=strategy, Y=category categorical axes; cards sorted by % failures |
+| `src/pages/SampleReview.tsx` | Compare mode: dedup=true with session required |
+| `src/components/BiasResponseViewer.tsx` | Third column: live back-translation via useBackTranslation hook |
 
 ---
 
 ## Verification
 
-```
-pnpm build   → ✓ built in 64ms — 0 TS errors, 0 lint errors
-pnpm lint    → ✓ 0 problems
-pnpm test    → ✓ 2 test files, 7 tests, all passed
-```
+| Check | Result |
+|-------|--------|
+| `npx tsc --noEmit` | ✓ 0 errors |
+| `uv run ruff check src/` | ✓ 0 errors |
+| `GET /runs?session_id=X&dedup=true` | ✓ 300 deduplicated items returned |
+| `POST /bias/back-translate` `{"text":"你好，世界","source_lang":"zh"}` | ✓ `{"translated":"Hello, world"}` |
+| Nav: 7 → 5 tabs | ✓ Coverage/Strategy/Regression removed; Analytics added |
 
 ---
 
 ## Deviations from Architecture
 
-1. **Triple-slash reference removed from `vite.config.ts`** — `/// <reference types="vitest/config" />` was flagged by `@typescript-eslint/triple-slash-reference`. Removed; `defineConfig` from `vitest/config` provides the type inference without it. Build and tests still clean.
+**D1** — The `.env` approach for the Anthropic API key: the uvicorn process inherits env from shell at start time, and the key is also in `.env` which pydantic-settings loads via `extra="ignore"`. The `anthropic.Anthropic()` client reads from env directly (not from settings). This works as long as the server is started with the key in env or the .env is loaded at process start.
 
-2. **Scaffold Vite version is 8 (not 6)** — `pnpm create vite` resolved to Vite 8.0.16. No API changes affect this project; `@tailwindcss/vite` 4.3.0 is compatible.
-
-3. **Token utility class naming** — In Tailwind v4, `@theme` variables map to shorthand utilities: `--color-text-primary` → `text-text-primary`, `--color-surface-muted` → `bg-surface-muted`, etc. All class strings in the frontend-architect spec that used `bg-[--color-*]` / `text-[--color-*]` arbitrary syntax were replaced with the shorthand equivalents (`bg-canvas`, `text-text-primary`, `bg-surface-muted`, `border-border`). Behaviour is identical. Exception: `hover:border-accent/60` uses opacity modifier on the shorthand token — valid Tailwind v4 syntax.
-
-4. **`eslint.config.js` kept as `.js`** — Scaffold generated `.js`; renaming to `.ts` would require additional tsconfig adjustments for the linter process. The typescript-conventions.md prefers `.ts` but the existing config is functionally equivalent. Left as-is.
+**D2** — `isCompare && !!selectedSessionId` guards the `dedup=true` call: when no session is selected, dedup is not sent to avoid the 400 error. Compare mode with no session selected shows all runs (non-dedup) until a session is picked.
 
 ---
 
 ## Known Gaps
 
-- All three `demoUrl` and `githubUrl` values are `null` — "Demo coming soon" renders on every card. Update `src/data/projects.ts` when Hetzner deploy URLs are available.
-- No `favicon.svg` replacement — the Vite scaffold's default favicon is in place.
-- `App.css` from scaffold was not explicitly deleted (it is not imported anywhere and will not be bundled).
-
----
-
-## How to Run
-
-```bash
-cd projects/portfolio-site
-pnpm dev        # dev server at http://localhost:5173
-pnpm build      # produces dist/
-pnpm preview    # preview the dist/ build
-pnpm test       # run vitest
-pnpm lint       # run eslint
-```
+- `StrategyComparison` and `RegressionTracker` are imported directly into `Analytics.tsx` — they're no longer standalone route targets. If either is linked to directly in future, they'll render without padding. This is acceptable since they have no standalone tab.
+- Back-translation adds a network call per (lang, topicId) pair. With staleTime=Infinity, each pair is only fetched once per session. No rate limiting on the backend endpoint.
 
 ---
 
 ## Handoff
 
-Next role: ui-reviewer (step 7)  
-The ui-reviewer checks the 10 done criteria in `roles/design-brief/output/output.md` against the running site. Key areas to verify:
-- 3-col grid at ≥1024px, 1-col at 375px — can be checked at viewport widths
-- Sticky NavBar behaviour after scrolling past hero
-- "Demo coming soon" italic muted text on all three cards
-- MetricsTable monospace values, muted labels
-- No horizontal overflow at 375px or 1440px
-- `bg-surface-muted` background shift on BioSection (distinct from projects section without a border)
-
-One flagged item from frontend-architect: `tracking-[0.2em]` on the eyebrow in HeroSection is the single arbitrary value in the codebase — no standard Tailwind scale equivalent for letter-spacing at this value.
+Next role: reviewer  
+Run style audit, confirm all 11 brief items against done-when criteria, check `style={{}}` justifications, verify backend error paths (dedup with no session_id, back-translate with null text).

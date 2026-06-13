@@ -1,22 +1,18 @@
 import { useState } from 'react'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { AttackBrowser } from '@/pages/AttackBrowser'
-import { CoverageHeatmap } from '@/pages/CoverageHeatmap'
-import { StrategyComparison } from '@/pages/StrategyComparison'
-import { RegressionTracker } from '@/pages/RegressionTracker'
+import { Analytics } from '@/pages/Analytics'
 import { SampleReview } from '@/pages/SampleReview'
 import { FailureClusters } from '@/pages/FailureClusters'
 import { BiasHeatmap } from '@/pages/BiasHeatmap'
 
 const queryClient = new QueryClient()
 
-type Tab = 'attacks' | 'coverage' | 'strategy' | 'regression' | 'sample' | 'clusters' | 'bias'
+type Tab = 'attacks' | 'analytics' | 'sample' | 'clusters' | 'bias'
 
 const TABS: { id: Tab; label: string }[] = [
   { id: 'attacks', label: 'Attack Browser' },
-  { id: 'coverage', label: 'Coverage Heatmap' },
-  { id: 'strategy', label: 'Strategy Comparison' },
-  { id: 'regression', label: 'Regression Tracker' },
+  { id: 'analytics', label: 'Analytics' },
   { id: 'sample', label: 'Sample Review' },
   { id: 'clusters', label: 'Failure Clusters' },
   { id: 'bias', label: 'Bias Heatmap' },
@@ -47,9 +43,7 @@ function Dashboard() {
       </nav>
       <main className="p-0">
         {activeTab === 'attacks' && <AttackBrowser />}
-        {activeTab === 'coverage' && <CoverageHeatmap />}
-        {activeTab === 'strategy' && <StrategyComparison />}
-        {activeTab === 'regression' && <RegressionTracker />}
+        {activeTab === 'analytics' && <Analytics />}
         {activeTab === 'sample' && <SampleReview />}
         {activeTab === 'clusters' && <FailureClusters />}
         {activeTab === 'bias' && <BiasHeatmap />}

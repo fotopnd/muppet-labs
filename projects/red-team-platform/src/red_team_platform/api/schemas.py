@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import uuid
 from datetime import datetime
+from typing import Literal
 
 from pydantic import BaseModel
 
@@ -206,3 +207,13 @@ class BiasTopicResponseOut(BaseModel):
     government: str
     label: str
     languages: dict[str, BiasLangDetail]
+
+
+# --- Back Translation ---
+class BackTranslateIn(BaseModel):
+    text: str
+    source_lang: Literal["zh", "ru", "ar"]
+
+
+class BackTranslateOut(BaseModel):
+    translated: str

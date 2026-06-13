@@ -1,99 +1,97 @@
-# Reviewer Output — red-team-platform dashboard refinement
+# Reviewer Output — red-team-platform dashboard refinement v2
 
 **Role:** reviewer  
-**Sequence:** existing-project-refinement (brief → planner → architect → implementer → reviewer)  
+**Sequence:** add-feature  
 **Date:** 2026-06-13
 
 ---
 
-## Summary
+## Verdict: PASS WITH NOTES
 
-Full dashboard refinement pass across all 10 brief items. New backend endpoints (3), new frontend components (6), new hooks (3), revised pages (7), new utility libraries (2). One pre-output fix applied during this review pass (CoverageHeatmap legend swatches). No blocking issues. **PASS WITH NOTES**.
-
----
-
-## Checklist vs Brief
-
-| # | Issue | Addressed | How |
-|---|-------|-----------|-----|
-| 1 | Category names raw (LABEL_N) | ✓ | `categoryLabels.ts` with `labelName()`, `abbrevName()`, `categoryColour()` — no LABEL_N in rendered output (grep confirmed) |
-| 2 | Attack browser needs topline widgets | ✓ | 3 × `StatWidget` cards: Total Attacks, Top Category, Top Strategy — backed by new `GET /attacks/summary` endpoint |
-| 3 | Description box for category/strategy combo | ✓ | Row click opens detail panel with `STRATEGY_DESCRIPTIONS` and `CATEGORY_LABELS` rendered in a `<dl>` |
-| 4 | Coverage heatmap larger/touching cells | ✓ | `CoverageGrid` CSS grid replaces Recharts ScatterChart; cells 62×48 px, no gaps, truncated labels, fixed-position tooltip |
-| 5 | Strategy comparison better graphs | ✓ | 3-panel: ASR bar with `n=` annotation, horizontal volume bar (accent), compact `CoverageGrid` |
-| 6 | Regression 2–4 charts | ✓ | 4-panel: ASR line with baseline `ReferenceLine`, category-delta bar (red/green `Cell`), session table, best/worst `StatWidget` pair |
-| 7 | Sample review dedup | ✓ | Compare mode: 200-row ceiling, client-side group by `attack_text`, #Total/#Success/#Safe counts, side-by-side `RunCard` on click |
-| 8 | Failure clusters bubble chart | ✓ | Recharts `ScatterChart` + `ZAxis` bubble chart above card grid; area ∝ failure count |
-| 9 | Bias heatmap EN baseline column | ✓ | EN column rendered at `0.00` with `bg-divergence-low` class |
-| 10 | Bias heatmap filterable + click-through viewer | ✓ | Government + topic filter dropdowns; click row opens inline `BiasResponseViewer` (3-column: EN / target lang / back-translated placeholder); Escape closes |
+All 11 brief items are complete. Three minor reviewer fixes applied during this review (not blocking). No regressions detected.
 
 ---
 
-## Correctness
+## Checklist: Done-When Criteria
 
-**C1 — Fixed (pre-output):** `CoverageHeatmap.tsx:43,46,49` — Three legend color swatches used `style={{ backgroundColor: 'hsl(120, 65%, 45%)' }}` (static literal values). All three replaced with Tailwind classes `bg-green-600`, `bg-yellow-600`, `bg-red-600` before this output was written.
-
-**C2 — Note:** `BiasResponseViewer.tsx` — back-translation column is a placeholder ("Back-translation coming soon"). This is within brief scope (brief says "back-translated placeholder"). Fine as shipped.
-
-**C3 — Note:** `SampleReview.tsx` Compare mode ceiling is 200 rows client-side. Per architect decision D7, this is intentional with a UI note. Acceptable — the attack corpus is static.
-
-**C4 — Note:** `GET /regression/category-delta` uses a `text()` SQL query for the per-session ASR calculation. Unlike `/attacks/summary` (which hit the asyncpg NULL type inference issue and was rewritten as ORM), this query always receives a resolved, non-null `session_id`. The `text()` approach is safe here.
-
-No logic errors. No unhandled nulls. No type-unsafe narrowing. No missing error paths.
-
----
-
-## Style
-
-All remaining `style={{}}` instances are justified:
-
-| File | Line(s) | Justification |
-|------|---------|---------------|
-| `CoverageGrid.tsx` | 54–120 | Runtime props (`cw`, `ch`, `rowHeaderWidth`, `compact`) — not expressible as Tailwind |
-| `CoverageGrid.tsx` | 83 | Computed `hsl(${120*(1-asr)}, 65%, 45%)` — dynamic colour |
-| `CoverageGrid.tsx` | 120 | Tooltip `left/top` at mouse coordinates |
-| `ScoreBar.tsx` | 18 | `width: ${score * 100}%` — dynamic percentage |
-| `StrategyComparison.tsx` | 68 | `<LabelList>` SVG text — Tailwind doesn't reach SVG |
-| `RegressionTracker.tsx` | 108 | Same — Recharts `LabelList` SVG |
-| `FailureClusters.tsx` | 117 | `cursor: 'pointer'` on Recharts `<Scatter>` SVG element |
-| `FailureClusters.tsx` | 156 | `width: ${pct}%` — dynamic percentage |
-
-All other conventions clean:
-- `import type` on every type-only import ✓
-- No `any`, no `!` assertions ✓
-- `verbatimModuleSyntax` respected ✓
-- Category labels only rendered through `labelName()` / `abbrevName()` ✓
-- `staleTime` set on all three new hooks (0, 30s, 60s per data volatility) ✓
+| # | Criterion | Status | Notes |
+|---|-----------|--------|-------|
+| 1 | All 35 strategy keys documented; `example` rendered in AttackBrowser | ✓ PASS | 35 entries confirmed; example shown in `<code>` block in detail panel |
+| 2 | Attack text: scrollable `<pre>`, char count badge, strategy example | ✓ PASS | `max-h-64 overflow-y-auto`; badge in `flex justify-between` header; example in `<code>` block |
+| 3 | No "Coverage" tab in nav | ✓ PASS | Nav is 5 tabs: Attack Browser / Analytics / Sample Review / Failure Clusters / Bias Heatmap |
+| 4 | Strategy ASR bars coloured green/amber/red via `<Cell>` | ✓ PASS | `asrColour()` thresholds: <30 green, 30–60 amber, >60 red; hex constants |
+| 5 | `AnalyticsSummary` renders below StrategyComparison with 4 computed statements | ✓ PASS | Excludes `none`/`original_prompt`; calls own hooks; `bg-surface-muted` box |
+| 6 | `RegressionSummary` renders below RegressionTracker with 3+ statements | ✓ PASS | Single-session edge case; most-regressed `text-danger`, most-improved `text-success` |
+| 7 | Single "Analytics" tab; both sections visible with jump-link navigation | ✓ PASS | `#strategy` / `#regression` anchors; sections stacked with `<hr>` divider |
+| 8 | Compare mode uses `dedup=true`; one row per unique attack | ✓ PASS | `DISTINCT ON (attack_id) ORDER BY attack_id, created_at DESC`; guard `isCompare && !!selectedSessionId` |
+| 9 | Cluster scatter X=strategy, Y=category, Z=size; readable axis labels | ✓ PASS | `stratOrder`/`catOrder` sorted by total cluster failures; `tickFormatter` maps index → name |
+| 10 | Cluster cards sorted descending by % of all failures | ✓ PASS | `[...data.summaries].sort((a,b) => b.size - a.size)` before `.map()` |
+| 11 | Back-translation in BiasResponseViewer; loading state; cached | ✓ PASS | `BackTranslationBlock` per lang; `staleTime: Infinity`; "Translating…" spinner |
 
 ---
 
-## Backend
+## Adversarial Test Results
 
-- `/attacks/summary` — ORM approach avoids asyncpg NULL type inference bug; 3 separate queries (count, top_category, top_strategy); route placed before paginated `GET /attacks` to avoid path conflict ✓
-- `/regression/category-delta` — two-session SQL aggregation; early return when <2 sessions exist; `model_name` auto-resolved from baseline session ✓
-- `/bias/responses/{topic_id}` — LEFT JOINs on `bias_responses` and `bias_divergence_scores`; model auto-resolved from most recent score when not specified ✓
-- `schemas.py` — 5 new Pydantic models (`AttackSummaryOut`, `CategoryDeltaItem`, `CategoryDeltaOut`, `BiasLangDetail`, `BiasTopicResponseOut`) ✓
-- Ruff I001 (import sort) and E501 (line length >100) both clean ✓
-
----
-
-## Refactor Candidates
-
-**R1 (low priority):** `CoverageGrid.tsx` `compact` prop changes font size between two static values (8 and 11). These could be Tailwind responsive variants if the breakpoint were known at build time, but `compact` is a runtime prop so `style={{}}` is unavoidable. No action needed.
-
-**R2 (low priority):** `BiasResponseViewer.tsx` hardcodes `['zh', 'ru', 'ar']` tab order. If languages are ever data-driven this should come from the API response keys. Fine for the current dataset.
+| Test | Expected | Actual | Verdict |
+|------|----------|--------|---------|
+| `GET /runs?dedup=true` (no `session_id`) | HTTP 400 | HTTP 400 | ✓ |
+| `POST /bias/back-translate` `{"text":"","source_lang":"zh"}` | `{"translated":""}` | `{"translated":""}` (after fix) | ✓ |
+| `POST /bias/back-translate` `{"text":"hello","source_lang":"fr"}` | HTTP 422 | HTTP 422 | ✓ |
 
 ---
 
-## Verdict
+## Style Audit
 
-**PASS WITH NOTES**
+### `style={{}}` instances in v2 components
 
-One pre-output fix applied (C1). All 10 brief items addressed. No blocking issues. Ready for retro and commit.
+| File | Instance | Justification |
+|------|----------|---------------|
+| `StrategyComparison.tsx` | `<Cell fill={asrColour(...)}` | Dynamic computed colour — Tailwind cannot interpolate runtime values |
+| `FailureClusters.tsx` | Recharts bubble `fill`, `stroke` per cluster | Recharts SVG props; dynamic palette |
+| `Analytics.tsx` | None | Clean |
+| `AnalyticsSummary.tsx` | None | Clean |
+| `RegressionSummary.tsx` | None | Clean |
+| `BiasResponseViewer.tsx` | None | Clean |
+| `AttackBrowser.tsx` (v2 changes) | None new | Existing justified instances unchanged |
+
+All remaining `style={{}}` usages are justified by dynamic runtime values or Recharts SVG requirements per `typescript-conventions.md`.
+
+---
+
+## Reviewer Fixes Applied
+
+**Fix 1 — Stale UI copy in SampleReview:**  
+Line 113 read "Compare mode — showing first 200 runs. Use session filter to narrow." — holdover from before `dedup=true`. Compare mode now returns all unique attacks for the selected session (no page ceiling). Updated to conditional: "Compare mode — select a session to load deduplicated attacks." (shows only when no session is selected).
+
+**Fix 2 — Dead conditional assignment:**  
+`const pageSize = isCompare ? 20 : 20` in `SampleReview.tsx` — both branches identical. Collapsed to `const pageSize = 20`.
+
+**Fix 3 — Empty-text back-translate hallucination:**  
+`POST /bias/back-translate {"text": ""}` returned HTTP 200 with hallucinated content (Confucius quotes in English). Added `if not body.text.strip(): return BackTranslateOut(translated="")` early return. Frontend `enabled: !!text` guard already prevented this from being sent in practice, but the endpoint now also handles it correctly.
+
+---
+
+## Notes
+
+**N1 — Back-translate rate limiting:**  
+No rate limiting on `POST /bias/back-translate`. Each (lang, topicId) pair fires at most one Anthropic API call per browser session due to `staleTime: Infinity`. In production, add a short Redis cache keyed on `(source_lang, sha256(text))` to handle concurrent users. Not a blocker for portfolio use.
+
+**N2 — Analytics tab padding ownership:**  
+`StrategyComparison.tsx` and `RegressionTracker.tsx` had their outer `p-4` wrappers removed; `Analytics.tsx` controls padding via section `<div className="p-4">` wrappers. If either component is ever embedded elsewhere, they'll render flush to their container. Intentional.
+
+**N3 — `AnalyticsSummary` excludes `none`/`original_prompt`:**  
+Correct. Including baseline strategies in "highest ASR" summary would be misleading. Exclusion is consistent with the intent (show which adversarial strategy performed best/worst).
+
+**N4 — Cluster chart categorical encoding:**  
+`stratOrder`/`catOrder` derived from cluster data only. Strategies with zero failed clusters don't appear on the X axis. Correct — the chart shows failure concentration, not strategy coverage.
 
 ---
 
 ## Handoff
 
-**Next role:** retro  
-Read this output alongside `implementer/output/output.md` and `_config/project-state.md`. Extract workspace-level learnings (asyncpg NULL issue, CoverageGrid pattern, `text()` vs ORM decision rule) into resources. Then update `project-state.md` and commit all new/modified files.
+Next role: retro  
+Workspace learnings from v2 to consider:
+- Categorical axis encoding in Recharts (ordinal index + `tickFormatter`)
+- Anthropic SDK deferred-import pattern inside FastAPI route handlers
+- `DISTINCT ON (attack_id)` for latest-per-group dedup queries
+- `staleTime: Infinity` pattern for immutable computed results

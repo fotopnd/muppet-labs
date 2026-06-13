@@ -7,6 +7,7 @@ import { useRegression } from '@/hooks/useRegression'
 import { useSessions } from '@/hooks/useSessions'
 import { useCategoryDelta } from '@/hooks/useCategoryDelta'
 import { StatWidget } from '@/components/StatWidget'
+import { RegressionSummary } from '@/components/RegressionSummary'
 import { labelName } from '@/lib/categoryLabels'
 import type { RegressionPoint, Session } from '@/types'
 
@@ -39,7 +40,9 @@ export function RegressionTracker() {
 
   const baselineAsr = useMemo(() => {
     if (!data || !resolvedModel) return null
-    const first = data.points.filter((p) => p.model_name === resolvedModel).sort((a, b) => a.created_at.localeCompare(b.created_at))[0]
+    const first = data.points
+      .filter((p) => p.model_name === resolvedModel)
+      .sort((a, b) => a.created_at.localeCompare(b.created_at))[0]
     return first ? +(first.asr * 100).toFixed(1) : null
   }, [data, resolvedModel])
 
@@ -70,14 +73,13 @@ export function RegressionTracker() {
     }))
   }, [deltaData])
 
-  if (isLoading) return <p className="p-4 text-text-secondary text-sm">Loading…</p>
-  if (isError) return <p className="p-4 text-danger text-sm">Error loading regression data.</p>
-  if (!data || data.points.length === 0) return <p className="p-4 text-text-muted text-sm">No regression data yet.</p>
+  if (isLoading) return <p className="text-text-secondary text-sm">Loading…</p>
+  if (isError) return <p className="text-danger text-sm">Error loading regression data.</p>
+  if (!data || data.points.length === 0) return <p className="text-text-muted text-sm">No regression data yet.</p>
 
   return (
-    <div className="p-4">
-      <div className="flex items-center justify-between mb-4">
-        <h2 className="text-base font-semibold text-text-primary">Regression Tracker</h2>
+    <div>
+      <div className="flex justify-end mb-4">
         {data.model_names.length > 1 && (
           <select
             value={selectedModel ?? ''}
@@ -93,7 +95,9 @@ export function RegressionTracker() {
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* Panel A: Overall ASR line chart */}
         <div className="bg-surface border border-border rounded-lg p-4">
-          <p className="text-xs font-semibold text-text-secondary uppercase tracking-wider mb-3">Overall ASR Over Sessions</p>
+          <p className="text-xs font-semibold text-text-secondary uppercase tracking-wider mb-3">
+            Overall ASR Over Sessions
+          </p>
           <LineChart width={380} height={260} data={chartData} margin={{ top: 20, right: 20, bottom: 20, left: 10 }}>
             <CartesianGrid strokeDasharray="3 3" stroke="var(--color-border)" />
             <XAxis dataKey="date" tick={{ fontSize: 10 }} />
@@ -101,7 +105,12 @@ export function RegressionTracker() {
             <Tooltip />
             <Legend />
             {baselineAsr !== null && (
-              <ReferenceLine y={baselineAsr} stroke="var(--color-text-muted)" strokeDasharray="4 2" label={{ value: 'Baseline', fontSize: 10 }} />
+              <ReferenceLine
+                y={baselineAsr}
+                stroke="var(--color-text-muted)"
+                strokeDasharray="4 2"
+                label={{ value: 'Baseline', fontSize: 10 }}
+              />
             )}
             {(data.model_names ?? []).map((name, i) => (
               <Line key={name} type="monotone" dataKey={name} stroke={getColour(i)} dot connectNulls>
@@ -143,7 +152,9 @@ export function RegressionTracker() {
 
         {/* Panel C: Session summary table */}
         <div className="bg-surface border border-border rounded-lg p-4 overflow-x-auto">
-          <p className="text-xs font-semibold text-text-secondary uppercase tracking-wider mb-3">Session Summary</p>
+          <p className="text-xs font-semibold text-text-secondary uppercase tracking-wider mb-3">
+            Session Summary
+          </p>
           <table className="w-full text-xs border-collapse">
             <thead>
               <tr className="bg-surface-muted">
@@ -195,6 +206,8 @@ export function RegressionTracker() {
           )}
         </div>
       </div>
+
+      <RegressionSummary model={resolvedModel} />
     </div>
   )
 }

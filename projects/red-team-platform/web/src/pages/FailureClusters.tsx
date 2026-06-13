@@ -1,7 +1,7 @@
 import { useRef, useState } from 'react'
 import { Scatter, ScatterChart, Tooltip, XAxis, YAxis, ZAxis } from 'recharts'
 import { useClusters, useClusterMembers } from '@/hooks/useClusters'
-import { categoryColour, labelName } from '@/lib/categoryLabels'
+import { abbrevName, categoryColour, labelName } from '@/lib/categoryLabels'
 import type { ClusterSummary } from '@/types'
 
 type BubbleDatum = {
@@ -22,7 +22,17 @@ type CustomDotProps = {
 function CustomBubble(props: CustomDotProps) {
   const { cx = 0, cy = 0, payload, r = 10 } = props
   if (!payload) return null
-  return <circle cx={cx} cy={cy} r={r} fill={payload.fill} fillOpacity={0.8} stroke={payload.fill} strokeWidth={1.5} />
+  return (
+    <circle
+      cx={cx}
+      cy={cy}
+      r={r}
+      fill={payload.fill}
+      fillOpacity={0.8}
+      stroke={payload.fill}
+      strokeWidth={1.5}
+    />
+  )
 }
 
 type BubbleTooltipProps = {
@@ -56,20 +66,40 @@ export function FailureClusters() {
   if (!data || data.summaries.length === 0) {
     return (
       <p className="p-4 text-text-muted text-sm">
-        No failure clusters yet. Run <code className="font-mono bg-surface-muted px-1 rounded text-xs">uv run cluster</code> after an attack session.
+        No failure clusters yet. Run{' '}
+        <code className="font-mono bg-surface-muted px-1 rounded text-xs">uv run cluster</code>{' '}
+        after an attack session.
       </p>
     )
   }
 
   const totalFailures = data.summaries.reduce((s, c) => s + c.size, 0)
 
+  // Build categorical axes: strategy (X) and harm category (Y)
+  // sorted by total cluster size for each group descending
+  const stratTotals: Record<string, number> = {}
+  const catTotals: Record<string, number> = {}
+  for (const c of data.summaries) {
+    stratTotals[c.top_strategy] = (stratTotals[c.top_strategy] ?? 0) + c.size
+    catTotals[c.top_harm_category] = (catTotals[c.top_harm_category] ?? 0) + c.size
+  }
+  const stratOrder = Object.entries(stratTotals)
+    .sort(([, a], [, b]) => b - a)
+    .map(([s]) => s)
+  const catOrder = Object.entries(catTotals)
+    .sort(([, a], [, b]) => b - a)
+    .map(([c]) => c)
+
   const bubbleData: BubbleDatum[] = data.summaries.map((c) => ({
-    x: c.cluster_id,
-    y: c.size,
+    x: stratOrder.indexOf(c.top_strategy),
+    y: catOrder.indexOf(c.top_harm_category),
     z: c.size,
     fill: categoryColour(c.top_harm_category),
     cluster: c,
   }))
+
+  // Cards sorted by % of all failures descending
+  const sortedSummaries = [...data.summaries].sort((a, b) => b.size - a.size)
 
   function handleBubbleClick(datum: BubbleDatum) {
     const id = datum.cluster.cluster_id
@@ -84,11 +114,14 @@ export function FailureClusters() {
 
       {/* Bubble chart */}
       <div className="bg-surface border border-border rounded-lg p-4 mb-6 overflow-x-auto">
-        <p className="text-xs text-text-muted mb-2">Bubble size = failure count · Colour = top harm category · Click to expand</p>
+        <p className="text-xs text-text-muted mb-2">
+          X = attack strategy (by failure volume) · Y = harm category (by failure volume) ·
+          Bubble size = failure count · Colour = harm category · Click to expand
+        </p>
         <ScatterChart
-          width={640}
-          height={240}
-          margin={{ top: 16, right: 20, bottom: 20, left: 20 }}
+          width={680}
+          height={300}
+          margin={{ top: 16, right: 20, bottom: 40, left: 20 }}
           onClick={(state) => {
             if (state?.activePayload?.[0]?.payload) {
               handleBubbleClick(state.activePayload[0].payload as BubbleDatum)
@@ -98,16 +131,26 @@ export function FailureClusters() {
           <XAxis
             dataKey="x"
             type="number"
-            name="Cluster"
-            label={{ value: 'Cluster', position: 'insideBottom', offset: -10, fontSize: 10 }}
-            tick={{ fontSize: 10 }}
-            domain={[-0.5, data.summaries.length - 0.5]}
+            name="Strategy"
+            domain={[-0.5, stratOrder.length - 0.5]}
+            ticks={stratOrder.map((_, i) => i)}
+            tickFormatter={(i: number) => stratOrder[i] ?? ''}
+            tick={{ fontSize: 9 }}
+            angle={-30}
+            textAnchor="end"
+            height={60}
+            label={{ value: 'Strategy (sorted by failure volume)', position: 'insideBottom', offset: -30, fontSize: 10 }}
           />
           <YAxis
             dataKey="y"
             type="number"
-            name="Failures"
-            tick={{ fontSize: 10 }}
+            name="Harm Category"
+            domain={[-0.5, catOrder.length - 0.5]}
+            ticks={catOrder.map((_, i) => i)}
+            tickFormatter={(i: number) => abbrevName(catOrder[i] ?? '')}
+            tick={{ fontSize: 9 }}
+            width={90}
+            label={{ value: 'Harm Category', angle: -90, position: 'insideLeft', offset: 10, fontSize: 10 }}
           />
           <ZAxis dataKey="z" range={[60, 1600]} />
           <Tooltip content={<BubbleTooltip />} />
@@ -119,9 +162,9 @@ export function FailureClusters() {
         </ScatterChart>
       </div>
 
-      {/* Card grid */}
+      {/* Card grid — sorted by % of failures */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        {data.summaries.map((c) => (
+        {sortedSummaries.map((c) => (
           <div
             key={c.cluster_id}
             ref={(el) => { cardRefs.current[c.cluster_id] = el }}
@@ -134,6 +177,9 @@ export function FailureClusters() {
                 Cluster {c.cluster_id}
               </span>
               <span className="text-text-secondary text-sm">{c.size} failures</span>
+              <span className="ml-auto text-xs text-text-muted font-mono">
+                {(c.size / totalFailures * 100).toFixed(1)}%
+              </span>
             </div>
 
             <div className="flex gap-1.5 flex-wrap mb-2">
@@ -150,15 +196,12 @@ export function FailureClusters() {
             </code>
 
             {/* Proportion bar */}
-            <div className="h-1.5 w-full rounded-full bg-surface-muted mb-1">
+            <div className="h-1.5 w-full rounded-full bg-surface-muted mb-2">
               <div
                 className="h-1.5 rounded-full bg-accent"
                 style={{ width: `${(c.size / totalFailures * 100).toFixed(1)}%` }}
               />
             </div>
-            <p className="text-xs text-text-muted mb-2">
-              {(c.size / totalFailures * 100).toFixed(1)}% of all failures
-            </p>
 
             <button
               onClick={() => setExpandedClusterId(expandedClusterId === c.cluster_id ? null : c.cluster_id)}

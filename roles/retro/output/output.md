@@ -1,36 +1,38 @@
-# Retro — red-team-platform dashboard refinement
+# Retro — red-team-platform dashboard refinement v2
 
 **Role:** retro  
-**Sequence:** existing-project-refinement (brief → planner → architect → implementer → reviewer)  
+**Sequence:** add-feature  
 **Date:** 2026-06-13
 
 ---
 
 ## Project
 
-`projects/red-team-platform/web/` — full dashboard refinement pass addressing 10 user-identified issues across 7 frontend pages + 3 new backend API endpoints.
+`projects/red-team-platform/web/` — second dashboard refinement pass addressing 11 user-identified issues: tab consolidation (7→5), strategy taxonomy expansion (6→35 keys), dedup fix in sample review, categorical bubble chart for failure clusters, back-translation in bias viewer.
 
 ---
 
 ## What Went Well
 
-**W1 — Brief-to-impl fidelity.** All 10 brief items landed without scope drift. The architect's design decisions (single DB round-trip for summary, ORM vs text() split, 200-row dedup ceiling) were followed exactly.
+**W1 — DISTINCT ON solved the dedup problem cleanly.** The `DISTINCT ON (attack_id) ORDER BY attack_id, created_at DESC` pattern delivered the most-recent run per attack in a single query, replacing a client-side group-by that was broken by the 200-row page ceiling. No schema changes needed.
 
-**W2 — Ruff caught import + line-length issues proactively.** Running `uv run ruff check --fix` after each file cleaned I001 (import order) and flagged E501 (line > 100), which were then manually split. No ruff errors at reviewer pass.
+**W2 — Categorical axis encoding via tickFormatter.** Mapping Recharts numeric domain indices to string labels via `tickFormatter={(i) => order[i] ?? ''}` turned an uninformative cluster_id axis into a meaningful strategy × category view. The pattern is reusable for any categorical scatter/bubble chart.
 
-**W3 — CoverageGrid CSS grid pattern is clean.** Replacing Recharts ScatterChart-as-grid with a plain CSS grid component removed ~80 lines of coordinate math and made tooltips trivial.
+**W3 — TanStack Query staleTime=Infinity for immutable results.** Back-translation results are computed once per (lang, text) pair and never change. `staleTime: Infinity` eliminates refetches without any explicit cache invalidation logic.
 
-**W4 — categoryLabels.ts as single source of truth.** Zero raw `LABEL_N` strings in rendered output. Propagation via `labelName()` / `abbrevName()` / `categoryColour()` was clean across all pages.
+**W4 — Deferred import of `anthropic` inside route handler.** Keeps API startup fast even when the SDK is infrequently used. Pattern follows the python-conventions rule for slow imports.
+
+**W5 — Empty-text hallucination caught by adversarial review.** The empty-text guard (`if not body.text.strip(): return BackTranslateOut(translated="")`) was identified through systematic adversarial testing rather than accidental discovery. The frontend `enabled: !!text` guard meant this was not user-visible, but the backend is now correct by construction.
 
 ---
 
 ## What Went Wrong / Friction Points
 
-**F1 — asyncpg NULL parameter error (blocking).** The original `/attacks/summary` implementation used a `text()` CTE with `:source IS NULL OR source = :source`. This raised `AmbiguousParameterError` at runtime because asyncpg can't infer the type of `$1 IS NULL`. Required a full rewrite to ORM-based conditional `.where()` building. Cost: ~30 min. Root cause: the asyncpg extended protocol rule wasn't in workspace conventions, so the architect designed a valid SQL pattern that the driver can't execute.
+**F1 — Strategy key discovery gap (planning friction).** The brief assumed ~6 strategy keys; the actual corpus had 35. The planner needed to call `GET /attacks/strategies` to discover this. A future brief for a project with a known external schema should include a schema audit step, not leave it as a planning open question.
 
-**F2 — Static `style={{}}` on legend swatches (caught in review).** Three legend color indicators in `CoverageHeatmap.tsx` used `style={{ backgroundColor: 'hsl(120, 65%, 45%)' }}` — static literal values that should be Tailwind classes. This was a reviewer catch, not caught during implementation. The inline-style policy wasn't explicit enough about which cases are justified.
+**F2 — Stale UI copy after dedup implementation.** The "first 200 runs" copy in SampleReview was left from v1 and not caught until the reviewer pass. Implementation didn't update copy that contradicted the new behaviour. Reviewer catch, minor.
 
-**F3 — Context compaction mid-session.** The reviewer pass was split across a context window boundary (limit hit). The next session resumed correctly from the summary, but the split added friction. No workspace action needed; inherent to long sessions.
+**F3 — Context compaction between reviewer and retro.** Implementation was done across a context boundary. Reviewer output and retro were written in the resumed session. No information was lost (summary was accurate), but compaction added overhead. Inherent to long sessions; no workspace action.
 
 ---
 
@@ -38,27 +40,28 @@
 
 | Resource | Change | Why |
 |---|---|---|
-| `resources/python-conventions.md` | Added **asyncpg NULL parameter rule** under SQLAlchemy section | F1 — prevent recurrence: use ORM when filters can be None; `text()` only when all params non-null |
-| `resources/typescript-conventions.md` | Added **Inline Styles** section (justified vs unjustified cases) | F2 — explicit policy on when `style={{}}` is acceptable |
-| `resources/typescript-conventions.md` | Added **Recharts Patterns** section (ScatterChart-as-grid anti-pattern, ZAxis bubble charts, LabelList SVG styling) | Captures patterns discovered during CoverageGrid and FailureClusters rewrites |
+| `resources/typescript-conventions.md` | Added **Recharts categorical axis** pattern under Recharts Patterns section | W2 — captures the ordinal-index + tickFormatter pattern for future categorical scatter/bubble charts |
+| `resources/typescript-conventions.md` | Added **`staleTime: Infinity`** guidance under TanStack Query | W3 — explicit policy for immutable computed results (back-translation, embeddings, etc.) |
+| `resources/python-conventions.md` | Added **`DISTINCT ON` for latest-per-group dedup** under SQLAlchemy section | W1 — captures the pattern for future dedup needs |
 
 ---
 
-## Decision Log Entries to Add
+## Decision Log Entries
 
 | Decision | Reason |
 |---|---|
-| asyncpg NULL workaround: ORM over text() when filters can be None | asyncpg extended protocol raises AmbiguousParameterError on `$1 IS NULL`; ORM avoids passing None to any SQL parameter |
-| Static legend swatches use Tailwind classes, not style={{}} | Legend colors are static literals, not dynamic computed values; Tailwind arbitrary values (`bg-[hsl(...)]`) or approximation classes are correct |
+| Categorical scatter axes: ordinal-index + tickFormatter over direct string domain | Recharts XAxis/YAxis only support numeric or time scales natively; string categorical requires mapping |
+| staleTime=Infinity for back-translation results | Translation output is deterministic for a given (lang, text) — no expiry needed |
+| DISTINCT ON over client-side dedup | Client-side grouping breaks when paginated; server-side DISTINCT ON is a single-query guarantee |
 
 ---
 
 ## Open Items Carried Forward
 
-None. All 10 brief items shipped. Reviewer verdict PASS WITH NOTES (one pre-output fix applied; back-translation column is placeholder per brief scope).
+None. All 11 brief items shipped. Reviewer verdict PASS WITH NOTES (3 minor fixes applied during review pass; no functional gaps).
 
 ---
 
 ## Handoff
 
-Sequence complete. Next step: update `_config/project-state.md` to reflect retro completion, then git commit all new and modified files.
+Sequence complete. Next step: update `_config/project-state.md`, then git commit all new and modified v2 files.

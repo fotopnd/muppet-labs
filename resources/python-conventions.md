@@ -74,6 +74,18 @@
 - Store the engine as a class attribute (created in `__init__`) or module-level singleton. Never call `create_engine` inside a Kafka consumer loop, FastAPI route handler, or background worker tick.
 - `Session(engine)` as a context manager is correct for sync writes; `AsyncSession` for async routes.
 - **asyncpg NULL parameter rule:** Never pass `None` as a parameter to a `text()` query where the SQL pattern is `$1 IS NULL OR col = $1`. asyncpg uses the PostgreSQL extended protocol, which requires type inference upfront — for `$1 IS NULL`, there is no type context, and asyncpg raises `AmbiguousParameterError`. Rule: if any filter parameter can be `None`, build conditional WHERE clauses using ORM `.where()` calls instead. Use `text()` only when all parameters are guaranteed non-null at the call site.
+- **`DISTINCT ON` for latest-per-group dedup:** To return the most-recent row per group key (e.g. most-recent run per attack_id), use PostgreSQL `DISTINCT ON`:
+  ```python
+  _DEDUP_SQL = text("""
+      SELECT DISTINCT ON (r.attack_id)
+          r.id, r.attack_id, r.response_text, ...
+      FROM runs r
+      JOIN attacks a ON a.id = r.attack_id
+      WHERE r.session_id = :session_id
+      ORDER BY r.attack_id, r.created_at DESC
+  """)
+  ```
+  The `ORDER BY` must begin with the `DISTINCT ON` key(s), then the sort column. This is a single-query guarantee that no amount of client-side dedup can match when paginating. Prefer this over client-side grouping whenever the full group membership matters.
 
 ## API Aggregation Endpoints
 
