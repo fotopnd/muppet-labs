@@ -33,6 +33,8 @@ api              = "red_team_platform.api.main:run_server"
 outbox-publisher = "red_team_platform.outbox.publisher:main"
 seed-bias-corpus = "red_team_platform.bias.seed:main"
 score-bias       = "red_team_platform.bias.scorer:main"
+reclassify       = "red_team_platform.scripts.reclassify:app"
+rescore          = "red_team_platform.scripts.rescore:app"
 
 [build-system]
 requires = ["hatchling"]

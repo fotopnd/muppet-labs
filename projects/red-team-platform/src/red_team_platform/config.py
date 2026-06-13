@@ -10,6 +10,7 @@ class Settings(BaseSettings):
     sync_database_url: str
     pair_classifier_path: Path
     taxonomy_classifier_path: Path
+    anthropic_api_key: str = ""
     ollama_base_url: str = "http://localhost:11434"
     ollama_model: str = "qwen2.5-coder:7b"
     ollama_timeout_s: int = 120

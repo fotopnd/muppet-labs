@@ -10,7 +10,7 @@ from sqlalchemy import select, text, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from red_team_platform.models import Attack, Run, RunSession
-from red_team_platform.runner.classifier import score, warm_up
+from red_team_platform.runner.classifier import score
 from red_team_platform.runner.ollama_client import chat, make_client
 
 logger = logging.getLogger(__name__)
@@ -74,7 +74,7 @@ async def run_session(
                 )
                 continue
 
-            jailbreak_success, classifier_score = score(attack.attack_text, response_text)
+            jailbreak_success, classifier_score = await score(attack.attack_text, response_text)
 
             run = Run(
                 session_id=session_id,
@@ -149,6 +149,7 @@ def main(
     source: Annotated[str | None, typer.Option("--source")] = None,
     harm_category: Annotated[str | None, typer.Option("--harm-category")] = None,
     strategy: Annotated[str | None, typer.Option("--strategy")] = None,
+    model: Annotated[str | None, typer.Option("--model", help="Ollama model to attack (overrides OLLAMA_MODEL setting)")] = None,
     mode: Annotated[str, typer.Option("--mode", help="'normal' or 'bias'")] = "normal",
     language: Annotated[
         str | None,
@@ -176,11 +177,7 @@ def main(
                 f"--language must be one of {sorted(_BIAS_LANGUAGES)}, got {language!r}"
             )
 
-    if settings.ollama_model != "gemma2:9b":
-        raise SystemExit(
-            f"Preflight failed: ollama_model is '{settings.ollama_model}', expected 'gemma2:9b'. "
-            "Set OLLAMA_MODEL=gemma2:9b in .env or override with the environment variable."
-        )
+    ollama_model = model or settings.ollama_model
 
     if mode == "bias":
         from red_team_platform.bias.runner import run_bias_session
@@ -192,7 +189,7 @@ def main(
                 written = await run_bias_session(
                     session=db_session,
                     language=language,  # type: ignore[arg-type]
-                    model_name=settings.ollama_model,
+                    model_name=ollama_model,
                     ollama_base_url=settings.ollama_base_url,
                     ollama_timeout_s=settings.ollama_timeout_s,
                 )
@@ -203,20 +200,18 @@ def main(
         asyncio.run(_run_bias())
         return
 
-    warm_up(settings.pair_classifier_path)
-
     async def _run() -> None:
         engine = create_engine(settings.database_url)
         factory = create_session_factory(engine)
         async with factory() as db_session:
             await run_session(
                 session=db_session,
-                model_name=settings.ollama_model,
+                model_name=ollama_model,
                 source_filter=source,
                 harm_category_filter=harm_category,
                 strategy_filter=strategy,
                 ollama_base_url=settings.ollama_base_url,
-                ollama_model=settings.ollama_model,
+                ollama_model=ollama_model,
                 ollama_timeout_s=settings.ollama_timeout_s,
             )
         await engine.dispose()
