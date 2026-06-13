@@ -122,12 +122,15 @@ async def back_translate(body: BackTranslateIn) -> BackTranslateOut:
     if not body.text.strip():
         return BackTranslateOut(translated="")
 
-    import anthropic
+    import openai
 
+    from red_team_platform.config import get_settings
+
+    settings = get_settings()
     lang_names = {"zh": "Chinese", "ru": "Russian", "ar": "Arabic"}
-    client = anthropic.Anthropic()
-    msg = client.messages.create(
-        model="claude-haiku-4-5-20251001",
+    client = openai.OpenAI(base_url=f"{settings.ollama_base_url}/v1", api_key="local")
+    msg = client.chat.completions.create(
+        model=settings.ollama_model,
         max_tokens=1024,
         messages=[
             {
@@ -139,5 +142,5 @@ async def back_translate(body: BackTranslateIn) -> BackTranslateOut:
             }
         ],
     )
-    translated = msg.content[0].text if msg.content else ""
+    translated = msg.choices[0].message.content or "" if msg.choices else ""
     return BackTranslateOut(translated=translated)

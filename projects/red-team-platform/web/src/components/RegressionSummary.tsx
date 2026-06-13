@@ -73,7 +73,7 @@ export function RegressionSummary({ model }: Props) {
                 </span>
                 {' (+'}
                 {pct(summary.worstCat.delta)}
-                {' ASR').concat(' since baseline)')}
+                {' ASR since baseline)'}
               </li>
             )}
             {summary.bestCat && summary.bestCat.delta < 0 && (
