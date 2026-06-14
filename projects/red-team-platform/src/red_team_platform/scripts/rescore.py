@@ -8,8 +8,8 @@ Refreshes coverage_summary materialised view.
 
 Usage:
     uv run rescore
-    uv run rescore --session-id <uuid>   # re-score a single session
-    uv run rescore --dry-run             # print scores, don't update
+    uv run rescore --session-id <uuid>        # re-score a single session
+    uv run rescore --dry-run --limit 10      # print scores, don't update
 """
 from __future__ import annotations
 
@@ -36,6 +36,9 @@ def main(
         level=logging.INFO,
         format="%(asctime)s %(name)s %(levelname)s %(message)s",
     )
+
+    if dry_run and limit is None:
+        raise typer.BadParameter("--dry-run requires --limit N (e.g. --dry-run --limit 10)")
 
     from red_team_platform.config import get_settings
     from red_team_platform.db import create_engine, create_session_factory

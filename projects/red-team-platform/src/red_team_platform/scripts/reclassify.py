@@ -8,7 +8,7 @@ Updates harm_category in place — no schema changes.
 Usage:
     uv run reclassify
     uv run reclassify --batch-size 25
-    uv run reclassify --dry-run
+    uv run reclassify --dry-run --limit 10
 """
 from __future__ import annotations
 
@@ -114,6 +114,9 @@ def main(
         level=logging.INFO,
         format="%(asctime)s %(name)s %(levelname)s %(message)s",
     )
+
+    if dry_run and limit is None:
+        raise typer.BadParameter("--dry-run requires --limit N (e.g. --dry-run --limit 10)")
 
     import anthropic
 
