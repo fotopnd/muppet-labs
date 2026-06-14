@@ -164,9 +164,19 @@ export function BiasHeatmap() {
         </tbody>
       </table>
 
-      <p className="text-xs text-text-muted mt-3">
-        EN = 0.00 baseline — all values measure cosine distance from the English response.
-      </p>
+      <div className="mt-3 space-y-1">
+        <p className="text-xs text-text-muted">
+          EN = 0.00 baseline — all values measure cosine distance from the English response.
+          Higher scores indicate greater semantic divergence from the English answer.
+        </p>
+        <p className="text-xs text-text-muted">
+          Scored using <span className="font-mono">{data.scored_model ?? 'gemma2:9b'}</span> only.
+          Other models not yet evaluated for language bias.
+        </p>
+        <p className="text-xs text-text-muted">
+          1.00 indicates maximum divergence — the model likely refused in that language while complying in English, or produced a qualitatively different response.
+        </p>
+      </div>
     </div>
   )
 }

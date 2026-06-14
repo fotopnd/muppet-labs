@@ -1,4 +1,4 @@
-import { useRef, useState } from 'react'
+import { useMemo, useRef, useState } from 'react'
 import { Scatter, ScatterChart, Tooltip, XAxis, YAxis, ZAxis } from 'recharts'
 import { useClusters, useClusterMembers } from '@/hooks/useClusters'
 import { abbrevName, categoryColour, labelName } from '@/lib/categoryLabels'
@@ -75,6 +75,17 @@ export function FailureClusters() {
 
   const totalFailures = data.summaries.reduce((s, c) => s + c.size, 0)
 
+  // Top harm category by total cluster size
+  const topCategoryCallout = useMemo(() => {
+    const catTotals: Record<string, number> = {}
+    for (const c of data.summaries) {
+      catTotals[c.top_harm_category] = (catTotals[c.top_harm_category] ?? 0) + c.size
+    }
+    const top = Object.entries(catTotals).sort(([, a], [, b]) => b - a)[0]
+    if (!top) return null
+    return { label: labelName(top[0]), pct: ((top[1] / totalFailures) * 100).toFixed(0) }
+  }, [data.summaries, totalFailures])
+
   // Build categorical axes: strategy (X) and harm category (Y)
   // sorted by total cluster size for each group descending
   const stratTotals: Record<string, number> = {}
@@ -110,7 +121,17 @@ export function FailureClusters() {
 
   return (
     <div className="p-4">
-      <h2 className="text-base font-semibold text-text-primary mb-4">Failure Clusters</h2>
+      <h2 className="text-base font-semibold text-text-primary mb-2">Failure Clusters</h2>
+
+      {topCategoryCallout && (
+        <div className="bg-danger/5 border border-danger/20 rounded-lg px-4 py-2.5 mb-4 text-sm">
+          <span className="font-semibold text-danger">{topCategoryCallout.pct}%</span>
+          <span className="text-text-secondary ml-1">
+            of jailbreak failures involve <span className="font-medium text-text-primary">{topCategoryCallout.label}</span> — the dominant harm type across clusters.
+            Clusters are computed via k-means on run embeddings; each bubble represents a semantically similar failure group.
+          </span>
+        </div>
+      )}
 
       {/* Bubble chart */}
       <div className="bg-surface border border-border rounded-lg p-4 mb-6 overflow-x-auto">
@@ -191,10 +212,6 @@ export function FailureClusters() {
               </span>
             </div>
 
-            <code className="block bg-surface-muted rounded p-2 text-xs font-mono whitespace-pre-wrap break-words text-text-primary mb-2">
-              {c.representative_text.slice(0, 120)}{c.representative_text.length > 120 ? '…' : ''}
-            </code>
-
             {/* Proportion bar */}
             <div className="h-1.5 w-full rounded-full bg-surface-muted mb-2">
               <div
@@ -232,9 +249,9 @@ export function FailureClusters() {
             <table className="w-full text-xs border-collapse">
               <thead>
                 <tr className="bg-surface-muted">
-                  <th className="text-left px-2 py-1.5 font-medium text-text-secondary border-b border-border">Attack Text</th>
                   <th className="text-left px-2 py-1.5 font-medium text-text-secondary border-b border-border">Category</th>
                   <th className="text-left px-2 py-1.5 font-medium text-text-secondary border-b border-border">Strategy</th>
+                  <th className="text-left px-2 py-1.5 font-medium text-text-secondary border-b border-border">Model</th>
                   <th className="text-right px-2 py-1.5 font-medium text-text-secondary border-b border-border">Score</th>
                   <th className="text-right px-2 py-1.5 font-medium text-text-secondary border-b border-border">Latency</th>
                 </tr>
@@ -242,9 +259,9 @@ export function FailureClusters() {
               <tbody>
                 {members.members.map((m) => (
                   <tr key={m.run_id} className="border-b border-border">
-                    <td className="px-2 py-1.5 text-text-primary">{m.attack_text.slice(0, 80)}…</td>
                     <td className="px-2 py-1.5 text-text-secondary">{labelName(m.harm_category)}</td>
                     <td className="px-2 py-1.5 text-text-secondary font-mono">{m.strategy}</td>
+                    <td className="px-2 py-1.5 text-text-muted font-mono">{m.model_name}</td>
                     <td className="px-2 py-1.5 text-right font-mono text-text-secondary">{m.classifier_score.toFixed(2)}</td>
                     <td className="px-2 py-1.5 text-right text-text-muted">{m.latency_ms}ms</td>
                   </tr>

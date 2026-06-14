@@ -46,8 +46,24 @@ export const CATEGORY_COLOURS: Record<string, string> = {
   LABEL_12: '#78716c',
 }
 
+const LEGACY_LABELS: Record<string, string> = {
+  cybercrime_and_intrusion:    'Cybercrime & Intrusion',
+  harmful_information_generation: 'Harmful Information',
+  hate_and_discrimination:     'Hate & Discrimination',
+  human_trafficking:           'Human Trafficking',
+  illegal_activities:          'Illegal Activities',
+  intellectual_property:       'Intellectual Property',
+  misinformation:              'Misinformation',
+  physical_harm:               'Physical Harm',
+  privacy_violation:           'Privacy Violation',
+  psychological_manipulation:  'Psychological Manipulation',
+  self_harm:                   'Self-Harm',
+  sexual_content:              'Sexual Content',
+  violence:                    'Violence',
+}
+
 export function labelName(raw: string): string {
-  return CATEGORY_LABELS[raw] ?? raw
+  return CATEGORY_LABELS[raw] ?? LEGACY_LABELS[raw] ?? raw
 }
 
 export function abbrevName(raw: string): string {

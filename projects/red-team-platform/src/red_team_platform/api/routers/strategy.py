@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Query
 from sqlalchemy import case, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -12,8 +12,11 @@ router = APIRouter(tags=["strategy"])
 
 
 @router.get("/strategy-comparison", response_model=StrategyComparisonOut)
-async def get_strategy_comparison(db: AsyncSession = Depends(get_db)) -> StrategyComparisonOut:
-    result = await db.execute(
+async def get_strategy_comparison(
+    db: AsyncSession = Depends(get_db),
+    model_name: str | None = Query(default=None),
+) -> StrategyComparisonOut:
+    q = (
         select(
             Attack.strategy,
             func.count().label("total_runs"),
@@ -22,6 +25,9 @@ async def get_strategy_comparison(db: AsyncSession = Depends(get_db)) -> Strateg
         .join(Attack, Run.attack_id == Attack.id)
         .group_by(Attack.strategy)
     )
+    if model_name is not None:
+        q = q.where(Run.model_name == model_name)
+    result = await db.execute(q)
     rows = result.all()
     bars = [
         StrategyBar(

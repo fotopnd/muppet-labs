@@ -1,30 +1,33 @@
 import { useState } from 'react'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
-import { AttackBrowser } from '@/pages/AttackBrowser'
+import { StrategyExplorer } from '@/pages/StrategyExplorer'
 import { Analytics } from '@/pages/Analytics'
-import { SampleReview } from '@/pages/SampleReview'
 import { FailureClusters } from '@/pages/FailureClusters'
 import { BiasHeatmap } from '@/pages/BiasHeatmap'
+import { Glossary } from '@/pages/Glossary'
 
 const queryClient = new QueryClient()
 
-type Tab = 'attacks' | 'analytics' | 'sample' | 'clusters' | 'bias'
+type Tab = 'strategies' | 'analytics' | 'clusters' | 'bias' | 'glossary'
 
 const TABS: { id: Tab; label: string }[] = [
-  { id: 'attacks', label: 'Attack Browser' },
+  { id: 'strategies', label: 'Strategy Explorer' },
   { id: 'analytics', label: 'Analytics' },
-  { id: 'sample', label: 'Sample Review' },
   { id: 'clusters', label: 'Failure Clusters' },
   { id: 'bias', label: 'Bias Heatmap' },
+  { id: 'glossary', label: 'Glossary' },
 ]
 
 function Dashboard() {
-  const [activeTab, setActiveTab] = useState<Tab>('attacks')
+  const [activeTab, setActiveTab] = useState<Tab>('strategies')
 
   return (
     <div className="min-h-screen bg-canvas font-sans">
       <header className="bg-surface border-b border-border px-4 py-3">
         <h1 className="text-sm font-semibold text-text-primary tracking-wide">Red-Team Platform</h1>
+        <p className="text-xs text-text-muted mt-0.5">
+          10,800 jailbreak attacks · 13 strategies · 3 open-weight models · automated LLM judge
+        </p>
       </header>
       <nav className="flex border-b-2 border-border bg-surface overflow-x-auto">
         {TABS.map((tab) => (
@@ -42,11 +45,11 @@ function Dashboard() {
         ))}
       </nav>
       <main className="p-0">
-        {activeTab === 'attacks' && <AttackBrowser />}
+        {activeTab === 'strategies' && <StrategyExplorer />}
         {activeTab === 'analytics' && <Analytics />}
-        {activeTab === 'sample' && <SampleReview />}
         {activeTab === 'clusters' && <FailureClusters />}
         {activeTab === 'bias' && <BiasHeatmap />}
+        {activeTab === 'glossary' && <Glossary />}
       </main>
     </div>
   )

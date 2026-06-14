@@ -9,7 +9,7 @@ export function Analytics() {
           <h2 className="text-base font-semibold text-text-primary">Strategy Performance</h2>
           <div className="flex gap-3 text-xs ml-auto">
             <a href="#strategy" className="text-accent hover:underline">Strategy ↑</a>
-            <a href="#regression" className="text-accent hover:underline">Regression ↓</a>
+            <a href="#runlog" className="text-accent hover:underline">Run Log ↓</a>
           </div>
         </div>
         <p className="text-xs text-text-muted mb-4">
@@ -20,16 +20,16 @@ export function Analytics() {
 
       <hr className="border-border mx-4" />
 
-      <div id="regression" className="p-4 mt-2">
+      <div id="runlog" className="p-4 mt-2">
         <div className="flex items-center gap-4 mb-1">
-          <h2 className="text-base font-semibold text-text-primary">Regression Tracking</h2>
+          <h2 className="text-base font-semibold text-text-primary">Run Log</h2>
           <div className="flex gap-3 text-xs ml-auto">
             <a href="#strategy" className="text-accent hover:underline">Strategy ↑</a>
-            <a href="#regression" className="text-accent hover:underline">Regression ↑</a>
+            <a href="#runlog" className="text-accent hover:underline">Run Log ↑</a>
           </div>
         </div>
         <p className="text-xs text-text-muted mb-4">
-          Attack success rate across sessions — track whether model safety is improving or regressing.
+          Per-session attack results. All runs were executed on the same date — regression tracking requires multiple sessions over time.
         </p>
         <RegressionTracker />
       </div>

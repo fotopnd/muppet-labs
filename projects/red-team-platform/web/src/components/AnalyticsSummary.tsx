@@ -19,7 +19,6 @@ export function AnalyticsSummary() {
 
     const best = ranked[0]
     const worst = ranked[ranked.length - 1]
-    const mostTested = [...cmpData.bars].sort((a, b) => b.total_runs - a.total_runs)[0]
 
     // Highest-risk category from coverage cells
     let topCategory: string | null = null
@@ -36,7 +35,7 @@ export function AnalyticsSummary() {
       topCategory = catMeans.sort((a, b) => b.mean - a.mean)[0]?.cat ?? null
     }
 
-    return { best, worst, mostTested, topCategory }
+    return { best, worst, topCategory }
   }, [cmpData, covData])
 
   if (!summary) return null
@@ -63,10 +62,8 @@ export function AnalyticsSummary() {
           {(summary.worst.asr * 100).toFixed(1)}% across {summary.worst.total_runs} runs.
         </li>
         <li>
-          <span className="text-text-muted">Most-tested strategy: </span>
-          <span className="font-medium">{stratLabel(summary.mostTested.strategy)}</span>
-          {' — '}
-          {summary.mostTested.total_runs} runs.
+          <span className="text-text-muted">Coverage: </span>
+          13 strategies × 300 runs each across 3 models (gemma2:9b, qwen2.5:7b, llama3.1:8b).
         </li>
         {summary.topCategory && (
           <li>
