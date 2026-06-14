@@ -9,11 +9,12 @@ function wrapper({ children }: { children: React.ReactNode }) {
 }
 
 describe('Glossary', () => {
-  it('renders three section headings', () => {
+  it('renders two section headings (Metrics and Harm Categories)', () => {
     render(<Glossary />, { wrapper })
     expect(screen.getByText('Metrics')).toBeTruthy()
-    expect(screen.getByText('Attack Strategies')).toBeTruthy()
     expect(screen.getByText('Harm Categories')).toBeTruthy()
+    // Attack Strategies section moved to StrategyExplorer tab
+    expect(screen.queryByText('Attack Strategies')).toBeNull()
   })
 
   it('renders key metric terms', () => {
@@ -22,18 +23,6 @@ describe('Glossary', () => {
     expect(screen.getByText('Classifier Score')).toBeTruthy()
     expect(screen.getByText('Jailbreak Success')).toBeTruthy()
     expect(screen.getByText('Latency')).toBeTruthy()
-  })
-
-  it('renders all 13 wave strategy keys', () => {
-    render(<Glossary />, { wrapper })
-    const strategies = [
-      'AIM', 'evil_confidant', 'few_shot_json', 'refusal_suppression', 'combination_1',
-      'dev_mode_v2', 'prefix_injection', 'distractors', 'evil_system_prompt', 'multi_shot_25',
-      'gcg', 'base64', 'rot13',
-    ]
-    for (const s of strategies) {
-      expect(screen.getByText(s)).toBeTruthy()
-    }
   })
 
   it('renders sample harm category labels', () => {
