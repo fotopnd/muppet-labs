@@ -61,6 +61,22 @@ export function FailureClusters() {
   const { data: members, isLoading: membersLoading } = useClusterMembers(expandedClusterId)
   const cardRefs = useRef<Record<number, HTMLDivElement | null>>({})
 
+  const totalFailures = useMemo(
+    () => data?.summaries.reduce((s, c) => s + c.size, 0) ?? 0,
+    [data],
+  )
+
+  const topCategoryCallout = useMemo(() => {
+    if (!data?.summaries.length || totalFailures === 0) return null
+    const catTotals: Record<string, number> = {}
+    for (const c of data.summaries) {
+      catTotals[c.top_harm_category] = (catTotals[c.top_harm_category] ?? 0) + c.size
+    }
+    const top = Object.entries(catTotals).sort(([, a], [, b]) => b - a)[0]
+    if (!top) return null
+    return { label: labelName(top[0]), pct: ((top[1] / totalFailures) * 100).toFixed(0) }
+  }, [data, totalFailures])
+
   if (isLoading) return <p className="p-4 text-text-secondary text-sm">Loading…</p>
   if (isError) return <p className="p-4 text-danger text-sm">Error loading clusters.</p>
   if (!data || data.summaries.length === 0) {
@@ -72,19 +88,6 @@ export function FailureClusters() {
       </p>
     )
   }
-
-  const totalFailures = data.summaries.reduce((s, c) => s + c.size, 0)
-
-  // Top harm category by total cluster size
-  const topCategoryCallout = useMemo(() => {
-    const catTotals: Record<string, number> = {}
-    for (const c of data.summaries) {
-      catTotals[c.top_harm_category] = (catTotals[c.top_harm_category] ?? 0) + c.size
-    }
-    const top = Object.entries(catTotals).sort(([, a], [, b]) => b - a)[0]
-    if (!top) return null
-    return { label: labelName(top[0]), pct: ((top[1] / totalFailures) * 100).toFixed(0) }
-  }, [data.summaries, totalFailures])
 
   // Build categorical axes: strategy (X) and harm category (Y)
   // sorted by total cluster size for each group descending

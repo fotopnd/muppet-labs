@@ -9,9 +9,9 @@ const WAVE_STRATEGIES = [
 ]
 
 const MODEL_FILL: Record<string, string> = {
-  'gemma2:9b':    'var(--color-danger)',
-  'qwen2.5:7b':  'var(--color-warning)',
-  'llama3.1:8b': 'var(--color-success)',
+  'gemma2:9b':    '#3b82f6',
+  'qwen2.5:7b':  '#f97316',
+  'llama3.1:8b': '#8b5cf6',
 }
 
 const MODEL_SHORT: Record<string, string> = {
@@ -46,24 +46,21 @@ export function ModelComparison() {
         </p>
         <ul className="space-y-1.5 text-text-primary">
           <li>
-            <span className="text-danger font-semibold">gemma2:9b</span>
+            <span className="text-blue-700 font-semibold">gemma2:9b</span>
             <span className="text-text-secondary ml-1">
-              (Google) — most vulnerable, ~31.8% average ASR.
-              AIM persona injection exceeded 55% success rate.
+              (Google) — most vulnerable, ~31.8% avg ASR. AIM persona injection exceeded 55%.
             </span>
           </li>
           <li>
-            <span className="text-warning font-semibold">qwen2.5:7b</span>
+            <span className="text-orange-700 font-semibold">qwen2.5:7b</span>
             <span className="text-text-secondary ml-1">
-              (Alibaba) — moderate resistance, ~26.2% average ASR.
-              Comparable exposure to gemma2 across most strategies.
+              (Alibaba) — ~26.2% avg ASR. Resistant to persona attacks; vulnerable to prompt injection strategies.
             </span>
           </li>
           <li>
-            <span className="text-success font-semibold">llama3.1:8b</span>
+            <span className="text-violet-700 font-semibold">llama3.1:8b</span>
             <span className="text-text-secondary ml-1">
-              (Meta) — most resistant, ~4.0% average ASR.
-              Refusal suppression and ROT-13 were the only strategies exceeding 10%.
+              (Meta) — most resistant, ~4.0% avg ASR. Only refusal suppression and ROT-13 exceeded 10%.
             </span>
           </li>
         </ul>

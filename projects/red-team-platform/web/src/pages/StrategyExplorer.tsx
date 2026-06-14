@@ -9,26 +9,38 @@ const WAVE_STRATEGIES = [
   'gcg', 'base64', 'rot13',
 ]
 
-type ColourToken = 'danger' | 'warning' | 'success'
+type ModelColour = 'blue' | 'orange' | 'violet'
+
+const MODEL_BADGE_CLS: Record<ModelColour, string> = {
+  blue:   'bg-blue-50 text-blue-700 ring-1 ring-blue-200',
+  orange: 'bg-orange-50 text-orange-700 ring-1 ring-orange-200',
+  violet: 'bg-violet-50 text-violet-700 ring-1 ring-violet-200',
+}
+
+const ASR_CLS = {
+  high: 'bg-red-50 text-red-700',
+  mid:  'bg-amber-50 text-amber-700',
+  low:  'bg-green-50 text-green-700',
+}
 
 function ModelAsrBadge({ model, asr }: { model: string; asr: number | undefined }) {
-  const colour = MODEL_COLOUR[model as keyof typeof MODEL_COLOUR] as ColourToken | undefined
+  const colour = MODEL_COLOUR[model as keyof typeof MODEL_COLOUR] as ModelColour | undefined
   const shortName = model.split(':')[0] ?? model
+  const badgeCls = colour ? MODEL_BADGE_CLS[colour] : 'bg-surface-muted text-text-muted'
+
   if (asr === undefined) {
     return (
-      <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-xs bg-surface-muted text-text-muted">
+      <span className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-xs ${badgeCls}`}>
         {shortName} —
       </span>
     )
   }
   const pct = (asr * 100).toFixed(0) + '%'
-  const cls =
-    colour === 'danger'  ? 'bg-danger/10 text-danger' :
-    colour === 'warning' ? 'bg-warning/10 text-warning' :
-                           'bg-success/10 text-success'
+  const asrCls = asr >= 0.4 ? ASR_CLS.high : asr >= 0.1 ? ASR_CLS.mid : ASR_CLS.low
   return (
-    <span className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-xs font-semibold ${cls}`}>
-      {shortName} {pct}
+    <span className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-xs font-medium ${badgeCls}`}>
+      {shortName}
+      <span className={`px-1 py-0.5 rounded text-xs font-semibold ${asrCls}`}>{pct}</span>
     </span>
   )
 }
@@ -39,7 +51,43 @@ export function StrategyExplorer() {
 
   return (
     <div className="p-4">
-      <div className="grid grid-cols-3 gap-4 mb-4">
+      {/* Executive summary hero */}
+      <div className="bg-surface border border-border rounded-lg p-5 mb-6">
+        <p className="text-xs font-semibold text-text-secondary uppercase tracking-wider mb-2">
+          What this testbed measures
+        </p>
+        <p className="text-sm text-text-primary leading-relaxed mb-4">
+          This platform automates adversarial safety evaluation of open-weight language models.
+          It runs a corpus of known jailbreak prompts against a target model, judges each response
+          with an LLM classifier (claude-haiku-4-5, 0–1 compliance score), and aggregates results
+          by strategy, harm category, and model across sessions.
+        </p>
+
+        <p className="text-xs font-semibold text-text-secondary uppercase tracking-wider mb-2">
+          Key findings — Wave 1 (10,800 attacks, 3 models)
+        </p>
+        <ul className="space-y-1.5 text-sm text-text-secondary">
+          <li>
+            <span className="text-blue-700 font-medium">gemma2:9b</span>
+            {' (Google) is the most vulnerable — 31.8% avg ASR. AIM persona injection reached 55%.'}
+          </li>
+          <li>
+            <span className="text-violet-700 font-medium">llama3.1:8b</span>
+            {' (Meta) is dramatically safer — 4.0% avg ASR. AIM, base64, and few-shot all hit 0%.'}
+          </li>
+          <li>
+            <span className="text-orange-700 font-medium">qwen2.5:7b</span>
+            {' (Alibaba) sits between — 26.2% avg ASR. Resistant to persona attacks, vulnerable to prompt injection.'}
+          </li>
+          <li className="text-text-muted">
+            Social Stereotypes is the dominant harm category across jailbreak failures.
+            Persona injection is most effective; encoding obfuscation only works against weakly-aligned models.
+          </li>
+        </ul>
+      </div>
+
+      {/* Stat widgets */}
+      <div className="grid grid-cols-3 gap-4 mb-5">
         <StatWidget
           label="Total attacks"
           value={summaryLoading ? '…' : (summary?.total != null ? summary.total.toLocaleString() : '—')}
@@ -53,27 +101,24 @@ export function StrategyExplorer() {
         />
       </div>
 
-      <p className="text-xs text-text-muted mb-3">
-        13 jailbreak strategies evaluated across Google (gemma2:9b), Alibaba (qwen2.5:7b), and
-        Meta (llama3.1:8b). 300 attacks per strategy per model. ASR shown per model. Example templates use{' '}
-        <code className="font-mono">[harmful request]</code> as a placeholder.
-      </p>
-
-      <div className="flex gap-3 mb-5 flex-wrap text-xs">
+      {/* Model legend */}
+      <div className="flex gap-2 mb-5 flex-wrap text-xs">
         {MODEL_KEYS.map((m) => {
-          const colour = MODEL_COLOUR[m] as ColourToken
-          const cls =
-            colour === 'danger'  ? 'bg-danger/10 text-danger' :
-            colour === 'warning' ? 'bg-warning/10 text-warning' :
-                                   'bg-success/10 text-success'
+          const colour = MODEL_COLOUR[m] as ModelColour
           return (
-            <span key={m} className={`px-2 py-1 rounded font-medium ${cls}`}>
+            <span key={m} className={`px-2 py-1 rounded font-medium ${MODEL_BADGE_CLS[colour]}`}>
               {MODEL_LABEL[m]}
             </span>
           )
         })}
+        <span className="text-text-muted self-center ml-2">
+          Per-card ASR badges: <span className="text-green-700">green</span> &lt;10%,{' '}
+          <span className="text-amber-700">amber</span> 10–40%,{' '}
+          <span className="text-red-700">red</span> ≥40%
+        </span>
       </div>
 
+      {/* Strategy cards */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
         {WAVE_STRATEGIES.map((key) => {
           const meta = STRATEGY_DESCRIPTIONS[key]

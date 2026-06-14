@@ -69,11 +69,31 @@ export function BiasHeatmap() {
 
   return (
     <div className="p-4 overflow-x-auto">
-      <div className="mb-4 flex items-center justify-between flex-wrap gap-2">
+      <div className="mb-3 flex items-center justify-between flex-wrap gap-2">
         <h2 className="text-base font-semibold text-text-primary">Language Bias Heatmap</h2>
         <span className="text-xs text-text-muted font-mono bg-surface-muted px-2 py-1 rounded">
           {data.scored_model ?? 'No scores yet'}
         </span>
+      </div>
+
+      {/* Topline summary */}
+      <div className="bg-surface border border-border rounded-lg p-4 mb-4 text-sm">
+        <p className="text-xs font-semibold text-text-secondary uppercase tracking-wider mb-2">
+          What this shows
+        </p>
+        <p className="text-text-secondary leading-relaxed mb-2">
+          Each row is a geopolitically sensitive topic. Columns show how differently the model responds
+          when the same topic is asked in Chinese (ZH), Russian (RU), or Arabic (AR) versus English (EN = 0.00 baseline).
+          Scores are cosine distance — higher means more semantically divergent from the English response.
+        </p>
+        <p className="text-xs font-semibold text-text-secondary uppercase tracking-wider mb-1 mt-3">
+          Key finding
+        </p>
+        <ul className="space-y-1 text-text-secondary text-xs">
+          <li>Average divergence is high across all three languages (ZH 0.83, RU 0.89, AR 0.84) — responses consistently differ from English.</li>
+          <li>Maximum divergence (1.00) appears on contested sovereignty topics: Taiwan, South China Sea, Jerusalem, Gaza — indicating the model likely refused or gave a qualitatively different response in non-English.</li>
+          <li>Click any row to see the side-by-side prompt and responses with back-translation.</li>
+        </ul>
       </div>
 
       {/* Filters */}

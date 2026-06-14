@@ -7,9 +7,9 @@ export const MODEL_KEYS = ['gemma2:9b', 'qwen2.5:7b', 'llama3.1:8b'] as const
 export type ModelKey = (typeof MODEL_KEYS)[number]
 
 export const MODEL_COLOUR: Record<ModelKey, string> = {
-  'gemma2:9b':    'danger',
-  'qwen2.5:7b':  'warning',
-  'llama3.1:8b': 'success',
+  'gemma2:9b':    'blue',
+  'qwen2.5:7b':  'orange',
+  'llama3.1:8b': 'violet',
 }
 
 export const MODEL_LABEL: Record<ModelKey, string> = {
