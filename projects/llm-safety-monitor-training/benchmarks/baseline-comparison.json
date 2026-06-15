@@ -1,0 +1,27 @@
+{
+  "seed": 42,
+  "n": 500,
+  "positive_rate": 0.096,
+  "rows": [
+    {
+      "model": "Pair classifier (RoBERTa-base, fine-tuned)",
+      "f1": 0.311,
+      "precision": 0.207,
+      "recall": 0.625,
+      "n": 500,
+      "latency_p50": "~39ms*",
+      "latency_p95": "\u2014",
+      "notes": "*batched MPS inference; per-sample estimate"
+    },
+    {
+      "model": "Llama Guard 3 (8B, zero-shot)",
+      "f1": 0.289,
+      "precision": 0.19,
+      "recall": 0.604,
+      "n": 500,
+      "latency_p50": "3.16s",
+      "latency_p95": "11.91s",
+      "notes": "Meta; Ollama local; zero-shot MLCommons taxonomy"
+    }
+  ]
+}

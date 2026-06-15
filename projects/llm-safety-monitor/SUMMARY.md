@@ -28,6 +28,8 @@ The pair classifier's F1 of 0.549 reflects a deliberate design choice: it is tun
 
 These figures are measured on a held-out WildGuard test split, where harm labels are human-curated. The live production stream uses HH-RLHF data, where "chosen" responses are bulk-labelled safe regardless of topic — inflating apparent false-positive rates. The dashboard exposes a WildGuard-only filter for this reason.
 
+**Baseline comparison against Llama Guard 3:** The pair classifier was also evaluated head-to-head against Meta's Llama Guard 3 (8B) on the same WildGuard-only held-out split (n=500, seed=42). The fine-tuned 125M classifier achieved F1=0.311 vs Llama Guard 3's F1=0.289 — comparable accuracy at **80× lower inference latency** (p50: 39 ms vs 3.16 s). The absolute F1 values reflect a low positive rate (9.6%) in this slice of the held-out set and should not be compared to the training-eval figures above. Full results: [`llm-safety-monitor-training/benchmarks/baseline-comparison.md`](../llm-safety-monitor-training/benchmarks/baseline-comparison.md).
+
 25/25 integration tests pass. 1,797 red-team attack events were published into the monitor's Kafka topic from the red-team platform and processed through the full classification and escalation pipeline.
 
 ## What Extension Would Require
