@@ -347,7 +347,11 @@ function AttackStream() {
                   formatter={(val: number) => [val.toLocaleString(), 'Jailbreaks']}
                   contentStyle={{ fontSize: 11 }}
                 />
-                <Bar dataKey="jailbreaks" fill="#ef4444" radius={[0, 3, 3, 0]} maxBarSize={14} />
+                <Bar dataKey="jailbreaks" radius={[0, 3, 3, 0]} maxBarSize={14}>
+                  {categoryBarData.map((_, i) => (
+                    <Cell key={i} fill={AREA_COLOURS[i % AREA_COLOURS.length]} />
+                  ))}
+                </Bar>
               </BarChart>
             </ResponsiveContainer>
           )}
