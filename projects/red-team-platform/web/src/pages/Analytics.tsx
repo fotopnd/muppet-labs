@@ -7,6 +7,8 @@ import {
   CartesianGrid,
   Cell,
   Legend,
+  Line,
+  LineChart,
   ResponsiveContainer,
   Tooltip,
   XAxis,
@@ -198,8 +200,9 @@ function AttackStream() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
-  const handlePause  = () => { esRef.current?.close(); esRef.current = null; setRunning(false) }
-  const handleReplay = () => { setDone(false); startStream(speed) }
+  const handlePause    = () => { esRef.current?.close(); esRef.current = null; setRunning(false) }
+  const handleReplay   = () => { setDone(false); startStream(speed) }
+  const handleComplete = () => { startStream('fast') }
 
   // --- Derived chart data ---
   const runningAsr = stats.processed > 0
@@ -255,19 +258,42 @@ function AttackStream() {
             ))}
           </div>
           {running ? (
-            <button
-              onClick={handlePause}
-              className="px-3 py-1 text-xs font-semibold rounded border border-border text-text-primary hover:bg-surface-muted"
-            >
-              ⏸ Pause
-            </button>
-          ) : (
+            <>
+              <button
+                onClick={handlePause}
+                className="px-3 py-1 text-xs font-semibold rounded border border-border text-text-primary hover:bg-surface-muted"
+              >
+                ⏸ Pause
+              </button>
+              <button
+                onClick={handleComplete}
+                className="px-3 py-1 text-xs font-semibold rounded border border-border text-text-secondary hover:bg-surface-muted"
+              >
+                ⏭ Complete
+              </button>
+            </>
+          ) : done ? (
             <button
               onClick={handleReplay}
               className="px-3 py-1 text-xs font-semibold rounded bg-accent text-white hover:bg-accent/90"
             >
-              {done ? '↺ Replay' : '▶ Resume'}
+              ↺ Replay
             </button>
+          ) : (
+            <>
+              <button
+                onClick={handleReplay}
+                className="px-3 py-1 text-xs font-semibold rounded bg-accent text-white hover:bg-accent/90"
+              >
+                ▶ Resume
+              </button>
+              <button
+                onClick={handleComplete}
+                className="px-3 py-1 text-xs font-semibold rounded border border-border text-text-secondary hover:bg-surface-muted"
+              >
+                ⏭ Complete
+              </button>
+            </>
           )}
         </div>
       </div>
@@ -354,21 +380,21 @@ function AttackStream() {
         </div>
       </div>
 
-      {/* Row 2: attack volume by model (bucketed stacked area chart) */}
+      {/* Row 2: attack volume by model (line chart, 300-event buckets) */}
       <div>
         <p className="text-xs font-semibold text-text-secondary uppercase tracking-wider mb-1">
           Attack Volume by Model
         </p>
         <p className="text-xs text-text-muted mb-2">
-          Stacked area — each band is {BUCKET_SIZE} events · total attacks per model rolling through corpus
+          Attacks per {BUCKET_SIZE}-event window · one line per model rolling through corpus
         </p>
-        {stats.modelBuckets.length === 0 ? (
+        {stats.modelBuckets.length < 2 ? (
           <div className="h-48 flex items-center justify-center text-xs text-text-muted border border-border rounded-lg bg-surface-muted">
             {empty ? 'Starting…' : `Collecting — first bucket fills at ${BUCKET_SIZE} events`}
           </div>
         ) : (
           <ResponsiveContainer width="100%" height={220}>
-            <AreaChart data={stats.modelBuckets} margin={{ left: 4, right: 16, top: 4, bottom: 0 }}>
+            <LineChart data={stats.modelBuckets} margin={{ left: 4, right: 16, top: 4, bottom: 0 }}>
               <CartesianGrid strokeDasharray="3 3" stroke="var(--color-border, #e2e8f0)" strokeOpacity={0.4} />
               <XAxis dataKey="label" tick={{ fontSize: 9 }} interval="preserveStartEnd" />
               <YAxis tick={{ fontSize: 10 }} />
@@ -376,25 +402,20 @@ function AttackStream() {
                 formatter={(val: number, name: string) => [val.toLocaleString(), name.split(':')[0]]}
                 contentStyle={{ fontSize: 11 }}
               />
-              <Legend
-                formatter={(value: string) => value.split(':')[0]}
-                wrapperStyle={{ fontSize: 11 }}
-              />
+              <Legend formatter={(value: string) => value.split(':')[0]} wrapperStyle={{ fontSize: 11 }} />
               {MODEL_META.map((m) => (
-                <Area
+                <Line
                   key={m.key}
                   type="monotone"
                   dataKey={m.key}
-                  stackId="1"
                   stroke={m.colour}
-                  fill={m.colour}
-                  fillOpacity={0.65}
-                  name={m.key}
+                  strokeWidth={2}
                   dot={false}
+                  name={m.key}
                   connectNulls
                 />
               ))}
-            </AreaChart>
+            </LineChart>
           </ResponsiveContainer>
         )}
       </div>

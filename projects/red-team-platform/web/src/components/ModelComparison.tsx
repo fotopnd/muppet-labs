@@ -1,5 +1,5 @@
 import { useMemo } from 'react'
-import { Bar, BarChart, CartesianGrid, Legend, Tooltip, XAxis, YAxis } from 'recharts'
+import { Bar, BarChart, CartesianGrid, Legend, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts'
 import { useStrategyComparisonByModel, MODEL_KEYS } from '@/hooks/useStrategyComparisonByModel'
 
 const WAVE_STRATEGIES = [
@@ -71,31 +71,31 @@ export function ModelComparison() {
         <p className="text-xs text-text-muted mb-3">
           ASR per strategy × model. Lower is safer.
         </p>
-        <BarChart
-          width={680}
-          height={340}
-          data={chartData}
-          margin={{ top: 8, right: 16, bottom: 60, left: 10 }}
-        >
-          <CartesianGrid strokeDasharray="3 3" stroke="var(--color-border)" />
-          <XAxis
-            dataKey="strategy"
-            tick={{ fontSize: 9 }}
-            angle={-35}
-            textAnchor="end"
-            height={70}
-          />
-          <YAxis
-            tickFormatter={(v: number) => `${v}%`}
-            domain={[0, 100]}
-            tick={{ fontSize: 10 }}
-          />
-          <Tooltip formatter={(v: number) => `${v}%`} />
-          <Legend wrapperStyle={{ fontSize: 11, paddingTop: 8 }} />
-          {MODEL_KEYS.map((m) => (
-            <Bar key={m} dataKey={MODEL_SHORT[m]!} fill={MODEL_FILL[m]} />
-          ))}
-        </BarChart>
+        <ResponsiveContainer width="100%" height={340}>
+          <BarChart
+            data={chartData}
+            margin={{ top: 8, right: 16, bottom: 60, left: 10 }}
+          >
+            <CartesianGrid strokeDasharray="3 3" stroke="var(--color-border)" />
+            <XAxis
+              dataKey="strategy"
+              tick={{ fontSize: 9 }}
+              angle={-35}
+              textAnchor="end"
+              height={70}
+            />
+            <YAxis
+              tickFormatter={(v: number) => `${v}%`}
+              domain={[0, 100]}
+              tick={{ fontSize: 10 }}
+            />
+            <Tooltip formatter={(v: number) => `${v}%`} />
+            <Legend wrapperStyle={{ fontSize: 11, paddingTop: 8 }} />
+            {MODEL_KEYS.map((m) => (
+              <Bar key={m} dataKey={MODEL_SHORT[m]!} fill={MODEL_FILL[m]} />
+            ))}
+          </BarChart>
+        </ResponsiveContainer>
       </div>
     </div>
   )

@@ -54,7 +54,7 @@ async def stream_runs(
     speed: Annotated[str, Query(pattern="^(fast|normal|slow)$")] = "normal",
 ) -> StreamingResponse:
     """SSE endpoint: replay all runs in chronological order."""
-    delays = {"fast": 0.0, "normal": 0.1, "slow": 0.4}
+    delays = {"fast": 0.0, "normal": 0.05, "slow": 0.4}
     delay = delays[speed]
     session_factory = request.app.state.session_factory
 

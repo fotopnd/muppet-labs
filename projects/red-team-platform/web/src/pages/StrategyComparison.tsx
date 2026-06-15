@@ -1,6 +1,6 @@
 import { useMemo } from 'react'
 import {
-  Bar, BarChart, CartesianGrid, Cell, Tooltip, XAxis, YAxis,
+  Bar, BarChart, CartesianGrid, Cell, ResponsiveContainer, Tooltip, XAxis, YAxis,
 } from 'recharts'
 import { useStrategyComparison } from '@/hooks/useStrategyComparison'
 import { useCoverage } from '@/hooks/useCoverage'
@@ -51,36 +51,36 @@ export function StrategyComparison() {
         <p className="text-xs text-text-muted mb-3">
           Sorted high → low. Each strategy was run 300× per model (900 total). Colour: green &lt;30%, amber 30–60%, red ≥60%.
         </p>
-        <BarChart
-          width={640}
-          height={320}
-          data={chartData}
-          layout="vertical"
-          margin={{ top: 4, right: 48, bottom: 4, left: 120 }}
-        >
-          <CartesianGrid strokeDasharray="3 3" stroke="var(--color-border)" horizontal={false} />
-          <XAxis
-            type="number"
-            tickFormatter={(v: number) => `${v}%`}
-            domain={[0, 100]}
-            tick={{ fontSize: 10 }}
-          />
-          <YAxis
-            type="category"
-            dataKey="strategy"
-            tick={{ fontSize: 11, fontFamily: 'ui-monospace, monospace' }}
-            width={114}
-          />
-          <Tooltip
-            formatter={(v: number) => [`${v}%`, 'ASR']}
-            contentStyle={{ fontSize: 12 }}
-          />
-          <Bar dataKey="asr_pct" name="ASR %">
-            {chartData.map((entry, i) => (
-              <Cell key={i} fill={asrColour(entry.asr_pct)} />
-            ))}
-          </Bar>
-        </BarChart>
+        <ResponsiveContainer width="100%" height={320}>
+          <BarChart
+            data={chartData}
+            layout="vertical"
+            margin={{ top: 4, right: 48, bottom: 4, left: 120 }}
+          >
+            <CartesianGrid strokeDasharray="3 3" stroke="var(--color-border)" horizontal={false} />
+            <XAxis
+              type="number"
+              tickFormatter={(v: number) => `${v}%`}
+              domain={[0, 100]}
+              tick={{ fontSize: 10 }}
+            />
+            <YAxis
+              type="category"
+              dataKey="strategy"
+              tick={{ fontSize: 11, fontFamily: 'ui-monospace, monospace' }}
+              width={114}
+            />
+            <Tooltip
+              formatter={(v: number) => [`${v}%`, 'ASR']}
+              contentStyle={{ fontSize: 12 }}
+            />
+            <Bar dataKey="asr_pct" name="ASR %">
+              {chartData.map((entry, i) => (
+                <Cell key={i} fill={asrColour(entry.asr_pct)} />
+              ))}
+            </Bar>
+          </BarChart>
+        </ResponsiveContainer>
       </div>
 
       {/* Strategy × Category coverage grid — full width */}
