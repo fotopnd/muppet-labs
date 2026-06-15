@@ -9,12 +9,11 @@ function wrapper({ children }: { children: React.ReactNode }) {
 }
 
 describe('Glossary', () => {
-  it('renders two section headings (Metrics and Harm Categories)', () => {
+  it('renders three section headings', () => {
     render(<Glossary />, { wrapper })
-    expect(screen.getByText('Metrics')).toBeTruthy()
+    expect(screen.getByText('Metrics & Scoring')).toBeTruthy()
+    expect(screen.getByText('Attack Strategies')).toBeTruthy()
     expect(screen.getByText('Harm Categories')).toBeTruthy()
-    // Attack Strategies section moved to StrategyExplorer tab
-    expect(screen.queryByText('Attack Strategies')).toBeNull()
   })
 
   it('renders key metric terms', () => {
@@ -25,10 +24,18 @@ describe('Glossary', () => {
     expect(screen.getByText('Latency')).toBeTruthy()
   })
 
-  it('renders sample harm category labels', () => {
+  it('renders sample harm category labels from new taxonomy', () => {
     render(<Glossary />, { wrapper })
-    expect(screen.getByText('Cyberattack')).toBeTruthy()
-    expect(screen.getByText('Violence / Physical Harm')).toBeTruthy()
-    expect(screen.getByText('Toxic Language / Hate Speech')).toBeTruthy()
+    expect(screen.getByText('Cybercrime & Intrusion')).toBeTruthy()
+    expect(screen.getByText('Violence')).toBeTruthy()
+    expect(screen.getByText('Hate & Discrimination')).toBeTruthy()
+  })
+
+  it('renders strategy keys in the attack strategies table', () => {
+    render(<Glossary />, { wrapper })
+    // AIM appears as both key and name — use getAllByText
+    expect(screen.getAllByText('AIM').length).toBeGreaterThan(0)
+    expect(screen.getByText('evil_confidant')).toBeTruthy()
+    expect(screen.getByText('base64')).toBeTruthy()
   })
 })
