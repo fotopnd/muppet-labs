@@ -78,7 +78,7 @@ export function Analytics() {
         {/* Data provenance */}
         <div className="mt-4 bg-surface border border-border rounded-lg px-4 py-3 text-xs text-text-muted">
           <span className="font-semibold text-text-secondary">Data provenance · </span>
-          11,700 runs collected June 2026 · 13 strategies × 3 models × 300 attacks each ·
+          11,688 runs collected June 2026 · 13 strategies × 3,900 unique prompts × 3 models ·
           harm categories assigned via RoBERTa-base taxonomy classifier (WildGuard) ·
           jailbreak success judged by <span className="font-mono">claude-haiku-4-5</span> at 0.5 threshold
         </div>

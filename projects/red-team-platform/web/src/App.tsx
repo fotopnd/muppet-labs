@@ -24,7 +24,7 @@ function Dashboard() {
       <header className="bg-surface border-b border-border px-4 py-3">
         <h1 className="text-sm font-semibold text-text-primary tracking-wide">LLM Safety Portfolio</h1>
         <p className="text-xs text-text-muted mt-0.5">
-          10,800 jailbreak attacks · 13 strategies · 3 open-weight models · automated LLM judge
+          11,688 runs · 13 strategies · 3 open-weight models · automated LLM judge
         </p>
       </header>
       <nav className="flex border-b-2 border-border bg-surface overflow-x-auto">

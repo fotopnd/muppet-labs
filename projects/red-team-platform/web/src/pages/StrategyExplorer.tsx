@@ -64,7 +64,7 @@ export function StrategyExplorer() {
         </p>
 
         <p className="text-xs font-semibold text-text-secondary uppercase tracking-wider mb-2">
-          Key findings — Wave 1 (10,800 attacks, 3 models)
+          Key findings — 11,688 runs across 13 strategies and 3 models
         </p>
         <ul className="space-y-1.5 text-sm text-text-secondary">
           <li>
