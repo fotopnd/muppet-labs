@@ -12,6 +12,7 @@ members = [
     "projects/red-team-platform",
     "projects/error-hide-seek",
     "projects/llm-safety-monitor-training",
+    "projects/year-zero-game",
 ]
 
 [tool.uv.sources]

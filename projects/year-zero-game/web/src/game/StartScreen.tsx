@@ -1,8 +1,9 @@
 interface StartScreenProps {
   onStart: () => void
+  loading?: boolean
 }
 
-export default function StartScreen({ onStart }: StartScreenProps) {
+export default function StartScreen({ onStart, loading }: StartScreenProps) {
   return (
     <div className="fixed inset-0 z-50 bg-pixel-room flex flex-col items-center justify-center gap-8 px-6">
       <div className="text-center">
@@ -29,9 +30,10 @@ export default function StartScreen({ onStart }: StartScreenProps) {
       <button
         type="button"
         onClick={onStart}
-        className="font-pixel text-pixel-terminal text-[8px] border border-pixel-terminal px-6 py-3 hover:bg-pixel-terminal/10 active:bg-pixel-terminal/20"
+        disabled={loading}
+        className="font-pixel text-pixel-terminal text-[8px] border border-pixel-terminal px-6 py-3 hover:bg-pixel-terminal/10 active:bg-pixel-terminal/20 disabled:opacity-50 disabled:cursor-not-allowed"
       >
-        BEGIN INTAKE &gt;
+        {loading ? 'CONNECTING...' : 'BEGIN INTAKE >'}
       </button>
 
       <p className="font-pixel text-pixel-card/30 text-[7px]">

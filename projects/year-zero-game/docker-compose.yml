@@ -1,0 +1,19 @@
+services:
+  db:
+    image: postgres:16
+    environment:
+      POSTGRES_USER: year_zero
+      POSTGRES_PASSWORD: year_zero
+      POSTGRES_DB: year_zero
+    ports:
+      - "5437:5432"
+    volumes:
+      - year_zero_pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U year_zero"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+volumes:
+  year_zero_pgdata:

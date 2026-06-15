@@ -16,13 +16,14 @@ export default function Game() {
   const batchDecisions = useBatchDecisions()
   const patchSession = usePatchSession()
 
-  // Session creation — fire once on mount
-  const sessionStarted = useRef(false)
-  useEffect(() => {
-    if (sessionStarted.current) return
-    sessionStarted.current = true
+  // Set to true when user clicks "Begin Intake" — gates session creation
+  const userReady = useRef(false)
+
+  const handleBeginIntake = useCallback(() => {
+    if (userReady.current) return
+    userReady.current = true
     createSession.mutate(undefined)
-  }, []) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [createSession])
 
   const sessionId = createSession.data?.session_id ?? null
 
@@ -116,18 +117,13 @@ export default function Game() {
   }, [dispatch, state.upgradePending])
 
   const handleReturn = useCallback(() => {
+    userReady.current = false
     gameStarted.current = false
-    sessionStarted.current = false
     patchSubmitted.current = false
     batchSubmitted.current = null
     phaseCardsDispatched.current = null
-    dispatch({ type: 'RESET' })
-    // Re-create session after reset
     createSession.reset()
-    setTimeout(() => {
-      sessionStarted.current = false
-      createSession.mutate(undefined)
-    }, 50)
+    dispatch({ type: 'RESET' })
   }, [dispatch, createSession])
 
   const upgradeNewTier = state.upgradePending
@@ -140,7 +136,7 @@ export default function Game() {
   return (
     <div className="w-full min-h-svh bg-pixel-room flex flex-col">
       {/* Overlays (highest z) */}
-      {state.phase === 'start' && <StartScreen onStart={() => dispatch({ type: 'RESET' })} />}
+      {state.phase === 'start' && <StartScreen onStart={handleBeginIntake} loading={createSession.isPending} />}
       {state.phase === 'lore' && <LorePage onContinue={() => dispatch({ type: 'DAY_ACKNOWLEDGED' })} />}
       {state.phase === 'day_end' && (
         <DayScreen
