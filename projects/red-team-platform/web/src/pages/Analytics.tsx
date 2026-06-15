@@ -7,8 +7,6 @@ import {
   CartesianGrid,
   Cell,
   Legend,
-  Line,
-  LineChart,
   ResponsiveContainer,
   Tooltip,
   XAxis,
@@ -23,8 +21,7 @@ import type { RunEvent } from '@/types'
 
 const API = import.meta.env['VITE_API_URL'] ?? 'http://localhost:8003'
 const TOTAL_RUNS = 11_688
-const SNAP_INTERVAL = 200   // volume line: snapshot every N events
-const BUCKET_SIZE = 300     // area chart: aggregate jailbreaks per N-event window
+const BUCKET_SIZE = 300     // both area charts bucket every N events
 
 const MODEL_META = [
   { key: 'gemma2:9b',    label: 'gemma2',   colour: '#3b82f6' },
@@ -51,19 +48,22 @@ type Pending = {
   jailbreaks: number
   models: Record<string, ModelStats>
   categories: Record<string, CategoryStats>
-  // Cumulative volume snapshots (model-segmented line chart)
-  volumeSnaps: Array<Record<string, number>>         // { at, 'gemma2:9b': N, ... }
-  // Category jailbreak buckets (stacked area chart)
-  curBucketCats: Record<string, number>              // running jailbreaks in current window
-  curBucketTotal: number                             // total events in current window
-  completedBuckets: Array<Record<string, number | string>>  // { label, [cat]: N }
+  // Shared bucket counter
+  curBucketTotal: number
+  // Model volume buckets (stacked area — total attacks per model per window)
+  curBucketModels: Record<string, number>
+  completedModelBuckets: Array<Record<string, number | string>>  // { label, [model]: N }
+  // Category jailbreak buckets (stacked area — successful attacks per category per window)
+  curBucketCats: Record<string, number>
+  completedBuckets: Array<Record<string, number | string>>       // { label, [cat]: N }
 }
 
 function freshPending(): Pending {
   return {
     processed: 0, jailbreaks: 0, models: {}, categories: {},
-    volumeSnaps: [],
-    curBucketCats: {}, curBucketTotal: 0, completedBuckets: [],
+    curBucketTotal: 0,
+    curBucketModels: {}, completedModelBuckets: [],
+    curBucketCats: {}, completedBuckets: [],
   }
 }
 
@@ -72,12 +72,12 @@ type StatsSnapshot = {
   jailbreaks: number
   models: Record<string, ModelStats>
   categories: Record<string, CategoryStats>
-  volumeSnaps: Array<Record<string, number>>
+  modelBuckets: Array<Record<string, number | string>>
   categoryBuckets: Array<Record<string, number | string>>
 }
 
 function emptyStats(): StatsSnapshot {
-  return { processed: 0, jailbreaks: 0, models: {}, categories: {}, volumeSnaps: [], categoryBuckets: [] }
+  return { processed: 0, jailbreaks: 0, models: {}, categories: {}, modelBuckets: [], categoryBuckets: [] }
 }
 
 function bucketLabel(idx: number): string {
@@ -87,9 +87,6 @@ function bucketLabel(idx: number): string {
   return `${fmt(from)}–${fmt(to)}`
 }
 
-function tickFmt(v: number): string {
-  return v >= 1000 ? `${(v / 1000).toFixed(0)}K` : String(v)
-}
 
 function AttackStream() {
   const esRef      = useRef<EventSource | null>(null)
@@ -103,16 +100,20 @@ function AttackStream() {
   useEffect(() => {
     const id = setInterval(() => {
       const p = pending.current
-      const inProgress = p.curBucketTotal > 0
-        ? [{ label: bucketLabel(p.completedBuckets.length), ...p.curBucketCats }]
+      const partialLabel = bucketLabel(p.completedBuckets.length)
+      const inProgressModel = p.curBucketTotal > 0
+        ? [{ label: partialLabel, ...p.curBucketModels }]
+        : []
+      const inProgressCat = p.curBucketTotal > 0
+        ? [{ label: partialLabel, ...p.curBucketCats }]
         : []
       setStats({
         processed:      p.processed,
         jailbreaks:     p.jailbreaks,
         models:         { ...p.models },
         categories:     { ...p.categories },
-        volumeSnaps:    [...p.volumeSnaps],
-        categoryBuckets:[...p.completedBuckets, ...inProgress],
+        modelBuckets:   [...p.completedModelBuckets, ...inProgressModel],
+        categoryBuckets:[...p.completedBuckets, ...inProgressCat],
       })
     }, 200)
     return () => clearInterval(id)
@@ -135,20 +136,17 @@ function AttackStream() {
     if (ev.jailbreak_success) cs.jailbreaks++
     p.categories[ev.harm_category] = cs
 
-    // Volume snapshot (line chart)
-    if (p.processed % SNAP_INTERVAL === 0) {
-      const snap: Record<string, number> = { at: p.processed }
-      for (const [mk, mv] of Object.entries(p.models)) snap[mk] = mv.total
-      p.volumeSnaps.push(snap)
-    }
-
-    // Category bucket (area chart)
+    // Shared bucket accumulation
+    p.curBucketModels[ev.model_name] = (p.curBucketModels[ev.model_name] ?? 0) + 1
     if (ev.jailbreak_success) {
       p.curBucketCats[ev.harm_category] = (p.curBucketCats[ev.harm_category] ?? 0) + 1
     }
     p.curBucketTotal++
     if (p.curBucketTotal >= BUCKET_SIZE) {
-      p.completedBuckets.push({ label: bucketLabel(p.completedBuckets.length), ...p.curBucketCats })
+      const label = bucketLabel(p.completedBuckets.length)
+      p.completedModelBuckets.push({ label, ...p.curBucketModels })
+      p.completedBuckets.push({ label, ...p.curBucketCats })
+      p.curBucketModels = {}
       p.curBucketCats   = {}
       p.curBucketTotal  = 0
     }
@@ -174,14 +172,18 @@ function AttackStream() {
       setDone(true)
       // Final flush
       const p = pending.current
-      const inProgress = p.curBucketTotal > 0
-        ? [{ label: bucketLabel(p.completedBuckets.length), ...p.curBucketCats }]
+      const partialLabel = bucketLabel(p.completedBuckets.length)
+      const inProgressModel = p.curBucketTotal > 0
+        ? [{ label: partialLabel, ...p.curBucketModels }]
+        : []
+      const inProgressCat = p.curBucketTotal > 0
+        ? [{ label: partialLabel, ...p.curBucketCats }]
         : []
       setStats({
         processed: p.processed, jailbreaks: p.jailbreaks,
         models: { ...p.models }, categories: { ...p.categories },
-        volumeSnaps: [...p.volumeSnaps],
-        categoryBuckets: [...p.completedBuckets, ...inProgress],
+        modelBuckets: [...p.completedModelBuckets, ...inProgressModel],
+        categoryBuckets: [...p.completedBuckets, ...inProgressCat],
       })
     })
     es.onerror = () => {
@@ -352,48 +354,47 @@ function AttackStream() {
         </div>
       </div>
 
-      {/* Row 2: cumulative volume by model (line chart) */}
+      {/* Row 2: attack volume by model (bucketed stacked area chart) */}
       <div>
-        <p className="text-xs font-semibold text-text-secondary uppercase tracking-wider mb-2">
-          Cumulative Attack Volume by Model
+        <p className="text-xs font-semibold text-text-secondary uppercase tracking-wider mb-1">
+          Attack Volume by Model
         </p>
-        {stats.volumeSnaps.length < 2 ? (
-          <div className="h-40 flex items-center justify-center text-xs text-text-muted border border-border rounded-lg bg-surface-muted">
-            {empty ? 'Starting…' : `Collecting — first snapshot at ${SNAP_INTERVAL} events`}
+        <p className="text-xs text-text-muted mb-2">
+          Stacked area — each band is {BUCKET_SIZE} events · total attacks per model rolling through corpus
+        </p>
+        {stats.modelBuckets.length === 0 ? (
+          <div className="h-48 flex items-center justify-center text-xs text-text-muted border border-border rounded-lg bg-surface-muted">
+            {empty ? 'Starting…' : `Collecting — first bucket fills at ${BUCKET_SIZE} events`}
           </div>
         ) : (
-          <ResponsiveContainer width="100%" height={180}>
-            <LineChart data={stats.volumeSnaps} margin={{ left: 4, right: 16, top: 4, bottom: 0 }}>
-              <CartesianGrid strokeDasharray="3 3" stroke="var(--color-border, #e2e8f0)" strokeOpacity={0.5} />
-              <XAxis
-                dataKey="at"
-                tick={{ fontSize: 10 }}
-                tickFormatter={tickFmt}
-                label={{ value: 'Events processed', position: 'insideBottomRight', offset: -4, fontSize: 10, fill: '#94a3b8' }}
-              />
-              <YAxis tick={{ fontSize: 10 }} tickFormatter={tickFmt} />
+          <ResponsiveContainer width="100%" height={220}>
+            <AreaChart data={stats.modelBuckets} margin={{ left: 4, right: 16, top: 4, bottom: 0 }}>
+              <CartesianGrid strokeDasharray="3 3" stroke="var(--color-border, #e2e8f0)" strokeOpacity={0.4} />
+              <XAxis dataKey="label" tick={{ fontSize: 9 }} interval="preserveStartEnd" />
+              <YAxis tick={{ fontSize: 10 }} />
               <Tooltip
                 formatter={(val: number, name: string) => [val.toLocaleString(), name.split(':')[0]]}
                 contentStyle={{ fontSize: 11 }}
-                labelFormatter={(v: number) => `Event ${v.toLocaleString()}`}
               />
               <Legend
                 formatter={(value: string) => value.split(':')[0]}
                 wrapperStyle={{ fontSize: 11 }}
               />
               {MODEL_META.map((m) => (
-                <Line
+                <Area
                   key={m.key}
                   type="monotone"
                   dataKey={m.key}
+                  stackId="1"
                   stroke={m.colour}
-                  strokeWidth={2}
-                  dot={false}
+                  fill={m.colour}
+                  fillOpacity={0.65}
                   name={m.key}
+                  dot={false}
                   connectNulls
                 />
               ))}
-            </LineChart>
+            </AreaChart>
           </ResponsiveContainer>
         )}
       </div>
