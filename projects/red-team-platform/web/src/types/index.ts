@@ -260,6 +260,7 @@ export type TriageSummaryOut = {
   auto_safe: number
   review: number
   auto_flag: number
+  reviewed: number
 }
 
 // --- Live Feed (SSE) ---

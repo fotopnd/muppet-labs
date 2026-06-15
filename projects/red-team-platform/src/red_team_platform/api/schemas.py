@@ -318,3 +318,4 @@ class TriageSummaryOut(BaseModel):
     auto_safe: int
     review: int
     auto_flag: int
+    reviewed: int = 0  # how many review-tier runs already have a case decision

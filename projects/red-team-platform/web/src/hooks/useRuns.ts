@@ -8,15 +8,17 @@ type Params = {
   page: number
   pageSize: number
   dedup?: boolean
+  triage_tier?: string | undefined
 }
 
 export function useRuns(params: Params) {
-  const { sessionId, page, pageSize, dedup } = params
+  const { sessionId, page, pageSize, dedup, triage_tier } = params
   const query = new URLSearchParams({
     page: String(page),
     page_size: String(pageSize),
     ...(sessionId ? { session_id: sessionId } : {}),
     ...(dedup ? { dedup: 'true' } : {}),
+    ...(triage_tier ? { triage_tier } : {}),
   })
   return useQuery<RunListOut>({
     queryKey: ['runs', params],

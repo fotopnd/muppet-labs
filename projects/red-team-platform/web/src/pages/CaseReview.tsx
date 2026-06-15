@@ -1,39 +1,10 @@
-import { useMemo, useState } from 'react'
-import { useSessions } from '@/hooks/useSessions'
+import { useState } from 'react'
 import { useRuns } from '@/hooks/useRuns'
 import { useCaseReview, useSubmitReview } from '@/hooks/useCaseReview'
 import { useTriageSummary } from '@/hooks/useTriageSummary'
 import { labelName } from '@/lib/categoryLabels'
 import { ScoreBar } from '@/components/ScoreBar'
 import type { Run, TriageTier } from '@/types'
-
-type Mode = 'all' | 'compare'
-
-type GroupedRow = {
-  attack_text: string
-  total: number
-  successes: number
-  safe: number
-  runs: Run[]
-}
-
-function groupRuns(runs: Run[]): GroupedRow[] {
-  const map = new Map<string, Run[]>()
-  for (const run of runs) {
-    const existing = map.get(run.attack_text) ?? []
-    existing.push(run)
-    map.set(run.attack_text, existing)
-  }
-  return [...map.entries()]
-    .map(([attack_text, groupedRuns]) => ({
-      attack_text,
-      total: groupedRuns.length,
-      successes: groupedRuns.filter((r) => r.jailbreak_success).length,
-      safe: groupedRuns.filter((r) => !r.jailbreak_success).length,
-      runs: groupedRuns,
-    }))
-    .sort((a, b) => b.total - a.total)
-}
 
 function triageBadgeClass(tier: TriageTier): string {
   if (tier === 'auto_safe') return 'bg-success/10 text-success border border-success/30'
@@ -68,7 +39,7 @@ function DecisionForm({ runId }: { runId: string }) {
   const [decision, setDecision] = useState<'approve' | 'flag' | 'escalate' | null>(null)
   const [reason, setReason] = useState('')
 
-  if (isLoading) return <p className="text-xs text-text-muted">Loading decision…</p>
+  if (isLoading) return <p className="text-xs text-text-muted">Loading…</p>
 
   if (existingReview && !editing) {
     return (
@@ -96,11 +67,7 @@ function DecisionForm({ runId }: { runId: string }) {
     if (!decision) return
     submitReview(
       { runId, decision, reason: reason.trim() || null },
-      {
-        onSuccess: () => {
-          setEditing(false)
-        },
-      },
+      { onSuccess: () => setEditing(false) },
     )
   }
 
@@ -108,7 +75,7 @@ function DecisionForm({ runId }: { runId: string }) {
     <div className="mt-3 border-t border-border pt-3">
       <p className="text-xs text-text-muted mb-2">
         Reviewer: <span className="font-mono text-text-secondary">analyst-1</span>{' '}
-        <span className="text-text-muted">(v1 — hardcoded)</span>
+        <span className="text-text-muted">(v1 — single reviewer)</span>
       </p>
       <div className="flex gap-2 mb-2">
         {(['approve', 'flag', 'escalate'] as const).map((d) => (
@@ -161,75 +128,68 @@ function DecisionForm({ runId }: { runId: string }) {
   )
 }
 
+function RunCard({ run }: { run: Run }) {
+  return (
+    <div className="space-y-3">
+      <div className="flex flex-wrap gap-3 text-xs">
+        <span className="text-text-secondary">{labelName(run.harm_category)}</span>
+        <span className="font-mono text-text-secondary">{run.strategy}</span>
+        <span className="text-text-muted">{run.latency_ms}ms</span>
+        <span className={`font-semibold ${run.jailbreak_success ? 'text-danger' : 'text-success'}`}>
+          {run.jailbreak_success ? 'Jailbreak' : 'Safe'}
+        </span>
+        <span className={`text-xs px-1.5 py-0.5 rounded-full ${triageBadgeClass(run.triage_tier)}`}>
+          {triageLabel(run.triage_tier)}
+        </span>
+      </div>
+      <ScoreBar score={run.classifier_score} success={run.jailbreak_success} />
+      <pre className="bg-surface-muted rounded p-2 text-xs font-mono whitespace-pre-wrap break-words text-text-primary max-h-36 overflow-y-auto">
+        {run.attack_text}
+      </pre>
+      <pre className="bg-surface-muted rounded p-2 text-xs font-mono whitespace-pre-wrap break-words text-text-primary max-h-48 overflow-y-auto">
+        {run.response_text}
+      </pre>
+      <DecisionForm runId={run.id} />
+    </div>
+  )
+}
+
 export function CaseReview() {
-  const [selectedSessionId, setSelectedSessionId] = useState<string | null>(null)
-  const [mode, setMode] = useState<Mode>('compare')
   const [page, setPage] = useState(1)
-  const [selectedGroup, setSelectedGroup] = useState<GroupedRow | null>(null)
   const [selectedRunId, setSelectedRunId] = useState<string | null>(null)
   const [triageTier, setTriageTier] = useState<string | undefined>('review')
-
-  const { data: sessions } = useSessions()
-  const { data: triageSummary } = useTriageSummary()
-  const isCompare = mode === 'compare'
   const pageSize = 20
 
-  const { data: runs } = useRuns({
-    sessionId: selectedSessionId ?? undefined,
-    page,
-    pageSize,
-    dedup: isCompare && !!selectedSessionId,
-  })
+  const { data: triageSummary } = useTriageSummary()
+  const { data: runs } = useRuns({ page, pageSize, triage_tier: triageTier })
 
-  const grouped = useMemo(() => {
-    if (mode !== 'compare' || !runs) return []
-    return groupRuns(runs.items)
-  }, [mode, runs])
+  const selectedRun = runs?.items.find((r) => r.id === selectedRunId) ?? null
 
-  const comparisonPair = useMemo(() => {
-    if (!selectedGroup) return null
-    const { runs: groupRuns } = selectedGroup
-    const best = groupRuns.reduce((a, b) => (a.classifier_score > b.classifier_score ? a : b))
-    const worst = groupRuns.reduce((a, b) => (a.classifier_score < b.classifier_score ? a : b))
-    return { best, worst, same: best.id === worst.id }
-  }, [selectedGroup])
-
-  const selectedRun = useMemo(() => {
-    if (!selectedRunId || !runs) return null
-    return runs.items.find((r) => r.id === selectedRunId) ?? null
-  }, [selectedRunId, runs])
+  const queueTotal = triageSummary?.review ?? 0
+  const reviewed = triageSummary?.reviewed ?? 0
+  const reviewPct = queueTotal > 0 ? Math.round((reviewed / queueTotal) * 100) : 0
 
   return (
     <div className="p-4">
-      {/* Header */}
-      <div className="flex items-center justify-between mb-4">
-        <h2 className="text-base font-semibold text-text-primary">Case Review</h2>
-        <div className="flex gap-1 bg-surface-muted rounded p-0.5">
-          {(['compare', 'all'] as Mode[]).map((m) => (
-            <button
-              key={m}
-              onClick={() => {
-                setMode(m)
-                setPage(1)
-                setSelectedGroup(null)
-                setSelectedRunId(null)
-              }}
-              className={`px-3 py-1 text-xs rounded transition-colors ${
-                mode === m
-                  ? 'bg-surface text-text-primary shadow-sm font-medium'
-                  : 'text-text-secondary'
-              }`}
-            >
-              {m === 'compare' ? 'Compare' : 'All runs'}
-            </button>
-          ))}
-        </div>
+      {/* How to use */}
+      <div className="mb-4 rounded-lg border border-border bg-surface-muted p-3 text-xs text-text-secondary space-y-1.5">
+        <p className="font-semibold text-text-primary">How to use this tool</p>
+        <p>
+          Runs are pre-sorted by classifier score into three tiers. The{' '}
+          <span className="text-warning font-medium">Needs Review</span> filter (default) shows only
+          the borderline 0.15–0.75 score range — the cases where the classifier is uncertain and
+          human judgement determines the correct outcome. Click any row to expand the full attack
+          and response, then select <span className="font-medium">Approve</span> (model was safe),{' '}
+          <span className="font-medium">Flag</span> (ambiguous or borderline), or{' '}
+          <span className="font-medium">Escalate</span> (confirmed harmful output). Every decision
+          is persisted and logged in the Audit Log tab.
+        </p>
       </div>
 
-      {/* Triage Summary */}
+      {/* Triage summary + queue progress */}
       {triageSummary && (
-        <div className="mb-3">
-          <div className="flex gap-2 flex-wrap mb-1">
+        <div className="mb-4 space-y-2">
+          <div className="flex gap-2 flex-wrap">
             <span className="text-xs px-2 py-0.5 rounded-full bg-success/10 text-success border border-success/30 font-semibold">
               {triageSummary.auto_safe.toLocaleString()} auto-safe
             </span>
@@ -240,15 +200,29 @@ export function CaseReview() {
               {triageSummary.auto_flag.toLocaleString()} auto-flagged
             </span>
           </div>
-          <p className="text-xs text-text-muted">
-            Auto-triage reduces manual queue ~87% — only 0.15–0.75 score range requires human
-            review
-          </p>
+          {/* Queue progress */}
+          <div>
+            <div className="flex justify-between text-xs mb-1">
+              <span className="text-text-secondary font-medium">
+                Review queue: {reviewed.toLocaleString()} / {queueTotal.toLocaleString()} decided
+              </span>
+              <span className="text-text-muted">{reviewPct}% complete</span>
+            </div>
+            <div className="w-full bg-surface-muted rounded-full h-1.5 overflow-hidden">
+              <div
+                className="bg-accent h-1.5 rounded-full transition-all"
+                style={{ width: `${reviewPct}%` }}
+              />
+            </div>
+            <p className="text-xs text-text-muted mt-1">
+              Auto-triage reduces manual queue ~{Math.round(((triageSummary.auto_safe + triageSummary.auto_flag) / (triageSummary.auto_safe + triageSummary.review + triageSummary.auto_flag)) * 100)}% — only score 0.15–0.75 requires human review
+            </p>
+          </div>
         </div>
       )}
 
-      {/* Triage Filter */}
-      <div className="flex gap-1 mb-3 flex-wrap">
+      {/* Triage filter */}
+      <div className="flex gap-1 mb-4 flex-wrap">
         {[
           { value: undefined, label: 'All' },
           { value: 'review', label: 'Needs Review' },
@@ -260,7 +234,6 @@ export function CaseReview() {
             onClick={() => {
               setTriageTier(opt.value)
               setPage(1)
-              setSelectedGroup(null)
               setSelectedRunId(null)
             }}
             className={`px-3 py-1 text-xs rounded border transition-colors ${
@@ -274,127 +247,17 @@ export function CaseReview() {
         ))}
       </div>
 
-      {/* Session selector */}
-      <div className="mb-4">
-        <select
-          value={selectedSessionId ?? ''}
-          onChange={(e) => {
-            setSelectedSessionId(e.target.value || null)
-            setSelectedRunId(null)
-            setSelectedGroup(null)
-            setPage(1)
-          }}
-          className="px-2 py-1 text-sm border border-border rounded bg-surface text-text-primary"
-        >
-          <option value="">All sessions (or select one…)</option>
-          {sessions?.map((s) => (
-            <option key={s.id} value={s.id}>
-              {s.model_name} — {s.created_at.slice(0, 10)} — ASR {(s.asr * 100).toFixed(1)}%
-            </option>
-          ))}
-        </select>
-      </div>
-
-      {/* Compare mode */}
-      {mode === 'compare' && !selectedSessionId && (
-        <p className="text-xs text-text-muted mb-2">
-          Compare mode — select a session to load deduplicated attacks.
-        </p>
-      )}
-
-      {mode === 'compare' && grouped.length > 0 && (
-        <>
-          <table className="w-full text-sm border-collapse mb-4">
-            <thead>
-              <tr className="bg-surface-muted">
-                <th className="text-left px-3 py-2 font-medium text-text-secondary border-b border-border">
-                  Attack Text
-                </th>
-                <th className="text-right px-3 py-2 font-medium text-text-secondary border-b border-border">
-                  #Total
-                </th>
-                <th className="text-right px-3 py-2 font-medium text-text-secondary border-b border-border">
-                  #Success
-                </th>
-                <th className="text-right px-3 py-2 font-medium text-text-secondary border-b border-border">
-                  #Safe
-                </th>
-              </tr>
-            </thead>
-            <tbody>
-              {grouped.map((g) => (
-                <tr
-                  key={g.attack_text}
-                  onClick={() =>
-                    setSelectedGroup(
-                      selectedGroup?.attack_text === g.attack_text ? null : g,
-                    )
-                  }
-                  className={`border-b border-border cursor-pointer transition-colors ${
-                    selectedGroup?.attack_text === g.attack_text
-                      ? 'bg-accent-subtle'
-                      : 'hover:bg-surface-muted'
-                  }`}
-                >
-                  <td className="px-3 py-2 text-text-primary">
-                    {g.attack_text.slice(0, 100)}
-                    {g.attack_text.length > 100 ? '…' : ''}
-                  </td>
-                  <td className="px-3 py-2 text-right text-text-secondary font-mono">
-                    {g.total}
-                  </td>
-                  <td className="px-3 py-2 text-right text-danger font-mono">{g.successes}</td>
-                  <td className="px-3 py-2 text-right text-success font-mono">{g.safe}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-
-          {comparisonPair && (
-            <div className="border border-border rounded-lg bg-surface p-4 mt-2">
-              <p className="text-xs font-semibold text-text-secondary uppercase tracking-wider mb-3">
-                Run Comparison
-              </p>
-              {comparisonPair.same ? (
-                <RunCard
-                  run={comparisonPair.best}
-                  label="All runs share the same outcome — showing highest scorer"
-                />
-              ) : (
-                <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-                  <RunCard run={comparisonPair.best} label="Best (highest score)" />
-                  <RunCard run={comparisonPair.worst} label="Worst (lowest score)" />
-                </div>
-              )}
-            </div>
-          )}
-        </>
-      )}
-
-      {/* All runs mode */}
-      {mode === 'all' && runs && runs.items.length > 0 && (
+      {/* Runs table */}
+      {runs && runs.items.length > 0 && (
         <div>
           <table className="w-full text-sm border-collapse mb-3">
             <thead>
               <tr className="bg-surface-muted">
-                <th className="text-left px-3 py-2 font-medium text-text-secondary border-b border-border">
-                  Attack Text
-                </th>
-                <th className="text-left px-3 py-2 font-medium text-text-secondary border-b border-border">
-                  Category
-                </th>
-                <th className="text-left px-3 py-2 font-medium text-text-secondary border-b border-border">
-                  Strategy
-                </th>
-                <th className="text-left px-3 py-2 font-medium text-text-secondary border-b border-border">
-                  Outcome
-                </th>
-                <th className="text-left px-3 py-2 font-medium text-text-secondary border-b border-border">
-                  Score
-                </th>
-                <th className="text-left px-3 py-2 font-medium text-text-secondary border-b border-border">
-                  Triage
-                </th>
+                <th className="text-left px-3 py-2 font-medium text-text-secondary border-b border-border">Attack</th>
+                <th className="text-left px-3 py-2 font-medium text-text-secondary border-b border-border">Category</th>
+                <th className="text-left px-3 py-2 font-medium text-text-secondary border-b border-border">Strategy</th>
+                <th className="text-left px-3 py-2 font-medium text-text-secondary border-b border-border">Score</th>
+                <th className="text-left px-3 py-2 font-medium text-text-secondary border-b border-border">Triage</th>
               </tr>
             </thead>
             <tbody>
@@ -406,27 +269,16 @@ export function CaseReview() {
                     selectedRunId === run.id ? 'bg-accent-subtle' : 'hover:bg-surface-muted'
                   }`}
                 >
-                  <td className="px-3 py-2 text-text-primary">
+                  <td className="px-3 py-2 text-text-primary text-xs">
                     {run.attack_text.slice(0, 80)}…
                   </td>
-                  <td className="px-3 py-2 text-text-secondary">{labelName(run.harm_category)}</td>
-                  <td className="px-3 py-2 text-text-secondary font-mono text-xs">
-                    {run.strategy}
-                  </td>
-                  <td className="px-3 py-2">
-                    <span
-                      className={`text-xs font-semibold ${run.jailbreak_success ? 'text-danger' : 'text-success'}`}
-                    >
-                      {run.jailbreak_success ? 'Jailbreak' : 'Safe'}
-                    </span>
-                  </td>
+                  <td className="px-3 py-2 text-text-secondary text-xs">{labelName(run.harm_category)}</td>
+                  <td className="px-3 py-2 font-mono text-xs text-text-secondary">{run.strategy}</td>
                   <td className="px-3 py-2 font-mono text-xs text-text-secondary">
                     {run.classifier_score.toFixed(2)}
                   </td>
                   <td className="px-3 py-2">
-                    <span
-                      className={`text-xs font-semibold px-1.5 py-0.5 rounded-full ${triageBadgeClass(run.triage_tier)}`}
-                    >
+                    <span className={`text-xs font-semibold px-1.5 py-0.5 rounded-full ${triageBadgeClass(run.triage_tier)}`}>
                       {triageLabel(run.triage_tier)}
                     </span>
                   </td>
@@ -434,17 +286,20 @@ export function CaseReview() {
               ))}
             </tbody>
           </table>
-          <div className="flex gap-2 items-center">
+
+          <div className="flex gap-2 items-center mb-4">
             <button
-              onClick={() => setPage((p) => Math.max(1, p - 1))}
+              onClick={() => { setPage((p) => Math.max(1, p - 1)); setSelectedRunId(null) }}
               disabled={page === 1}
               className="px-3 py-1 text-sm border border-border rounded bg-surface text-text-primary disabled:opacity-40 hover:bg-surface-muted"
             >
               Prev
             </button>
-            <span className="text-sm text-text-secondary">Page {page}</span>
+            <span className="text-sm text-text-secondary">
+              Page {page} · {runs.total.toLocaleString()} runs
+            </span>
             <button
-              onClick={() => setPage((p) => p + 1)}
+              onClick={() => { setPage((p) => p + 1); setSelectedRunId(null) }}
               disabled={page * pageSize >= (runs.total ?? 0)}
               className="px-3 py-1 text-sm border border-border rounded bg-surface text-text-primary disabled:opacity-40 hover:bg-surface-muted"
             >
@@ -453,41 +308,16 @@ export function CaseReview() {
           </div>
 
           {selectedRun && (
-            <div className="border border-border rounded-lg bg-surface p-4 mt-4">
+            <div className="border border-border rounded-lg bg-surface p-4">
               <RunCard run={selectedRun} />
             </div>
           )}
         </div>
       )}
-    </div>
-  )
-}
 
-function RunCard({ run, label }: { run: Run; label?: string }) {
-  return (
-    <div className="space-y-3">
-      {label && <p className="text-xs text-text-muted italic">{label}</p>}
-      <div className="flex flex-wrap gap-3 text-xs">
-        <span className="text-text-secondary">{labelName(run.harm_category)}</span>
-        <span className="font-mono text-text-secondary">{run.strategy}</span>
-        <span className="text-text-muted">{run.latency_ms}ms</span>
-        <span className={`font-semibold ${run.jailbreak_success ? 'text-danger' : 'text-success'}`}>
-          {run.jailbreak_success ? 'Jailbreak' : 'Safe'}
-        </span>
-        <span
-          className={`text-xs px-1.5 py-0.5 rounded-full ${triageBadgeClass(run.triage_tier)}`}
-        >
-          {triageLabel(run.triage_tier)}
-        </span>
-      </div>
-      <ScoreBar score={run.classifier_score} success={run.jailbreak_success} />
-      <pre className="bg-surface-muted rounded p-2 text-xs font-mono whitespace-pre-wrap break-words text-text-primary max-h-36 overflow-y-auto">
-        {run.attack_text}
-      </pre>
-      <pre className="bg-surface-muted rounded p-2 text-xs font-mono whitespace-pre-wrap break-words text-text-primary max-h-48 overflow-y-auto">
-        {run.response_text}
-      </pre>
-      <DecisionForm runId={run.id} />
+      {runs && runs.items.length === 0 && (
+        <p className="text-sm text-text-muted">No runs match this filter.</p>
+      )}
     </div>
   )
 }

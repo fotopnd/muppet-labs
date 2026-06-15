@@ -50,7 +50,29 @@ export function AuditLog() {
 
   return (
     <div className="p-4">
-      <h2 className="text-base font-semibold text-text-primary mb-4">Audit Log</h2>
+      <h2 className="text-base font-semibold text-text-primary mb-3">Audit Log</h2>
+
+      {/* How to use */}
+      <div className="mb-4 rounded-lg border border-border bg-surface-muted p-3 text-xs text-text-secondary space-y-1.5">
+        <p className="font-semibold text-text-primary">What this log records</p>
+        <p>
+          Every decision submitted in the <span className="font-medium text-text-primary">Case Review</span> tab
+          is written here as an immutable entry — including edits, which append a new row rather than
+          overwriting. This makes the full decision history auditable: you can see not just the current
+          outcome but every reviewer action that led to it.
+        </p>
+        <p>
+          <span className="font-medium text-text-primary">Columns:</span> timestamp of submission ·
+          reviewer identity · truncated run UUID (first 8 chars) ·{' '}
+          <span className="text-success font-medium">Approved</span> /{' '}
+          <span className="text-warning font-medium">Flagged</span> /{' '}
+          <span className="text-danger font-medium">Escalated</span> badge · optional reason text.
+        </p>
+        <p>
+          Use the filters below to slice by decision type or reviewer. Make a decision in Case Review
+          and return here to see it appear at the top of the table.
+        </p>
+      </div>
 
       {/* Filters */}
       <div className="flex gap-2 mb-4 flex-wrap">
