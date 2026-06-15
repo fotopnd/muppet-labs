@@ -57,7 +57,7 @@ type Pending = {
   completedModelBuckets: Array<Record<string, number>>  // { at, [model]: N }
   // Category jailbreak buckets (stacked area — successful attacks per category per window)
   curBucketCats: Record<string, number>
-  completedBuckets: Array<Record<string, number>>       // { at, [cat]: N }
+  completedBuckets: Array<Record<string, number | string>>  // { label, [cat]: N }
 }
 
 function freshPending(): Pending {
@@ -75,15 +75,22 @@ type StatsSnapshot = {
   models: Record<string, ModelStats>
   categories: Record<string, CategoryStats>
   modelBuckets: Array<Record<string, number>>
-  categoryBuckets: Array<Record<string, number>>
+  categoryBuckets: Array<Record<string, number | string>>
 }
 
 function emptyStats(): StatsSnapshot {
-  return { processed: 0, jailbreaks: 0, models: {}, categories: {}, modelBuckets: [], categoryBuckets: [] }
+  return { processed: 0, jailbreaks: 0, models: {}, categories: {}, modelBuckets: [], categoryBuckets: [] as Array<Record<string, number | string>> }
 }
 
 function tickFmt(v: number): string {
   return v >= 1000 ? `${(v / 1000).toFixed(0)}K` : String(v)
+}
+
+function bucketLabel(idx: number): string {
+  const from = idx * BUCKET_SIZE
+  const to   = from + BUCKET_SIZE
+  const fmt  = (n: number) => n >= 1000 ? `${(n / 1000).toFixed(1).replace(/\.0$/, '')}K` : String(n)
+  return `${fmt(from)}–${fmt(to)}`
 }
 
 
@@ -99,12 +106,13 @@ function AttackStream() {
   useEffect(() => {
     const id = setInterval(() => {
       const p = pending.current
-      const partialAt = p.completedBuckets.length * BUCKET_SIZE + p.curBucketTotal
+      const partialAt    = p.completedModelBuckets.length * BUCKET_SIZE + p.curBucketTotal
+      const partialLabel = bucketLabel(p.completedBuckets.length)
       const inProgressModel = p.curBucketTotal > 0
         ? [{ at: partialAt, ...p.curBucketModels }]
         : []
       const inProgressCat = p.curBucketTotal > 0
-        ? [{ at: partialAt, ...p.curBucketCats }]
+        ? [{ label: partialLabel, ...p.curBucketCats }]
         : []
       setStats({
         processed:      p.processed,
@@ -142,9 +150,10 @@ function AttackStream() {
     }
     p.curBucketTotal++
     if (p.curBucketTotal >= BUCKET_SIZE) {
-      const at = (p.completedBuckets.length + 1) * BUCKET_SIZE
+      const at    = (p.completedModelBuckets.length + 1) * BUCKET_SIZE
+      const label = bucketLabel(p.completedBuckets.length)
       p.completedModelBuckets.push({ at, ...p.curBucketModels })
-      p.completedBuckets.push({ at, ...p.curBucketCats })
+      p.completedBuckets.push({ label, ...p.curBucketCats })
       p.curBucketModels = {}
       p.curBucketCats   = {}
       p.curBucketTotal  = 0
@@ -171,12 +180,13 @@ function AttackStream() {
       setDone(true)
       // Final flush
       const p = pending.current
-      const partialAt = p.completedBuckets.length * BUCKET_SIZE + p.curBucketTotal
+      const partialAt    = p.completedModelBuckets.length * BUCKET_SIZE + p.curBucketTotal
+      const partialLabel = bucketLabel(p.completedBuckets.length)
       const inProgressModel = p.curBucketTotal > 0
         ? [{ at: partialAt, ...p.curBucketModels }]
         : []
       const inProgressCat = p.curBucketTotal > 0
-        ? [{ at: partialAt, ...p.curBucketCats }]
+        ? [{ label: partialLabel, ...p.curBucketCats }]
         : []
       setStats({
         processed: p.processed, jailbreaks: p.jailbreaks,
@@ -377,7 +387,7 @@ function AttackStream() {
               <YAxis tick={{ fontSize: 10 }} />
               <Tooltip
                 formatter={(val: number, name: string) => [val.toLocaleString(), name.split(':')[0]]}
-                labelFormatter={(v: number) => `Event ${v.toLocaleString()}`}
+                labelFormatter={(v: number) => `Attacks ${(v - BUCKET_SIZE + 1).toLocaleString()}–${v.toLocaleString()}`}
                 contentStyle={{ fontSize: 11 }}
               />
               <Legend formatter={(value: string) => value.split(':')[0]} wrapperStyle={{ fontSize: 11 }} />
@@ -414,11 +424,10 @@ function AttackStream() {
           <ResponsiveContainer width="100%" height={220}>
             <AreaChart data={stats.categoryBuckets} margin={{ left: 4, right: 16, top: 4, bottom: 0 }}>
               <CartesianGrid strokeDasharray="3 3" stroke="var(--color-border, #e2e8f0)" strokeOpacity={0.4} />
-              <XAxis dataKey="at" type="number" domain={['dataMin', 'dataMax']} tickFormatter={tickFmt} tick={{ fontSize: 10 }} />
+              <XAxis dataKey="label" tick={{ fontSize: 9 }} interval="preserveStartEnd" />
               <YAxis tick={{ fontSize: 10 }} />
               <Tooltip
                 formatter={(val: number, name: string) => [val.toLocaleString(), labelName(String(name))]}
-                labelFormatter={(v: number) => `Event ${v.toLocaleString()}`}
                 contentStyle={{ fontSize: 11 }}
               />
               <Legend
