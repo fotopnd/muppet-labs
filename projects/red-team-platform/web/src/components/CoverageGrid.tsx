@@ -50,17 +50,37 @@ export function CoverageGrid({
     <div className="relative overflow-x-auto">
       {/* Column headers */}
       <div
-        className="flex"
-        style={{ marginLeft: rowHeaderWidth, marginBottom: 2 }}
+        className="flex items-end"
+        style={{ marginLeft: rowHeaderWidth, marginBottom: 2, height: compact ? 88 : 'auto' }}
       >
         {colLabels.map((col) => (
           <div
             key={col}
-            style={{ width: cw, minWidth: cw, fontSize: headerFontSize }}
-            className="text-center text-text-secondary font-medium px-0.5 truncate"
-            title={labelName(col)}
+            style={{ width: cw, minWidth: cw }}
+            className="flex items-end justify-center overflow-visible"
           >
-            {compact ? abbrevName(col) : labelName(col).slice(0, 12)}
+            {compact ? (
+              <span
+                style={{
+                  fontSize: headerFontSize,
+                  writingMode: 'vertical-rl',
+                  transform: 'rotate(180deg)',
+                  whiteSpace: 'nowrap',
+                }}
+                className="text-text-secondary font-medium"
+                title={labelName(col)}
+              >
+                {abbrevName(col)}
+              </span>
+            ) : (
+              <span
+                style={{ fontSize: headerFontSize }}
+                className="text-center text-text-secondary font-medium px-0.5 truncate"
+                title={labelName(col)}
+              >
+                {labelName(col).slice(0, 12)}
+              </span>
+            )}
           </div>
         ))}
       </div>

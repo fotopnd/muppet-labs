@@ -18,7 +18,7 @@ import { StrategyComparison } from '@/pages/StrategyComparison'
 import { ModelComparison } from '@/components/ModelComparison'
 import { ModelCategoryHeatmap } from '@/components/ModelCategoryHeatmap'
 import { TopFailuresTable } from '@/components/TopFailuresTable'
-import { labelName } from '@/lib/categoryLabels'
+import { categoryColour, labelName } from '@/lib/categoryLabels'
 import type { RunEvent } from '@/types'
 
 const API = import.meta.env['VITE_API_URL'] ?? 'http://localhost:8003'
@@ -219,7 +219,7 @@ function AttackStream() {
   }))
 
   const categoryBarData = Object.entries(stats.categories)
-    .map(([cat, s]) => ({ name: labelName(cat), jailbreaks: s.jailbreaks }))
+    .map(([cat, s]) => ({ cat, name: labelName(cat), jailbreaks: s.jailbreaks }))
     .sort((a, b) => b.jailbreaks - a.jailbreaks)
     .slice(0, 8)
 
@@ -373,7 +373,11 @@ function AttackStream() {
                   formatter={(val: number) => [val.toLocaleString(), 'Jailbreaks']}
                   contentStyle={{ fontSize: 11 }}
                 />
-                <Bar dataKey="jailbreaks" fill="#ef4444" radius={[0, 3, 3, 0]} maxBarSize={14} />
+                <Bar dataKey="jailbreaks" radius={[0, 3, 3, 0]} maxBarSize={14}>
+                  {categoryBarData.map((d) => (
+                    <Cell key={d.cat} fill={categoryColour(d.cat)} />
+                  ))}
+                </Bar>
               </BarChart>
             </ResponsiveContainer>
           )}
@@ -428,7 +432,7 @@ function AttackStream() {
         <p className="text-xs text-text-muted mb-2">
           Stacked area — each band is {BUCKET_SIZE} events · rolling through the full corpus
         </p>
-        {stats.categoryBuckets.length === 0 ? (
+        {stats.categoryBuckets.length < 2 ? (
           <div className="h-48 flex items-center justify-center text-xs text-text-muted border border-border rounded-lg bg-surface-muted">
             {empty ? 'Starting…' : `Collecting — first bucket fills at ${BUCKET_SIZE} events`}
           </div>
