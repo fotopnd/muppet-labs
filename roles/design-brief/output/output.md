@@ -1,86 +1,90 @@
-# Design Brief Output — red-team-platform v5
+# Design Brief Output — Year Zero Game
 
-**Role:** design-brief
-**Sequence:** add-feature
+**Sequence:** `new-project-full` | **Role:** design-brief | **Step:** 4 of 9  
 **Date:** 2026-06-15
 
-## UI Features in Scope
+---
 
-Three UI areas receive changes:
-1. **CaseReview** — new page replacing SampleReview functionally
-2. **AuditLog** — new page (7th tab, but current is 4 so it will be 6th)
-3. **Analytics** — existing page gets "Live Feed" collapsible section appended
+## Interface Context
 
-## CaseReview Page Layout
+**Two distinct contexts apply — one per route.**
 
-```
-[Header: "Case Review" | mode toggle: Compare / All runs]
-[Triage Summary: 3 inline badges — "X auto-safe" (green) | "Y need review" (amber) | "Z auto-flagged" (red)]
-[Explainer: "Auto-triage reduces manual queue ~87% — only 0.15–0.75 score range requires human review"]
-[Filter toggles: All | Needs Review (default) | Auto-Safe | Auto-Flagged]
-[Session selector dropdown]
+**`/` (game):** Outside the three standard contexts. The visual design is fully specified in `resources/visual-design.md` (16-bit pixel art, Papers Please aesthetic, warm amber lamplight palette). The canonical `design_style.md` token system does not govern the game surface — it is overridden by the pixel art palette defined in visual-design.md. The frontend-architect treats visual-design.md as the authoritative style contract for game components and ignores design_style.md for this route.
 
---- Compare mode (with session selected) ---
-[Table: Attack Text | #Total | #Success | #Safe | Triage Tier]
-[Selected row → Run Comparison panel]
-  [Left: best run card | Right: worst run card]
-  Each card shows: harm category, strategy, latency, outcome badge, score bar
-  Below each card: Decision Form
-    [Reviewer: analyst-1 (small label)]
-    [Three buttons: Approve (green) | Flag (amber) | Escalate (red)]
-    [Optional: reason textarea (placeholder "Optional reason...")]
-    [Submit button]
-    [If decision exists: show badge + "Edit" link to toggle back to form]
+**`/analytics` (live dashboard):** **Application Dashboard** context. High data density, live Recharts charts, SSE-driven updates. Canonical `design_style.md` tokens apply. Accent hue: amber (`oklch(0.75 0.15 60)`) — matches the lamplight warmth of the game without clashing.
 
---- All runs mode ---
-[Table: Attack Text | Category | Strategy | Outcome | Score | Triage | Decision Badge]
-[Selected row expands RunCard + Decision Form inline]
-[Pagination: Prev | Page N | Next]
-```
+---
 
-## Decision Badge States
+## Primary Interaction
 
-- No decision: no badge (empty)
-- approve: green pill "Approved"
-- flag: amber pill "Flagged"
-- escalate: red pill "Escalated"
+**Swipe a card left (REDACT) or right (CLEAR).** Everything else — bar state, phase progression, day structure, session submission — is in service of this single gesture. The interface must make the swipe feel physical and decisive. The document card is the game.
 
-## AuditLog Page Layout
+---
 
-```
-[Header: "Audit Log"]
-[Filters row: [Decision dropdown: All / approve / flag / escalate] [Reviewer dropdown: All / analyst-1 / ...]]
-[Table:]
-  Timestamp | Reviewer | Run excerpt (first 60 chars of attack_text) | Decision badge | Reason
-[Pagination: Prev | Page N of M | Next]
-[Empty state: "No audit log entries yet."]
-```
+## Key Visual Components
 
-## Analytics — Live Feed Section
+**Game route (`/`):**
 
-Added at the bottom of Analytics, below "Top Failures" section:
+1. **`DocumentCard`** — centrepiece of the game. Occupies ~80% viewport width on 375px mobile. Shows header strip (DAY · SECTOR · DOC), body text (2–4 sentences, pixel serif font), and Sovereign-9 readout strip at the bottom (dark terminal background, green phosphor text). Handles swipe gesture (`useDrag`). On commit: card slides off-screen with slight rotation; stamp animation overlays (`APPROVED` green right, `REDACTED` red left); next card slides in from top. No-agent cards omit the Sovereign-9 strip entirely.
 
-```
-[Collapsible section header: "Live Feed" + chevron toggle]
-When expanded:
-  [Provenance: "Replaying 11,688 runs collected June 2026"]
-  [Controls row: [Play ▶ / Pause ⏸ button] [Speed: Fast | Normal | Slow toggle] [Counter: 2,341 / 11,688]]
-  [Scrolling table (last 50 events, newest on top):]
-    Run # | Strategy | Model | Harm Category | Score | Jailbreak badge
-    Row colour: jailbreak=true → subtle red tint; false → default
-  [Starts collapsed; Play opens the EventSource]
-```
+2. **`StatusBar`** — five pixel bars fixed at top of viewport. Each bar: emoji icon + pixel fill bar (~40px wide, 8px tall). Fill uses bar colour; unfilled uses `#1e1e1e`. COMPLIANCE bar has a white centre pip at the 50-point mark. Bars within 15 points of game-over threshold pulse at 1Hz. No numeric labels during play.
 
-## Visual Token Conventions (Tailwind v4)
+3. **`GameOver`** — full-screen takeover. Dark red tint. `FILE CLOSED` header in pixel font. Game-over reason text (narrative sentence from mechanics spec). Stats: days survived, documents processed, accuracy %. Single button: `RETURN TO REGISTRY`. Replaces all other UI when triggered.
 
-Consistent with existing pages:
-- Decision badges: `text-success`/green for approve, `text-warning`/amber for flag, `text-danger`/red for escalate
-- Triage tier badges: same colour mapping (auto_safe=green, review=amber, auto_flag=red)
-- Table rows: `hover:bg-surface-muted`, selected: `bg-accent-subtle`
-- Decision form buttons: bordered variants — green border for Approve, amber for Flag, red for Escalate; selected = filled
-- Live Feed rows with jailbreak: `bg-danger/5` (5% opacity red tint)
+4. **`DayScreen`** — overlay after every 10 cards. Shows day number, correct count / 10, one Ministry flavour line (hardcoded rotation of ~10 phrases). `CONTINUE` button advances to next day. Styled as a printed memo — cream paper background, dark ink, slightly worn edges (same aesthetic as Lore page).
+
+5. **`UpgradeScreen`** — full-screen terminal takeover on category tier upgrade. Dark green-black background, bright green phosphor text. Shows category name, old tier → new tier, and a one-line description of what changed. `PRESS ANY KEY` (or tap) to dismiss.
+
+**Analytics route (`/analytics`):**
+
+6. **`AnalyticsPage`** — four Recharts panels in a 2×2 grid (desktop) / stacked (mobile): sessions today (number card), global FP/FN rate (number cards), avg latency (number card), system drift error rate by session date (LineChart). All panels update live via SSE. Uses canonical `design_style.md` tokens.
+
+---
+
+## Done Criteria
+
+**Game route:**
+
+1. Start screen renders with title `PROJECT REDACTED: YEAR ZERO` in pixel font, two-line hook text, `PRESS START` (primary, larger) and `READ THE LORE` (secondary, smaller) buttons — matching the visual-design.md start screen mockup.
+2. `DocumentCard` renders at ~80% viewport width on 375px with header strip, body text in pixel serif, and Sovereign-9 strip at bottom. Tapping the strip expands the full reasoning panel.
+3. No-agent cards omit the Sovereign-9 strip — the card bottom edge ends cleanly with no empty strip placeholder.
+4. Swiping right past 30% threshold commits CLEAR: card exits right with ~5° rotation, green stamp animation plays, next card enters from top.
+5. Swiping left past 30% threshold commits REDACT: card exits left with ~5° rotation, red stamp animation plays, next card enters from top.
+6. Cards below threshold snap back to centre on release.
+7. `StatusBar` shows all 5 bars with correct emoji labels; COMPLIANCE bar has visible centre pip at 50%; bars update immediately after each swipe.
+8. A bar within 15 points of its game-over threshold visibly pulses (colour or opacity change at ~1Hz).
+9. `DayScreen` appears after card 10 of each day, shows correct count, advances on tap.
+10. `UpgradeScreen` appears on category tier upgrade, shows old → new tier, dismisses on tap/keypress.
+11. `GameOver` screen renders with correct game-over condition text and stats on any bar hitting its threshold.
+12. `LorePage` is accessible from start screen; `BEGIN REGISTRY DUTY` returns to start.
+13. No horizontal scroll at 375px viewport width.
+14. `touch-action: none` on swipe zone — no browser scroll interference during card swipe.
+
+**Analytics route:**
+
+15. `/analytics` renders four data panels with live values from SSE.
+16. SSE connection is established on mount; panels update without page refresh when a new session batch is submitted.
+17. If SSE is disconnected, panels show last-known values (no blank/error state during brief reconnect).
+18. Charts use `ResponsiveContainer` — no fixed pixel widths.
+19. Analytics page uses canonical `design_style.md` tokens (amber accent, canvas/surface backgrounds).
+
+**Build quality:**
+
+20. `pnpm build` produces `dist/` with zero TypeScript errors and zero lint errors.
+21. Each game component has at least one vitest test verifying it renders without throwing.
+
+---
 
 ## Handoff
 
-Next role: frontend-architect
-Frontend-architect confirms component tree, hook signatures, and state management for CaseReview and AuditLog pages.
+The frontend-architect reads this file alongside `architect/output.md` and `resources/visual-design.md`.
+
+**Open decisions for frontend-architect:**
+
+- **Token split:** define two token layers in `index.css`. Layer 1: pixel art tokens (`--color-room`, `--color-desk`, `--color-card-bg`, `--color-terminal-bg`, `--color-terminal-text`, `--font-pixel`, `--font-pixel-body`, bar colours). Layer 2: canonical analytics tokens (`--color-canvas`, `--color-surface`, etc. with amber accent). Game components use pixel tokens; analytics components use canonical tokens. Frontend-architect defines exact OKLCH values matching visual-design.md hex palette.
+
+- **Stamp animation implementation:** 3-frame CSS `@keyframes` on an overlay `div`. Architect specifies exact keyframe timings (suggest: 0ms → stamp hidden, 40ms → stamp descending, 120ms → stamp applied, 400ms → card exit begins).
+
+- **Card pool draw order:** `DocumentCard` draws from `cardPool` in `useGameState`. The pool is shuffled on load — architect specifies whether shuffle happens in the reducer (`START_SESSION`, `PHASE_CARDS_LOADED` actions) or in `Game.tsx` before dispatching.
+
+- **Flavour lines for `DayScreen`:** A hardcoded array of ~10 Ministry messages in `constants.ts`, cycled by `gameDay % lines.length`. Frontend-architect includes the array.
