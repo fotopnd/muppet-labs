@@ -24,6 +24,8 @@ export type Session = {
   created_at: string
 }
 
+export type TriageTier = 'auto_safe' | 'review' | 'auto_flag'
+
 export type Run = {
   id: string
   session_id: string
@@ -37,6 +39,7 @@ export type Run = {
   harm_category: string
   strategy: string
   attack_text: string
+  triage_tier: TriageTier
 }
 
 export type RunListOut = {
@@ -223,3 +226,49 @@ export type TopFailure = {
 }
 
 export type TopFailuresOut = { items: TopFailure[] }
+
+// --- Case Review ---
+export type CaseReview = {
+  id: string
+  run_id: string
+  decision: 'approve' | 'flag' | 'escalate'
+  reason: string | null
+  reviewed_at: string
+  reviewer: string
+}
+
+// --- Audit Log ---
+export type AuditLogEntry = {
+  id: string
+  run_id: string
+  action: string
+  decision: string
+  reason: string | null
+  reviewer: string
+  created_at: string
+}
+
+export type AuditLogOut = {
+  items: AuditLogEntry[]
+  total: number
+  limit: number
+  offset: number
+}
+
+// --- Triage Summary ---
+export type TriageSummaryOut = {
+  auto_safe: number
+  review: number
+  auto_flag: number
+}
+
+// --- Live Feed (SSE) ---
+export type RunEvent = {
+  id: string
+  strategy: string
+  model_name: string
+  harm_category: string
+  classifier_score: number
+  jailbreak_success: boolean
+  created_at: string
+}

@@ -1,74 +1,93 @@
-# Implementer Output — Glossary Tab
+# Implementer Output — Frontend Phase — red-team-platform v5
 
-**Role:** implementer  
-**Sequence:** add-feature  
-**Date:** 2026-06-14
+**Role:** implementer (frontend)
+**Sequence:** add-feature
+**Date:** 2026-06-15
 
----
+## What Was Implemented
 
-## Files Produced / Modified
+### Types (web/src/types/index.ts)
+- Added `TriageTier` union type
+- Added `triage_tier: TriageTier` to `Run` type
+- Added `CaseReview`, `AuditLogEntry`, `AuditLogOut`, `TriageSummaryOut`, `RunEvent` types
 
-### Frontend — new files
-| File | Purpose |
-|------|---------|
-| `web/src/pages/Glossary.tsx` | Glossary page: three sections (Metrics, Attack Strategies, Harm Categories) with live ASR badges |
-| `web/src/test/Glossary.test.tsx` | 4 Vitest tests: section headings, metric terms, 13 strategy keys, sample category labels |
+### New Hooks
+- `web/src/hooks/useCaseReview.ts` — `useCaseReview(runId)` query (staleTime 5s) + `useSubmitReview()` mutation with cache invalidation
+- `web/src/hooks/useAuditLog.ts` — `useAuditLog(params)` with decision/reviewer/limit/offset params
+- `web/src/hooks/useTriageSummary.ts` — `useTriageSummary()` (staleTime 30s)
 
-### Frontend — modified files
-| File | Change |
-|------|--------|
-| `web/src/App.tsx` | Added `'glossary'` to Tab union; added Glossary to TABS array; added conditional render; added import |
-| `web/src/test/App.test.tsx` | Fixed stale tab name assertions (Coverage Heatmap → Analytics; Strategy Comparison → Bias Heatmap; Regression Tracker → Glossary) |
+### New Pages
+- `web/src/pages/CaseReview.tsx` — Full replacement for SampleReview functionality:
+  - Triage summary badges (auto-safe / needs review / auto-flagged counts)
+  - Explainer text about ~87% queue reduction
+  - Triage filter toggles (All / Needs Review (default) / Auto-Safe / Auto-Flagged)
+  - Session selector
+  - Compare mode: attack table + run comparison panel with DecisionForm on each run card
+  - All runs mode: table with triage_tier badge column + DecisionForm on selected run
+  - DecisionForm: 3 decision buttons (Approve/Flag/Escalate) + reason textarea + submit; shows existing badge + Edit if decision exists
+  - Hardcoded `reviewer = "analyst-1"` displayed as small v1 label
 
----
+- `web/src/pages/AuditLog.tsx` — New audit log page:
+  - Filter dropdowns: decision type + reviewer
+  - Table: timestamp | reviewer | run ID (truncated) | decision badge | reason
+  - Prev/Next pagination
+  - Empty state message
 
-## Glossary.tsx Architecture
+### Updated Pages
+- `web/src/pages/Analytics.tsx` — Added `LiveFeed` component at bottom:
+  - Collapsible section (starts collapsed)
+  - Play/Pause using browser `EventSource` (no library)
+  - Speed selector (Fast/Normal/Slow)
+  - Reset button
+  - Scrolling table of last 50 events with red tint on jailbreak rows
+  - Provenance label "Replaying 11,688 runs collected June 2026"
+  - `useRef<EventSource>` for Pause control
 
-```
-Glossary()
-├── useStrategyComparison()       — fetches /strategy-comparison for live ASR data
-├── asrByStrategy memo            — maps strategy key → ASR float
-├── Section: "Metrics"            — table: ASR, Classifier Score, Jailbreak Success, Latency
-├── Section: "Attack Strategies"  — table: 13 WAVE_STRATEGIES × key / name+description / AsrBadge
-└── Section: "Harm Categories"    — table: LABEL_0–LABEL_12 × human label / CATEGORY_DESCRIPTIONS
+- `web/src/App.tsx` — Added 2 tabs (Case Review, Audit Log); 4 → 6 tabs total
 
-AsrBadge({ asr })
-  ≥ 0.40 → bg-danger/10 text-danger   "N% High"
-  ≥ 0.10 → bg-warning/10 text-warning "N% Med"
-  < 0.10 → bg-success/10 text-success "N% Low"
-```
+### Test Updates
+- `web/src/test/handlers.ts` — Added `triage_tier: 'auto_flag'` to mock run (required by updated `Run` type)
+- `web/src/test/App.test.tsx` — Added assertions for "Case Review" and "Audit Log" tab buttons
 
-- Reuses `STRATEGY_DESCRIPTIONS` from `@/lib/strategyDescriptions` (already existed, 35 entries)
-- Reuses `CATEGORY_LABELS` from `@/lib/categoryLabels` (already existed, LABEL_0–LABEL_12)
-- `CATEGORY_DESCRIPTIONS` defined inline in Glossary.tsx (13 entries, one per label)
-- No new backend endpoints required
+## Test Results
+- `pnpm exec tsc --noEmit` — PASS (0 errors)
+- `pnpm vitest run` — 5/5 tests pass
 
----
+## Files Created/Modified
 
-## Verification
+### New files (backend)
+- `src/red_team_platform/api/routers/review.py`
+- `src/red_team_platform/api/routers/audit.py`
+- `roles/implementer/output/backend-output.md`
 
-| Check | Result |
-|-------|--------|
-| `pnpm tsc --noEmit` | ✓ 0 errors |
-| `pnpm test` | ✓ 5/5 tests pass (4 Glossary + 1 App) |
-| App.test.tsx tab names | ✓ Updated to match current 6 tabs |
+### New files (frontend)
+- `web/src/hooks/useCaseReview.ts`
+- `web/src/hooks/useAuditLog.ts`
+- `web/src/hooks/useTriageSummary.ts`
+- `web/src/pages/CaseReview.tsx`
+- `web/src/pages/AuditLog.tsx`
 
----
+### New files (CI/CD)
+- `.github/workflows/ci.yml`
 
-## Deviations from Architecture
-
-None. Frontend-only change. No new API surface, no backend modifications. All Tailwind tokens from existing `@theme {}` palette.
-
----
-
-## Known Gaps
-
-- `AsrBadge` shows `—` when `useStrategyComparison` returns no data (e.g. API unavailable). Graceful degradation, no error state needed.
-- `CATEGORY_DESCRIPTIONS` is defined inline rather than in a shared lib. Only one consumer exists; extraction would be premature.
-
----
+### Modified files
+- `src/red_team_platform/models.py` — CaseReview + AuditLogEntry ORM models
+- `src/red_team_platform/api/schemas.py` — new schemas + triage_tier on RunOut
+- `src/red_team_platform/api/routers/runs.py` — SSE + triage-summary + triage filter
+- `src/red_team_platform/api/main.py` — init_db + router registration
+- `ruff.toml` — alembic exclude
+- `web/src/types/index.ts` — new types
+- `web/src/pages/Analytics.tsx` — LiveFeed section
+- `web/src/App.tsx` — 2 new tabs
+- `web/src/test/handlers.ts` — mock run triage_tier
+- `web/src/test/App.test.tsx` — new tab assertions
+- Various pre-existing ruff violations fixed in tests/ and src/
 
 ## Handoff
 
-Next role: reviewer  
-Audit: verify all 5 brief acceptance criteria, check token reuse (STRATEGY_DESCRIPTIONS, CATEGORY_LABELS), confirm no inline styles, check graceful degradation when API data absent, verify test coverage matches acceptance criteria.
+Next role: reviewer
+Review for correctness, type safety, edge cases, and any convention violations. Key areas to check:
+1. SSE event generator — does `finally` block always run even on client disconnect?
+2. CaseReview — is the `triage_tier` undefined guard needed for older mock data?
+3. AuditLog — reviewer dropdown is static (hardcoded analyst-1); acceptable for v1?
+4. Backend restart required before smoke testing new endpoints

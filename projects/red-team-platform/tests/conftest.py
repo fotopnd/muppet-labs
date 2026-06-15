@@ -17,9 +17,9 @@ TEST_DB_URL = "postgresql+asyncpg://redteam:redteam@localhost:5433/redteam_test"
 async def engine():
     eng = create_async_engine(TEST_DB_URL, pool_pre_ping=True)
     async with eng.begin() as conn:
-        await conn.execute(__import__("sqlalchemy").text(
-            "DROP MATERIALIZED VIEW IF EXISTS coverage_summary"
-        ))
+        await conn.execute(
+            __import__("sqlalchemy").text("DROP MATERIALIZED VIEW IF EXISTS coverage_summary")
+        )
         await conn.run_sync(Base.metadata.drop_all)
         await conn.run_sync(Base.metadata.create_all)
         # Create coverage_summary view manually (not in metadata)
@@ -37,7 +37,8 @@ async def engine():
         )
         await conn.execute(
             __import__("sqlalchemy").text(
-                "CREATE UNIQUE INDEX IF NOT EXISTS uix_cov ON coverage_summary (harm_category, strategy)"
+                "CREATE UNIQUE INDEX IF NOT EXISTS uix_cov "
+                "ON coverage_summary (harm_category, strategy)"
             )
         )
     yield eng

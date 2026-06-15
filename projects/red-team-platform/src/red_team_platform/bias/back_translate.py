@@ -1,4 +1,5 @@
 """Seed back_translation on all bias_divergence_scores rows that lack one."""
+
 from __future__ import annotations
 
 import asyncio
@@ -63,7 +64,9 @@ async def seed_back_translations(session: AsyncSession) -> int:
         try:
             translation = await _translate(client, resp.response_text, score.language)
         except Exception as exc:
-            logger.warning("Translation failed for %s / %s: %s", score.probe_id, score.language, exc)
+            logger.warning(
+                "Translation failed for %s / %s: %s", score.probe_id, score.language, exc
+            )
             continue
 
         await session.execute(

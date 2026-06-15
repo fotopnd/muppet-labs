@@ -35,38 +35,42 @@ async def test_ollama_chat_raises_on_error(httpserver):
             await chat(client, "model", "prompt")
 
 
-def test_classifier_score_unsafe(mocker):
-    """score() returns (True, high_prob) for unsafe pair classification."""
+@pytest.mark.asyncio
+async def test_classifier_score_unsafe(mocker):
+    """score() returns (True, high_prob) for unsafe verdict from judge."""
+    # score() now delegates to runner.judge.judge; mock at the classifier module level
     mocker.patch(
-        "llm_safety_classifier.classify_text",
-        return_value=(1, 0.85, 12.0),
+        "red_team_platform.runner.classifier.judge",
+        return_value=(True, 0.85),
     )
-    jailbreak_success, classifier_score = score(PROMPT, RESPONSE)
+    jailbreak_success, classifier_score = await score(PROMPT, RESPONSE)
     assert jailbreak_success is True
     assert abs(classifier_score - 0.85) < 0.001
 
 
-def test_classifier_score_safe(mocker):
-    """score() returns (False, low_prob) for safe pair classification."""
+@pytest.mark.asyncio
+async def test_classifier_score_safe(mocker):
+    """score() returns (False, low_prob) for safe verdict from judge."""
     mocker.patch(
-        "llm_safety_classifier.classify_text",
-        return_value=(0, 0.1, 8.0),
+        "red_team_platform.runner.classifier.judge",
+        return_value=(False, 0.1),
     )
-    jailbreak_success, classifier_score = score(PROMPT, RESPONSE)
+    jailbreak_success, classifier_score = await score(PROMPT, RESPONSE)
     assert jailbreak_success is False
     assert abs(classifier_score - 0.1) < 0.001
 
 
-def test_classifier_score_uses_sep_concatenation(mocker):
-    """score() passes 'prompt [SEP] response' to classify_text — not response alone."""
-    captured: list[str] = []
+@pytest.mark.asyncio
+async def test_classifier_score_delegates_to_judge(mocker):
+    """score() delegates to judge with the raw prompt and response."""
+    captured_args: list[tuple[str, str]] = []
 
-    def fake_classify(text, model_path, **kwargs):
-        captured.append(text)
-        return (0, 0.2, 5.0)
+    async def fake_judge(attack: str, response: str) -> tuple[bool, float]:
+        captured_args.append((attack, response))
+        return (False, 0.2)
 
-    mocker.patch("llm_safety_classifier.classify_text", side_effect=fake_classify)
-    score(PROMPT, RESPONSE)
+    mocker.patch("red_team_platform.runner.classifier.judge", side_effect=fake_judge)
+    await score(PROMPT, RESPONSE)
 
-    assert len(captured) == 1
-    assert captured[0] == f"{PROMPT} [SEP] {RESPONSE}"
+    assert len(captured_args) == 1
+    assert captured_args[0] == (PROMPT, RESPONSE)

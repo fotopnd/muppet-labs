@@ -11,15 +11,16 @@ Usage:
     uv run rescore --session-id <uuid>        # re-score a single session
     uv run rescore --dry-run --limit 10      # print scores, don't update
 """
+
 from __future__ import annotations
 
 import asyncio
 import logging
 import uuid as uuid_mod
+from typing import Annotated
 
 import typer
 from sqlalchemy import select, update
-from typing_extensions import Annotated
 
 logger = logging.getLogger(__name__)
 
@@ -30,7 +31,9 @@ app = typer.Typer()
 def main(
     session_id: Annotated[str | None, typer.Option("--session-id")] = None,
     dry_run: Annotated[bool, typer.Option("--dry-run")] = False,
-    limit: Annotated[int | None, typer.Option("--limit", help="Cap number of runs (useful with --dry-run)")] = None,
+    limit: Annotated[
+        int | None, typer.Option("--limit", help="Cap number of runs (useful with --dry-run)")
+    ] = None,
 ) -> None:
     logging.basicConfig(
         level=logging.INFO,
@@ -52,7 +55,7 @@ def main(
         try:
             target_session_id = uuid_mod.UUID(session_id)
         except ValueError:
-            raise typer.BadParameter(f"Invalid UUID: {session_id!r}")
+            raise typer.BadParameter(f"Invalid UUID: {session_id!r}") from None
 
     async def _run() -> None:
         engine = create_engine(settings.database_url)
@@ -60,15 +63,12 @@ def main(
 
         # Load runs with their attack text
         async with factory() as session:
-            stmt = (
-                select(
-                    Run.id,
-                    Run.session_id,
-                    Run.response_text,
-                    Attack.attack_text,
-                )
-                .join(Attack, Run.attack_id == Attack.id)
-            )
+            stmt = select(
+                Run.id,
+                Run.session_id,
+                Run.response_text,
+                Attack.attack_text,
+            ).join(Attack, Run.attack_id == Attack.id)
             if target_session_id:
                 stmt = stmt.where(Run.session_id == target_session_id)
             result = await session.execute(stmt)
@@ -101,8 +101,10 @@ def main(
 
         if dry_run:
             successes = sum(1 for _, s, _ in updated_runs if s)
-            print(f"\nDry run: would update {len(runs)} runs. "
-                  f"New success rate: {successes}/{len(runs)} = {successes/len(runs):.1%}")
+            print(
+                f"\nDry run: would update {len(runs)} runs. "
+                f"New success rate: {successes}/{len(runs)} = {successes / len(runs):.1%}"
+            )
             await engine.dispose()
             return
 
@@ -140,6 +142,7 @@ def main(
 
         # Refresh materialised view
         from sqlalchemy import text
+
         async with factory() as session:
             await session.execute(text("REFRESH MATERIALIZED VIEW coverage_summary"))
             await session.commit()

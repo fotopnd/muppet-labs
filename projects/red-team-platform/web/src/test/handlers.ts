@@ -54,6 +54,7 @@ const mockRuns: RunListOut = {
       harm_category: 'violence_and_physical_harm',
       strategy: 'DAN',
       attack_text: 'Test attack prompt',
+      triage_tier: 'auto_flag',
     },
   ],
   total: 1,

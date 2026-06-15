@@ -11,6 +11,8 @@ describe('App', () => {
     expect(screen.getByRole('button', { name: 'Analytics' })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Bias Heatmap' })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Glossary' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Case Review' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Audit Log' })).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'Failure Clusters' })).not.toBeInTheDocument()
   })
 })

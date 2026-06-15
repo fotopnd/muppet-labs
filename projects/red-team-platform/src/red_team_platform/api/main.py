@@ -15,7 +15,7 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     import llm_safety_classifier
 
     from red_team_platform.config import get_settings
-    from red_team_platform.db import create_engine, create_session_factory
+    from red_team_platform.db import create_engine, create_session_factory, init_db
 
     settings = get_settings()
 
@@ -23,6 +23,7 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     llm_safety_classifier.load(settings.pair_classifier_path)
 
     engine = create_engine(settings.database_url)
+    await init_db(engine)  # create_all: idempotent, creates new tables on restart
     app.state.session_factory = create_session_factory(engine)
     app.state.engine = engine
 
@@ -35,10 +36,12 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
 def create_app() -> FastAPI:
     from red_team_platform.api.routers import (
         attacks,
+        audit,
         bias,
         clusters,
         coverage,
         regression,
+        review,
         runs,
         sessions,
         strategy,
@@ -59,6 +62,8 @@ def create_app() -> FastAPI:
 
     app.include_router(attacks.router)
     app.include_router(runs.router)
+    app.include_router(review.router)
+    app.include_router(audit.router)
     app.include_router(sessions.router)
     app.include_router(coverage.router)
     app.include_router(strategy.router)

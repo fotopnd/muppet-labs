@@ -149,7 +149,10 @@ def main(
     source: Annotated[str | None, typer.Option("--source")] = None,
     harm_category: Annotated[str | None, typer.Option("--harm-category")] = None,
     strategy: Annotated[str | None, typer.Option("--strategy")] = None,
-    model: Annotated[str | None, typer.Option("--model", help="Ollama model to attack (overrides OLLAMA_MODEL setting)")] = None,
+    model: Annotated[
+        str | None,
+        typer.Option("--model", help="Ollama model to attack (overrides OLLAMA_MODEL setting)"),
+    ] = None,
     mode: Annotated[str, typer.Option("--mode", help="'normal' or 'bias'")] = "normal",
     language: Annotated[
         str | None,

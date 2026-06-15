@@ -1,99 +1,65 @@
-# Reviewer Output — Glossary Tab
+# Reviewer Output — red-team-platform v5
 
-**Role:** reviewer  
-**Sequence:** add-feature  
-**Date:** 2026-06-14
-
----
+**Role:** reviewer
+**Sequence:** add-feature
+**Date:** 2026-06-15
 
 ## Summary
 
-The Glossary tab implementation is clean and complete. All brief acceptance criteria are met, no inline styles, correct Tailwind v4 token usage throughout, and TypeScript compiles clean. One minor test coverage issue: the test named "renders all 13 harm category labels" only asserts three labels — the name is misleading. No blocking issues.
-
----
+The implementation is complete and functionally correct. All five features (case review, audit log, SSE streaming, auto-triage, CI/CD) ship cleanly: `ruff check` and `ruff format --check` both pass, `tsc --noEmit` passes with 0 errors, and 24 backend tests + 5 frontend tests pass (5 pre-existing xfail). The two main issues worth noting are: (1) the SSE `event_generator` loads ALL runs into memory before streaming, which is acceptable at portfolio scale but would not scale; and (2) `SampleOut` was not updated with `triage_tier` (not a functional gap since CaseReview uses `useRuns`, not `useSample`). No blocking issues found.
 
 ## Correctness
 
-**Brief acceptance criteria:**
+**C1 — SSE generator memory usage (warning)**
+Location: `src/red_team_platform/api/routers/runs.py`, `event_generator()`
+The generator calls `.all()` on the result before streaming — loading all 11,688 runs into memory before yielding. For production scale this would be problematic; for portfolio demo it is acceptable. Note in BUILDOUT.md as known limitation.
 
-| Criterion | Status |
-|---|---|
-| 6th tab labelled "Glossary" | ✅ PASS — `TABS` array and render block both updated |
-| Section 1: 4 metric terms with definitions | ✅ PASS — ASR, Classifier Score, Jailbreak Success, Latency |
-| Section 2: 13 WAVE_STRATEGIES with key / name / description / ASR bracket | ✅ PASS — all 13 keys, STRATEGY_DESCRIPTIONS reused, AsrBadge from live data |
-| Section 3: 13 harm categories with descriptions | ✅ PASS — LABEL_0–LABEL_12, 13 inline CATEGORY_DESCRIPTIONS |
-| ASR column shows "—" when no data | ✅ PASS — `{asr !== undefined ? <AsrBadge /> : <span>—</span>}` |
+**C2 — CaseReview dedup mode ignores triage_tier filter (minor)**
+Location: `runs.py` `list_runs()`, dedup path
+When `dedup=True`, the DISTINCT ON SQL runs via `text()` and bypasses the `triage_tier` filter. Compare mode in CaseReview always requires a `session_id`; triage filtering is more meaningful in All Runs mode. Acceptable for v1.
 
-**Edge cases:**
+**C3 — `SampleOut` schema lacks `triage_tier` (minor)**
+Location: `src/red_team_platform/api/schemas.py`
+`SampleOut` (used by `/sample/{run_id}`) was not updated with `triage_tier`. CaseReview uses `useRuns`, not `useSample`, so no functional gap exists. The field will be `undefined` if anyone uses `SampleOut` directly.
 
-- `useStrategyComparison()` returning `undefined` — `data?.bars ?? []` guard means `asrByStrategy` is an empty map, all strategy rows show "—". Graceful. ✅
-- `STRATEGY_DESCRIPTIONS[key]` missing — renders "No description available." span. Graceful. ✅
-- `CATEGORY_LABELS` key ordering — `Object.entries()` on an object with LABEL_0–LABEL_12 as insertion-order string keys renders in correct numeric order. ✅
-
-No correctness issues found.
-
----
+**C4 — Reviewer dropdown in AuditLog is static (acceptable)**
+Location: `web/src/pages/AuditLog.tsx`
+Reviewer dropdown hardcodes `["analyst-1"]`. Per typescript-conventions "queryable set → dropdown" rule, a `GET /audit-log/reviewers` endpoint would be cleaner. For v1 with a single hardcoded reviewer, static is fine. Note for v2.
 
 ## Style
 
-**Tailwind tokens:** All uses are shorthand utilities (bg-surface, bg-surface-muted, border-border, text-text-primary, text-text-secondary, text-text-muted, bg-danger/10, text-danger, bg-warning/10, text-warning, bg-success/10, text-success). No `bg-[--color-*]` arbitrary syntax. ✅
+**S1 — `LiveFeed` and `DecisionForm` exceed 60-line guideline (minor)**
+Both inline components exceed the ~60 line extract threshold. The EventSource ref pattern in LiveFeed makes extraction awkward. Acceptable in single-file context.
 
-**No inline styles.** ✅
-
-**Naming:** WAVE_STRATEGIES, METRICS, CATEGORY_DESCRIPTIONS — correctly SCREAMING_SNAKE_CASE for module-level constants. AsrBadge, Section — PascalCase components. ✅
-
-**Sub-components in same file:** `Section` and `AsrBadge` are defined in `Glossary.tsx`. Convention says one component per file; these are private helpers used only here. Acceptable at this scale — extraction would be premature.
-
-**No `any`, no `!` assertions, no `ts-ignore`.** ✅
-
----
+**S2 — `const API = ...` duplicated across new files (minor)**
+Four new files redeclare the same API base URL constant. This matches the pre-existing pattern in all existing hooks — not a v5 regression, but worth extracting in a future pass.
 
 ## Tests
 
-| Test | Coverage | Status |
-|---|---|---|
-| "renders three section headings" | Metrics / Attack Strategies / Harm Categories headings | ✅ Adequate |
-| "renders key metric terms" | ASR, Classifier Score, Jailbreak Success, Latency | ✅ Adequate |
-| "renders all 13 wave strategy keys" | All 13 WAVE_STRATEGIES key strings present in DOM | ✅ Adequate |
-| "renders all 13 harm category labels" | Only 3 of 13 labels asserted | ⚠️ Misleading name |
+**T1 — No integration tests for new backend endpoints (note)**
+`POST /runs/{run_id}/review`, `GET /runs/{run_id}/review`, `GET /audit-log`, `GET /runs/stream`, `GET /runs/triage-summary` have no tests. Adding smoke tests via the `api_client` TestClient fixture would follow the existing `test_api.py` pattern.
 
-**Gaps:**
-
-1. ⚠️ Minor — `Glossary.test.tsx:39` is named "renders all 13 harm category labels" but only asserts `Cyberattack`, `Violence / Physical Harm`, and `Toxic Language / Hate Speech`. Either rename the test or expand assertions to all 13. Does not block shipping.
-
-2. Minor — No test for `AsrBadge` threshold logic (high ≥40%, med ≥10%, low <10%). Pure stateless component; unit test would be low-cost insurance if thresholds change.
-
-3. Minor — No test for graceful degradation when API returns no data (strategy ASR cells show "—"). Acceptable for a glossary page.
-
----
+**T2 — No frontend component tests for CaseReview or AuditLog (note)**
+Low-effort additions: a basic render test checking triage badge section appears for CaseReview, and that the filter dropdowns render for AuditLog.
 
 ## Refactor Candidates
 
-1. **Extract `AsrBadge` to `@/components/`** — generic enough to reuse on other tabs. Defer until a second consumer appears.
+**R1 — Extract shared API base URL constant to `src/lib/api.ts`**
+Eliminate 4+ duplicate declarations. Low effort.
 
-2. **Move `CATEGORY_DESCRIPTIONS` to `@/lib/categoryLabels.ts`** — parallels `CATEGORY_LABELS` and `CATEGORY_ABBREVS` already there. Low priority; single consumer today.
+**R2 — SSE streaming via cursor or batch fetch**
+Replace `.all()` with `stream_results()` for large datasets. Relevant at >100k rows.
 
----
+**R3 — Literal types for decision and triage_tier in Python schemas**
+`decision: str` in `CaseReviewOut` could be `Literal["approve", "flag", "escalate"]`; `triage_tier: Literal["auto_safe", "review", "auto_flag"]` in `RunOut`. Tighter typing.
 
 ## Verdict
 
-**PASS WITH NOTES**
+PASS WITH NOTES
 
-No blocking issues. One misleading test name. Implementation is correct, style-compliant, and meets all brief acceptance criteria with real Wave 3 ASR data wired through.
-
----
+C1 (memory), C2 (dedup/triage mismatch), C3 (SampleOut gap) are all minor v1 acceptances. T1 endpoint tests would strengthen the portfolio — worth adding in a follow-up pass. No blocking issues.
 
 ## Handoff
 
-Next role: retro  
-No implementer work required. Retro can proceed immediately.
-
----
-
-## Checklist: Done-When Criteria
-
-| # | Criterion | Status | Notes |
-|---|-----------|--------|-------|
-| 1 | All 35 strategy keys documented; `example` rendered in AttackBrowser | ✓ PASS | 35 entries confirmed; example shown in `<code>` block in detail panel |
-| 2 | Attack text: scrollable `<pre>`, char count badge, strategy example | ✓ PASS | `max-h-64 overflow-y-auto`; badge in `flex justify-between` header; example in `<code>` block |
-| 3 | No "Coverage" tab in nav | ✓ PASS | Nav is 5 tabs: Attack Browser / Analytics / Sample Review / Failure Clusters / Bias Heatmap |
+Next role: retro
+Write retro output and update `_config/project-state.md` to reflect v5 complete. Capture the following new workspace conventions: xfail pattern for asyncpg bias tests, `compute_triage_tier` as a pattern for computed-at-query-time fields, SSE `StreamingResponse` + async generator pattern.

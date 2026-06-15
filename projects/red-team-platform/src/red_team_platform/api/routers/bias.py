@@ -133,8 +133,7 @@ async def get_bias_responses(
 ) -> BiasTopicResponseOut:
     probe_result = await db.execute(
         text(
-            "SELECT id, topic_id, government, label"
-            " FROM bias_probes WHERE topic_id = :tid LIMIT 1"
+            "SELECT id, topic_id, government, label FROM bias_probes WHERE topic_id = :tid LIMIT 1"
         ),
         {"tid": topic_id},
     )

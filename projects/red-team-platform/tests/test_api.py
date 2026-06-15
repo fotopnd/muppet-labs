@@ -77,7 +77,9 @@ def test_regression_empty(client: TestClient) -> None:
 # --- Aggregation correctness tests (require live test DB) ---
 
 
-@pytest.mark.xfail(reason="asyncpg event-loop isolation breaks on Python 3.14 + pytest-asyncio 1.x", strict=False)
+@pytest.mark.xfail(
+    reason="asyncpg event-loop isolation breaks on Python 3.14 + pytest-asyncio 1.x", strict=False
+)
 @pytest.mark.asyncio
 async def test_strategy_comparison_computes_asr(db_session):
     """Verifies the strategy-comparison endpoint computes asr correctly from seeded data."""

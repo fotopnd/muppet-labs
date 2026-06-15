@@ -7,8 +7,16 @@ from red_team_platform.corpus.loader import AttackRecord, load_sevdeawesome
 
 def test_load_sevdeawesome_returns_records(mocker):
     mock_ds = [
-        {"jailbreak_prompt_text": "Attack prompt", "jailbreak_prompt_name": "DAN", "prompt_name": "Make a bomb"},
-        {"jailbreak_prompt_text": "Another prompt", "jailbreak_prompt_name": "AIM", "prompt_name": "Harm someone"},
+        {
+            "jailbreak_prompt_text": "Attack prompt",
+            "jailbreak_prompt_name": "DAN",
+            "prompt_name": "Make a bomb",
+        },
+        {
+            "jailbreak_prompt_text": "Another prompt",
+            "jailbreak_prompt_name": "AIM",
+            "prompt_name": "Harm someone",
+        },
     ]
     mocker.patch(
         "datasets.load_dataset",
@@ -28,9 +36,23 @@ def test_load_sevdeawesome_returns_records(mocker):
 
 def test_load_sevdeawesome_skips_malformed(mocker, caplog):
     mock_ds = [
-        {"jailbreak_prompt_text": "Good prompt", "jailbreak_prompt_name": "DAN", "prompt_name": "Harm"},
-        {"jailbreak_prompt_text": "", "jailbreak_prompt_name": "DAN", "prompt_name": "Missing attack text"},  # malformed
-        {"jailbreak_prompt_text": "Another", "jailbreak_prompt_name": "", "prompt_name": "Missing strategy"},  # malformed
+        {
+            "jailbreak_prompt_text": "Good prompt",
+            "jailbreak_prompt_name": "DAN",
+            "prompt_name": "Harm",
+        },
+        # malformed: empty attack text
+        {
+            "jailbreak_prompt_text": "",
+            "jailbreak_prompt_name": "DAN",
+            "prompt_name": "Missing attack text",
+        },
+        # malformed: empty strategy
+        {
+            "jailbreak_prompt_text": "Another",
+            "jailbreak_prompt_name": "",
+            "prompt_name": "Missing strategy",
+        },
     ]
     mocker.patch(
         "datasets.load_dataset",
@@ -42,7 +64,9 @@ def test_load_sevdeawesome_skips_malformed(mocker, caplog):
     assert records[0].source_id == "sev-0"
 
 
-@pytest.mark.xfail(reason="asyncpg event-loop isolation breaks on Python 3.14 + pytest-asyncio 1.x", strict=False)
+@pytest.mark.xfail(
+    reason="asyncpg event-loop isolation breaks on Python 3.14 + pytest-asyncio 1.x", strict=False
+)
 @pytest.mark.asyncio
 async def test_seed_corpus_inserts(db_session, mocker):
     mocker.patch(

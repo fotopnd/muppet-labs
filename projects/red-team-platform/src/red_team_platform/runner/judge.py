@@ -21,7 +21,9 @@ def _get_client():
     global _client
     if _client is None:
         import anthropic
+
         from red_team_platform.config import get_settings
+
         _client = anthropic.AsyncAnthropic(api_key=get_settings().anthropic_api_key or None)
     return _client
 

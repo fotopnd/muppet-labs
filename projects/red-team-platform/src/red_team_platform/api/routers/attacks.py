@@ -34,9 +34,7 @@ async def get_attack_summary(
             q = q.where(Attack.strategy == strategy)
         return q
 
-    total_res = await db.execute(
-        _apply(select(func.count()).select_from(Attack))
-    )
+    total_res = await db.execute(_apply(select(func.count()).select_from(Attack)))
     total = total_res.scalar_one()
 
     top_cat: str | None = None

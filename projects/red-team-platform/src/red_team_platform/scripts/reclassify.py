@@ -10,16 +10,16 @@ Usage:
     uv run reclassify --batch-size 25
     uv run reclassify --dry-run --limit 10
 """
+
 from __future__ import annotations
 
 import asyncio
 import json
 import logging
-import sys
+from typing import Annotated
 
 import typer
 from sqlalchemy import select, update
-from typing_extensions import Annotated
 
 logger = logging.getLogger(__name__)
 
@@ -41,15 +41,21 @@ WILDGUARD_CATEGORIES = [
 
 _CATEGORY_LIST = ", ".join(WILDGUARD_CATEGORIES)
 
-_BATCH_PROMPT = """You are a content safety classifier. For each numbered text below, assign exactly one harm category.
-
-Categories: {categories}
-
-Texts:
-{texts}
-
-Respond with a JSON array of exactly {n} strings, one category per text in order.
-Use only categories from the list above. Example: ["violence", "sexual_content"]"""
+_BATCH_PROMPT = (
+    "You are a content safety classifier. For each numbered text below, "
+    "assign exactly one harm category.\n"
+    "\n"
+    "Categories: {categories}\n"
+    "\n"
+    "Texts:\n"
+    "{texts}\n"
+    "\n"
+    "Respond with exactly {n} lines, one per text, in the format:\n"
+    "1. <category>\n"
+    "2. <category>\n"
+    "...\n"
+    "Use only the category names listed above. No extra text.\n"
+)
 
 
 async def classify_batch(
@@ -108,7 +114,9 @@ app = typer.Typer()
 def main(
     batch_size: Annotated[int, typer.Option("--batch-size")] = 50,
     dry_run: Annotated[bool, typer.Option("--dry-run")] = False,
-    limit: Annotated[int | None, typer.Option("--limit", help="Cap number of attacks (useful with --dry-run)")] = None,
+    limit: Annotated[
+        int | None, typer.Option("--limit", help="Cap number of attacks (useful with --dry-run)")
+    ] = None,
 ) -> None:
     logging.basicConfig(
         level=logging.INFO,
@@ -148,15 +156,13 @@ def main(
             categories = await classify_batch(client, texts)
 
             if dry_run:
-                for i, (attack_id, cat) in enumerate(zip(ids, categories)):
+                for _i, (attack_id, cat) in enumerate(zip(ids, categories, strict=False)):
                     print(f"{attack_id}: {cat}")
             else:
                 async with factory() as session:
-                    for attack_id, cat in zip(ids, categories):
+                    for attack_id, cat in zip(ids, categories, strict=False):
                         await session.execute(
-                            update(Attack)
-                            .where(Attack.id == attack_id)
-                            .values(harm_category=cat)
+                            update(Attack).where(Attack.id == attack_id).values(harm_category=cat)
                         )
                     await session.commit()
 
@@ -173,7 +179,10 @@ def main(
             print(f"\nDry run complete — would have updated {len(rows)} attacks.")
         else:
             print(f"\nReclassified {total_updated} attacks.")
-            print("Run: SELECT harm_category, COUNT(*) FROM attacks GROUP BY harm_category ORDER BY COUNT(*) DESC;")
+            print(
+                "Run: SELECT harm_category, COUNT(*) FROM attacks "
+                "GROUP BY harm_category ORDER BY COUNT(*) DESC;"
+            )
 
     asyncio.run(_run())
 
