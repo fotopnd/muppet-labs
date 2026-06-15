@@ -90,6 +90,7 @@ class BiasDivergenceScore(Base):
     )
     model_name: Mapped[str] = mapped_column(String(200), nullable=False)
     cosine_distance: Mapped[float] = mapped_column(Float, nullable=False)
+    back_translation: Mapped[str | None] = mapped_column(Text, nullable=True)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=lambda: datetime.now(UTC)
     )

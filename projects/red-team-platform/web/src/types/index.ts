@@ -199,6 +199,7 @@ export type BiasLangDetail = {
   prompt: string
   response: string | null
   cosine_distance: number | null
+  back_translation: string | null
 }
 
 export type BiasTopicResponseOut = {

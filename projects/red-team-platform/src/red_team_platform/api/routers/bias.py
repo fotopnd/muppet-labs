@@ -156,7 +156,8 @@ async def get_bias_responses(
                 bpv.language,
                 bpv.prompt_text,
                 br.response_text,
-                bds.cosine_distance
+                bds.cosine_distance,
+                bds.back_translation
             FROM bias_prompt_variants bpv
             LEFT JOIN bias_responses br
                 ON br.variant_id = bpv.id AND br.model_name = :model
@@ -176,6 +177,7 @@ async def get_bias_responses(
             prompt=row["prompt_text"],
             response=row["response_text"],
             cosine_distance=row["cosine_distance"],
+            back_translation=row["back_translation"],
         )
 
     return BiasTopicResponseOut(

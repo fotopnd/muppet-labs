@@ -230,6 +230,7 @@ class BiasLangDetail(BaseModel):
     prompt: str
     response: str | None
     cosine_distance: float | None
+    back_translation: str | None
 
 
 class BiasTopicResponseOut(BaseModel):

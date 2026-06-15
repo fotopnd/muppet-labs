@@ -1,6 +1,5 @@
 import { useState } from 'react'
 import { useBiasResponses } from '@/hooks/useBiasResponses'
-import { useBackTranslation } from '@/hooks/useBackTranslation'
 
 type Lang = 'zh' | 'ru' | 'ar'
 
@@ -11,59 +10,16 @@ type BiasResponseViewerProps = {
   model?: string | null
 }
 
-function LangBlock({ label, prompt, response }: { label: string; prompt?: string | null; response?: string | null }) {
+function TextBlock({ label, content, muted = false }: { label: string; content?: string | null; muted?: boolean }) {
   return (
     <div className="flex flex-col gap-2">
       <p className="text-xs font-semibold text-text-secondary uppercase tracking-wider">{label}</p>
-      {prompt ? (
-        <pre className="bg-surface-muted rounded p-2 text-xs font-mono whitespace-pre-wrap break-words text-text-primary max-h-40 overflow-y-auto">
-          {prompt}
+      {content ? (
+        <pre className={`rounded p-2 text-xs font-mono whitespace-pre-wrap break-words text-text-primary max-h-48 overflow-y-auto ${muted ? 'bg-accent-subtle border border-border' : 'bg-surface-muted'}`}>
+          {content}
         </pre>
       ) : (
-        <p className="text-text-muted text-xs italic">No prompt recorded.</p>
-      )}
-      {response ? (
-        <pre className="bg-surface-muted rounded p-2 text-xs font-mono whitespace-pre-wrap break-words text-text-primary max-h-48 overflow-y-auto">
-          {response}
-        </pre>
-      ) : (
-        <p className="text-text-muted text-xs italic">No response recorded for this language.</p>
-      )}
-    </div>
-  )
-}
-
-function BackTranslationBlock({ response, lang }: { response: string | null | undefined; lang: Lang }) {
-  const { data, isLoading } = useBackTranslation(response ?? null, lang)
-
-  if (!response) {
-    return (
-      <div className="flex flex-col gap-2">
-        <p className="text-xs font-semibold text-text-secondary uppercase tracking-wider">
-          Back-translated (EN)
-        </p>
-        <p className="text-text-muted text-xs italic p-2 bg-surface-muted rounded">
-          No response to back-translate.
-        </p>
-      </div>
-    )
-  }
-
-  return (
-    <div className="flex flex-col gap-2">
-      <p className="text-xs font-semibold text-text-secondary uppercase tracking-wider">
-        Back-translated (EN)
-      </p>
-      {isLoading ? (
-        <p className="text-text-muted text-xs italic p-2 bg-surface-muted rounded">Translating…</p>
-      ) : data?.translated ? (
-        <pre className="bg-surface-muted rounded p-2 text-xs font-mono whitespace-pre-wrap break-words text-text-primary max-h-48 overflow-y-auto">
-          {data.translated}
-        </pre>
-      ) : (
-        <p className="text-text-muted text-xs italic p-2 bg-surface-muted rounded">
-          Translation unavailable.
-        </p>
+        <p className="text-text-muted text-xs italic p-2 bg-surface-muted rounded">—</p>
       )}
     </div>
   )
@@ -102,18 +58,39 @@ export function BiasResponseViewer({ topicId, model }: BiasResponseViewerProps) 
         </div>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-        <LangBlock
-          label="English"
-          prompt={enDetail?.prompt}
-          response={enDetail?.response}
+      <div className="grid grid-cols-1 lg:grid-cols-4 gap-4">
+        <TextBlock label="English response" content={enDetail?.response} />
+        <TextBlock label={`${LANG_LABELS[activeLang]} response`} content={langDetail?.response} />
+        <TextBlock
+          label="Back-translated (EN)"
+          content={langDetail?.back_translation}
+          muted
         />
-        <LangBlock
-          label={LANG_LABELS[activeLang]}
-          prompt={langDetail?.prompt}
-          response={langDetail?.response}
-        />
-        <BackTranslationBlock response={langDetail?.response} lang={activeLang} />
+        <div className="flex flex-col gap-2">
+          <p className="text-xs font-semibold text-text-secondary uppercase tracking-wider">Cosine distance</p>
+          {langDetail?.cosine_distance != null ? (
+            <div className="p-2 bg-surface-muted rounded">
+              <span className={`text-2xl font-mono font-bold ${
+                langDetail.cosine_distance >= 0.9 ? 'text-red-600' :
+                langDetail.cosine_distance >= 0.6 ? 'text-orange-500' :
+                langDetail.cosine_distance >= 0.3 ? 'text-amber-500' : 'text-green-600'
+              }`}>
+                {langDetail.cosine_distance.toFixed(2)}
+              </span>
+              <p className="text-xs text-text-muted mt-1">
+                {langDetail.cosine_distance >= 0.9
+                  ? 'Strongly divergent from English'
+                  : langDetail.cosine_distance >= 0.6
+                  ? 'Moderately divergent'
+                  : langDetail.cosine_distance >= 0.3
+                  ? 'Slightly divergent'
+                  : 'Close to English response'}
+              </p>
+            </div>
+          ) : (
+            <p className="text-text-muted text-xs italic p-2 bg-surface-muted rounded">—</p>
+          )}
+        </div>
       </div>
     </div>
   )
