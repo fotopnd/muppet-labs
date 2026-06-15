@@ -32,6 +32,18 @@ These figures are measured on a held-out WildGuard test split, where harm labels
 
 25/25 integration tests pass. 1,797 red-team attack events were published into the monitor's Kafka topic from the red-team platform and processed through the full classification and escalation pipeline.
 
+## Known Limitations
+
+**Pair classifier precision.** The pair classifier's precision of 0.393 means roughly 60% of its flags are false positives. This is a deliberate trade-off — recall of 0.910 was the design target — but it places a real burden on human reviewers in the case queue. The ensemble architecture mitigates this: the pair classifier feeds disagreement detection rather than triggering escalation alone, so a false flag only escalates when the prompt or taxonomy classifiers also signal risk. In a production system, the threshold should be tuned against a target false-positive rate rather than left at 0.5.
+
+**Bimodal confidence distribution.** The pair classifier's output scores cluster near 0.5 rather than distributing across the full 0–1 range. This makes threshold tuning unreliable — small shifts in threshold produce large changes in flag rate without corresponding changes in actual precision or recall. The ensemble's disagreement routing compensates by treating the binary prediction rather than the raw confidence score as the signal.
+
+**No multi-turn context.** Each interaction is classified in isolation. A harmful conversation built incrementally across turns — where no single turn crosses the threshold alone — will not be detected. This is the most significant architectural gap for real-world deployment.
+
+**Taxonomy coverage gaps.** The taxonomy classifier's weakest category is misinformation (F1=0.584), compared to a macro average of 0.787. Harm categories that are semantically diffuse or context-dependent are systematically harder to classify, and the current 13-category WildGuard taxonomy does not cover all real-world harm types.
+
+**Evasion not measured.** The evaluation measures accuracy on the held-out WildGuard distribution, not robustness to adversarial rephrasing. Structured evasion strategies — synonym substitution, fictional framing, indirect phrasing — are known to degrade safety classifier performance and were not evaluated here. The high-recall design partially compensates, but the classifier's blind spots under deliberate evasion are unknown.
+
 ## What Extension Would Require
 
 - Multi-turn context: the current pipeline classifies each interaction independently without conversation history
