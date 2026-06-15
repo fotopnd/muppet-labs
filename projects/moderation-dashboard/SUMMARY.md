@@ -1,82 +1,53 @@
-# Moderation Dashboard — Project Summary
+# Moderation Dashboard — Executive Summary
 
-## What it is
+## The Problem
 
-A real-time content moderation platform that runs multiple ML classifiers in parallel via Kafka, compares them using a shadow evaluation architecture, detects anomalies in the event stream, and escalates low-confidence cases for human review. The system demonstrates how a production ML platform actually operates: not just a model, but the full feedback loop of routing, evaluation, monitoring, and escalation.
+A model that performs well in offline evaluation often fails in ways that are invisible without production infrastructure around it. F1 scores on held-out test sets measure what a model knows; they don't measure what happens when traffic is split across models, when confidence is unexpectedly low, or when two models that should agree on a label don't. Real ML platforms require routing, shadow evaluation, anomaly detection, and escalation — the operational layer that turns a model into a system.
 
-## Why it was built
+## What Was Built
 
-Production ML systems don't run one model in isolation — they route live traffic, compare candidates in shadow, detect drift, and escalate uncertainty. This project makes that infrastructure concrete and observable. It's built as a portfolio piece for safety-adjacent ML engineering roles where understanding the operational layer around models matters as much as training them.
+A streaming content moderation platform that ingests 159,000 Jigsaw toxic comment events via Kafka and routes them through two independent consumer groups simultaneously: a **production group** that distributes traffic round-robin across DistilBERT and Detoxify (simulating real traffic splitting), and a **shadow group** where all models evaluate every event in parallel (enabling apples-to-apples comparison without affecting production routing). An anomaly detector runs a rolling z-score over 5-minute windows and flags deviations in flag rate. An escalation service routes low-confidence events and shadow disagreements to a human review queue. A dbt transform layer materialises classification results into analytics aggregates. A React dashboard surfaces all five layers: live stream throughput, per-model performance, shadow comparison, human review queue, and category trend analytics.
 
-## Architecture
+## Why It Matters
 
-```
-Jigsaw toxic comments (159k rows)
-  → Kafka producer (rate-controlled, 10 events/sec)
-  → Two consumer groups in parallel:
+Production ML monitoring at Anthropic's scale requires exactly this infrastructure: the ability to run a challenger model in shadow alongside a production model, detect when they disagree, escalate uncertainty rather than swallowing it, and surface anomalies in the event stream before they become incidents. This project makes each of those operational layers concrete and independently testable.
 
-    Production group (round-robin routing)
-      DistilBERT zero-shot ──┐
-      Detoxify               ├── each model sees ~50% of events
-                             └── simulates real production routing
+## What Was Demonstrated
 
-    Shadow group (all-model evaluation)
-      DistilBERT zero-shot ──┐
-      Detoxify               ├── all models see every event
-      DistilBERT fine-tuned  ┘   enables apples-to-apples comparison
+The fine-tuned DistilBERT classifier was evaluated on the Jigsaw held-out test set (n=15,958):
 
-  → Anomaly detector (rolling z-score on 5-min windows)
-  → Escalation service (low confidence OR shadow disagreement → case queue)
-  → dbt transforms (classification → analytics aggregates)
-  → FastAPI (port 8002) → React dashboard (5 views)
-```
+| Model | F1 | Precision | Recall | AUC-ROC |
+|---|---|---|---|---|
+| DistilBERT zero-shot | 0.322 | 0.206 | 0.745 | 0.720 |
+| DistilBERT fine-tuned (Jigsaw) | 0.847 | 0.828 | 0.867 | 0.924 |
+| Delta | **+0.525** | **+0.622** | **+0.122** | **+0.204** |
 
-## Models
+The fine-tuned model is active in the shadow group only — allowing live comparison against zero-shot performance without changing production routing. Shadow disagreement between the two DistilBERT variants (same architecture, different weights) is a clean signal: when they disagree, one of them is wrong, and that event is worth human review.
 
-| Model | Type | Group | Status |
-|-------|------|-------|--------|
-| DistilBERT zero-shot | Binary toxicity classifier, no fine-tuning | Production + Shadow | Active |
-| Detoxify | Multi-label toxicity (6 categories), pre-trained | Production + Shadow | Active |
-| DistilBERT fine-tuned | Jigsaw fine-tuned (F1=0.85 on held-out test) | Shadow only | Pending weights |
+Per-category accuracy on the fine-tuned model: severe_toxic 0.909, obscene 0.949, threat 0.902, insult 0.946, identity_hate 0.908.
 
-## Key design decisions
+## Known Limitations
 
-**Round-robin vs shadow evaluation are separate questions.** Round-robin routing answers "which model handles production load?" — each model sees different events, simulating real traffic splitting. Shadow evaluation answers "how do models compare on the same input?" — all models see every event. Both consumer groups run simultaneously.
+**Escalation is threshold-based.** The confidence threshold of 0.6 for escalation was chosen without calibration against a target false-positive rate. In a production system, this threshold should be derived from the operating point on a precision-recall curve against a labelled validation set.
 
-**Anomaly detection is stateless across restarts by design.** The rolling window z-score detector (`RollingWindowDetector`) builds its baseline from the current session's history. This means it adapts to the current traffic distribution rather than being anchored to stale baselines from a previous run.
+**Anomaly detector resets on restart.** The rolling z-score builds its baseline from the current session. A newly restarted service will flag the first few minutes of normal traffic as anomalous until the baseline window fills. This is a deliberate design trade-off (no stale baselines) but requires warm-up awareness in deployment.
 
-**Escalation triggers are composable.** Two independent signals escalate to the case queue: `confidence < 0.6` (model uncertainty) and shadow disagreement (models disagree on label). Either alone escalates; both together flag the same event once. The escalation service polls on a configurable interval rather than consuming from Kafka directly.
+**No ground truth for live events.** The Jigsaw corpus provides labels for seeded evaluation, but events published to the live stream have no ground-truth labels at classification time. F1 metrics in the dashboard reflect seeded data only; live throughput and escalation rate are the observable production signals.
 
-**Seeded data separates evaluation from live inference.** A pre-generated seeded dataset with known ground-truth labels lets the Model Performance view show F1/precision/recall before any live data has accumulated. Live events (no ground truth) contribute to throughput and volume metrics but not accuracy.
+**Single topic, single partition.** The current Kafka configuration uses one topic and one partition, which limits throughput to approximately 10 events/sec. Horizontal scaling would require partitioning by content category or producer shard.
 
-## Dashboard views
+## What Extension Would Require
 
-| View | What it shows |
-|------|---------------|
-| **Stream Monitor** | Live event rate, category distribution (stacked area chart by minute), anomaly feed |
-| **Model Performance** | Per-model F1 / precision / recall / latency p50/p95 / throughput, with rolling sparklines |
-| **Model Comparison** | Shadow-group side-by-side verdicts for a single event — confidence and correctness across all models |
-| **Human Review** | Escalation queue: events routed for human decision (low confidence or model disagreement) |
-| **Analytics** | Category trend heatmap (48h), hourly F1 trajectory per model, escalation rate over time |
+- Ground-truth feedback loop: human review decisions fed back to a labels table, enabling online evaluation of live events
+- Multi-model production routing: a third model added to the production group (requires consumer group rebalancing)
+- Persistent anomaly baseline: the rolling window state serialised to PostgreSQL so the detector survives restarts without a cold-start period
+- Deployment: the full stack (Kafka, PostgreSQL, FastAPI, React) runs on Docker Compose and targets Hetzner CX33
 
-## Stack
+## Appendix: Technical Details
 
 **Backend:** Python · FastAPI · Kafka (confluent-kafka) · PostgreSQL · SQLAlchemy async · dbt · asyncpg  
 **ML:** HuggingFace Transformers · Detoxify · DistilBERT  
 **Frontend:** React 19 · TypeScript · Tailwind v4 · Recharts · TanStack Query  
 **Infra:** Docker Compose (Kafka + Zookeeper + Postgres on port 5434)
 
-## Test coverage
-
-- `tests/test_consumers.py` — classification label/latency (mocked classify)
-- `tests/test_anomaly.py` — z-score computation, window boundary arithmetic
-- `web/src/test/` — StreamMonitor, ModelPerformance, ModelComparison, HumanReview, Analytics (MSW mocks)
-
-## Running locally
-
-```bash
-docker compose up -d          # Kafka + Postgres
-uv run alembic upgrade head   # schema
-uv run make all               # producer + 2 consumers + API + anomaly detector
-cd web && pnpm dev            # dashboard on :5174
-```
+Architecture, key design decisions, and full running instructions are in [README.md](README.md).
