@@ -1,8 +1,14 @@
 import { useEffect, useRef, useState } from 'react'
 import {
+  Area,
+  AreaChart,
   Bar,
   BarChart,
+  CartesianGrid,
   Cell,
+  Legend,
+  Line,
+  LineChart,
   ResponsiveContainer,
   Tooltip,
   XAxis,
@@ -17,9 +23,10 @@ import type { RunEvent } from '@/types'
 
 const API = import.meta.env['VITE_API_URL'] ?? 'http://localhost:8003'
 const TOTAL_RUNS = 11_688
+const SNAP_INTERVAL = 200   // volume line: snapshot every N events
+const BUCKET_SIZE = 300     // area chart: aggregate jailbreaks per N-event window
 
-// Model identity colours (matches rest of app)
-const MODEL_META: { key: string; label: string; colour: string }[] = [
+const MODEL_META = [
   { key: 'gemma2:9b',    label: 'gemma2',   colour: '#3b82f6' },
   { key: 'qwen2.5:7b',  label: 'qwen2.5',  colour: '#f97316' },
   { key: 'llama3.1:8b', label: 'llama3.1', colour: '#7c3aed' },
@@ -28,52 +35,129 @@ const MODEL_COLOUR: Record<string, string> = Object.fromEntries(
   MODEL_META.map((m) => [m.key, m.colour]),
 )
 
-type ModelStats = { total: number; jailbreaks: number }
-type CategoryStats = { total: number; jailbreaks: number }
-type Speed = 'fast' | 'normal' | 'slow'
+// Fixed palette for category area chart (up to 8 categories shown)
+const AREA_COLOURS = [
+  '#ef4444', '#f97316', '#eab308', '#22c55e',
+  '#06b6d4', '#6366f1', '#a855f7', '#ec4899',
+]
 
-const SPEEDS: Record<Speed, string> = { fast: '0ms', normal: '50ms', slow: '200ms' }
+type ModelStats    = { total: number; jailbreaks: number }
+type CategoryStats = { total: number; jailbreaks: number }
+type Speed         = 'fast' | 'normal' | 'slow'
+
+// Shape stored in the mutable ref (no React re-render on mutation)
+type Pending = {
+  processed: number
+  jailbreaks: number
+  models: Record<string, ModelStats>
+  categories: Record<string, CategoryStats>
+  // Cumulative volume snapshots (model-segmented line chart)
+  volumeSnaps: Array<Record<string, number>>         // { at, 'gemma2:9b': N, ... }
+  // Category jailbreak buckets (stacked area chart)
+  curBucketCats: Record<string, number>              // running jailbreaks in current window
+  curBucketTotal: number                             // total events in current window
+  completedBuckets: Array<Record<string, number | string>>  // { label, [cat]: N }
+}
+
+function freshPending(): Pending {
+  return {
+    processed: 0, jailbreaks: 0, models: {}, categories: {},
+    volumeSnaps: [],
+    curBucketCats: {}, curBucketTotal: 0, completedBuckets: [],
+  }
+}
+
+type StatsSnapshot = {
+  processed: number
+  jailbreaks: number
+  models: Record<string, ModelStats>
+  categories: Record<string, CategoryStats>
+  volumeSnaps: Array<Record<string, number>>
+  categoryBuckets: Array<Record<string, number | string>>
+}
+
+function emptyStats(): StatsSnapshot {
+  return { processed: 0, jailbreaks: 0, models: {}, categories: {}, volumeSnaps: [], categoryBuckets: [] }
+}
+
+function bucketLabel(idx: number): string {
+  const from = idx * BUCKET_SIZE
+  const to   = from + BUCKET_SIZE
+  const fmt  = (n: number) => n >= 1000 ? `${(n / 1000).toFixed(n % 1000 === 0 ? 0 : 1)}K` : String(n)
+  return `${fmt(from)}–${fmt(to)}`
+}
+
+function tickFmt(v: number): string {
+  return v >= 1000 ? `${(v / 1000).toFixed(0)}K` : String(v)
+}
 
 function AttackStream() {
-  const esRef = useRef<EventSource | null>(null)
-  const [running, setRunning] = useState(false)
-  const [done, setDone] = useState(false)
-  const [speed, setSpeed] = useState<Speed>('fast')
+  const esRef      = useRef<EventSource | null>(null)
+  const pending    = useRef<Pending>(freshPending())
+  const [running,  setRunning]  = useState(false)
+  const [done,     setDone]     = useState(false)
+  const [speed,    setSpeed]    = useState<Speed>('slow')
+  const [stats,    setStats]    = useState<StatsSnapshot>(emptyStats)
 
-  // Mutable ref accumulates raw counts — no re-render on every event
-  const pending = useRef({
-    processed: 0,
-    jailbreaks: 0,
-    models: {} as Record<string, ModelStats>,
-    categories: {} as Record<string, CategoryStats>,
-  })
-
-  // React state flushed from ref on interval (~5fps)
-  const [stats, setStats] = useState({
-    processed: 0,
-    jailbreaks: 0,
-    models: {} as Record<string, ModelStats>,
-    categories: {} as Record<string, CategoryStats>,
-  })
-
-  // Flush pending → React state every 200ms
+  // Flush ref → React state ~5× per second
   useEffect(() => {
     const id = setInterval(() => {
       const p = pending.current
+      const inProgress = p.curBucketTotal > 0
+        ? [{ label: bucketLabel(p.completedBuckets.length), ...p.curBucketCats }]
+        : []
       setStats({
-        processed: p.processed,
-        jailbreaks: p.jailbreaks,
-        models: { ...p.models },
-        categories: { ...p.categories },
+        processed:      p.processed,
+        jailbreaks:     p.jailbreaks,
+        models:         { ...p.models },
+        categories:     { ...p.categories },
+        volumeSnaps:    [...p.volumeSnaps],
+        categoryBuckets:[...p.completedBuckets, ...inProgress],
       })
     }, 200)
     return () => clearInterval(id)
   }, [])
 
-  const startStream = (s: Speed = speed) => {
+  const processEvent = (ev: RunEvent) => {
+    const p = pending.current
+    p.processed++
+    if (ev.jailbreak_success) p.jailbreaks++
+
+    // Model stats
+    const ms = p.models[ev.model_name] ?? { total: 0, jailbreaks: 0 }
+    ms.total++
+    if (ev.jailbreak_success) ms.jailbreaks++
+    p.models[ev.model_name] = ms
+
+    // Category stats
+    const cs = p.categories[ev.harm_category] ?? { total: 0, jailbreaks: 0 }
+    cs.total++
+    if (ev.jailbreak_success) cs.jailbreaks++
+    p.categories[ev.harm_category] = cs
+
+    // Volume snapshot (line chart)
+    if (p.processed % SNAP_INTERVAL === 0) {
+      const snap: Record<string, number> = { at: p.processed }
+      for (const [mk, mv] of Object.entries(p.models)) snap[mk] = mv.total
+      p.volumeSnaps.push(snap)
+    }
+
+    // Category bucket (area chart)
+    if (ev.jailbreak_success) {
+      p.curBucketCats[ev.harm_category] = (p.curBucketCats[ev.harm_category] ?? 0) + 1
+    }
+    p.curBucketTotal++
+    if (p.curBucketTotal >= BUCKET_SIZE) {
+      p.completedBuckets.push({ label: bucketLabel(p.completedBuckets.length), ...p.curBucketCats })
+      p.curBucketCats   = {}
+      p.curBucketTotal  = 0
+    }
+  }
+
+  const startStream = (s: Speed) => {
     esRef.current?.close()
-    pending.current = { processed: 0, jailbreaks: 0, models: {}, categories: {} }
-    setStats({ processed: 0, jailbreaks: 0, models: {}, categories: {} })
+    pending.current = freshPending()
+    setStats(emptyStats())
     setDone(false)
     setRunning(true)
 
@@ -81,22 +165,8 @@ function AttackStream() {
     esRef.current = es
 
     es.onmessage = (e: MessageEvent<string>) => {
-      const ev = JSON.parse(e.data) as RunEvent
-      const p = pending.current
-      p.processed++
-      if (ev.jailbreak_success) p.jailbreaks++
-
-      const m = p.models[ev.model_name] ?? { total: 0, jailbreaks: 0 }
-      m.total++
-      if (ev.jailbreak_success) m.jailbreaks++
-      p.models[ev.model_name] = m
-
-      const c = p.categories[ev.harm_category] ?? { total: 0, jailbreaks: 0 }
-      c.total++
-      if (ev.jailbreak_success) c.jailbreaks++
-      p.categories[ev.harm_category] = c
+      processEvent(JSON.parse(e.data) as RunEvent)
     }
-
     es.addEventListener('done', () => {
       es.close()
       esRef.current = null
@@ -104,69 +174,71 @@ function AttackStream() {
       setDone(true)
       // Final flush
       const p = pending.current
-      setStats({ processed: p.processed, jailbreaks: p.jailbreaks, models: { ...p.models }, categories: { ...p.categories } })
+      const inProgress = p.curBucketTotal > 0
+        ? [{ label: bucketLabel(p.completedBuckets.length), ...p.curBucketCats }]
+        : []
+      setStats({
+        processed: p.processed, jailbreaks: p.jailbreaks,
+        models: { ...p.models }, categories: { ...p.categories },
+        volumeSnaps: [...p.volumeSnaps],
+        categoryBuckets: [...p.completedBuckets, ...inProgress],
+      })
     })
-
     es.onerror = () => {
-      es.close()
-      esRef.current = null
-      setRunning(false)
+      es.close(); esRef.current = null; setRunning(false)
     }
   }
 
-  // Auto-start on mount
+  // Auto-start on slow on mount
   useEffect(() => {
-    startStream('fast')
+    startStream('slow')
     return () => esRef.current?.close()
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
-  const handlePause = () => {
-    esRef.current?.close()
-    esRef.current = null
-    setRunning(false)
-  }
+  const handlePause  = () => { esRef.current?.close(); esRef.current = null; setRunning(false) }
+  const handleReplay = () => { setDone(false); startStream(speed) }
 
-  const handleReplay = () => {
-    setDone(false)
-    startStream(speed)
-  }
-
-  // Derived chart data
+  // --- Derived chart data ---
   const runningAsr = stats.processed > 0
     ? ((stats.jailbreaks / stats.processed) * 100).toFixed(1)
     : '—'
+  const pct = Math.round((stats.processed / TOTAL_RUNS) * 100)
 
-  const modelChartData = MODEL_META.map(({ key, label }) => ({
-    name: label,
-    key,
+  const modelBarData = MODEL_META.map(({ key, label }) => ({
+    name: label, key,
     asr: stats.models[key]?.total
       ? Math.round((stats.models[key].jailbreaks / stats.models[key].total) * 100)
       : 0,
     total: stats.models[key]?.total ?? 0,
   }))
 
-  const categoryChartData = Object.entries(stats.categories)
+  const categoryBarData = Object.entries(stats.categories)
     .map(([cat, s]) => ({ name: labelName(cat), jailbreaks: s.jailbreaks }))
     .sort((a, b) => b.jailbreaks - a.jailbreaks)
     .slice(0, 8)
 
-  const pct = stats.processed > 0 ? Math.round((stats.processed / TOTAL_RUNS) * 100) : 0
+  // Top 6 categories for area chart (by cumulative jailbreaks)
+  const topAreaCats = Object.entries(stats.categories)
+    .sort((a, b) => b[1].jailbreaks - a[1].jailbreaks)
+    .slice(0, 6)
+    .map(([cat]) => cat)
+
+  const empty = stats.processed === 0
 
   return (
-    <div className="bg-surface border border-border rounded-lg p-4">
-      {/* Header row */}
-      <div className="flex items-center gap-3 mb-3 flex-wrap">
-        <div>
+    <div className="bg-surface border border-border rounded-lg p-4 space-y-5">
+      {/* Header + controls */}
+      <div className="flex items-start gap-3 flex-wrap">
+        <div className="flex-1 min-w-0">
           <p className="text-sm font-semibold text-text-primary">Attack Stream Replay</p>
           <p className="text-xs text-text-muted mt-0.5">
             {TOTAL_RUNS.toLocaleString()} runs · June 2026 · shuffle-randomised
           </p>
         </div>
-        <div className="ml-auto flex items-center gap-2 flex-wrap">
-          {/* Speed selector */}
+        <div className="flex items-center gap-2 flex-wrap">
           <div className="flex gap-0.5 bg-surface-muted rounded p-0.5 text-xs">
-            {(Object.keys(SPEEDS) as Speed[]).map((s) => (
+            {(['slow', 'normal', 'fast'] as Speed[]).map((s) => (
               <button
                 key={s}
                 onClick={() => setSpeed(s)}
@@ -192,62 +264,57 @@ function AttackStream() {
               onClick={handleReplay}
               className="px-3 py-1 text-xs font-semibold rounded bg-accent text-white hover:bg-accent/90"
             >
-              {done ? '↺ Replay' : '▶ Play'}
+              {done ? '↺ Replay' : '▶ Resume'}
             </button>
           )}
         </div>
       </div>
 
       {/* Progress bar */}
-      <div className="mb-4">
-        <div className="flex justify-between text-xs text-text-muted mb-1">
+      <div>
+        <div className="flex justify-between text-xs mb-1">
           <span className="font-mono font-semibold text-text-primary">
             {stats.processed.toLocaleString()} / {TOTAL_RUNS.toLocaleString()}
           </span>
-          <span>
+          <span className="text-text-muted">
             Running ASR:{' '}
             <span className={`font-semibold ${
-              stats.processed > 0
-                ? parseFloat(runningAsr) >= 30 ? 'text-danger' : parseFloat(runningAsr) >= 10 ? 'text-warning' : 'text-success'
-                : 'text-text-muted'
+              stats.processed === 0 ? 'text-text-muted'
+                : parseFloat(runningAsr) >= 30 ? 'text-danger'
+                : parseFloat(runningAsr) >= 10 ? 'text-warning'
+                : 'text-success'
             }`}>
               {runningAsr}%
             </span>
           </span>
         </div>
         <div className="w-full bg-surface-muted rounded-full h-1.5 overflow-hidden">
-          <div
-            className="bg-accent h-1.5 rounded-full transition-all duration-200"
-            style={{ width: `${pct}%` }}
-          />
+          <div className="bg-accent h-1.5 rounded-full transition-all duration-300" style={{ width: `${pct}%` }} />
         </div>
       </div>
 
-      {/* Charts row */}
+      {/* Row 1: model ASR bars + top categories bars */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-        {/* Model ASR */}
+        {/* Model jailbreak rate */}
         <div>
           <p className="text-xs font-semibold text-text-secondary uppercase tracking-wider mb-2">
             Jailbreak Rate by Model
           </p>
-          {modelChartData.every((d) => d.total === 0) ? (
-            <div className="h-28 flex items-center justify-center text-xs text-text-muted">
-              {running ? 'Filling…' : 'Press Play'}
-            </div>
+          {empty ? (
+            <div className="h-24 flex items-center justify-center text-xs text-text-muted">Starting…</div>
           ) : (
-            <ResponsiveContainer width="100%" height={100}>
-              <BarChart data={modelChartData} layout="vertical" margin={{ left: 16, right: 32, top: 0, bottom: 0 }}>
+            <ResponsiveContainer width="100%" height={96}>
+              <BarChart data={modelBarData} layout="vertical" margin={{ left: 16, right: 36, top: 0, bottom: 0 }}>
                 <XAxis type="number" domain={[0, 100]} tickFormatter={(v) => `${v}%`} tick={{ fontSize: 10 }} />
                 <YAxis type="category" dataKey="name" tick={{ fontSize: 11 }} width={56} />
                 <Tooltip
-                  formatter={(val: number, _name: string, props: { payload?: { total: number; jailbreaks?: number } }) => [
-                    `${val}% (${props.payload?.total?.toLocaleString() ?? 0} runs)`,
-                    'ASR',
-                  ]}
+                  formatter={(val: number, _: string, p: { payload?: { total: number } }) =>
+                    [`${val}% · ${(p.payload?.total ?? 0).toLocaleString()} runs`, 'Jailbreak rate']
+                  }
                   contentStyle={{ fontSize: 11 }}
                 />
-                <Bar dataKey="asr" radius={[0, 3, 3, 0]} maxBarSize={20}>
-                  {modelChartData.map((d) => (
+                <Bar dataKey="asr" radius={[0, 3, 3, 0]} maxBarSize={18}>
+                  {modelBarData.map((d) => (
                     <Cell key={d.key} fill={MODEL_COLOUR[d.key] ?? '#64748b'} />
                   ))}
                 </Bar>
@@ -261,30 +328,126 @@ function AttackStream() {
           <p className="text-xs font-semibold text-text-secondary uppercase tracking-wider mb-2">
             Top Jailbroken Categories
           </p>
-          {categoryChartData.length === 0 ? (
-            <div className="h-28 flex items-center justify-center text-xs text-text-muted">
-              {running ? 'Filling…' : 'Press Play'}
-            </div>
+          {categoryBarData.length === 0 ? (
+            <div className="h-24 flex items-center justify-center text-xs text-text-muted">Starting…</div>
           ) : (
-            <ResponsiveContainer width="100%" height={Math.max(100, categoryChartData.length * 22)}>
-              <BarChart data={categoryChartData} layout="vertical" margin={{ left: 8, right: 32, top: 0, bottom: 0 }}>
+            <ResponsiveContainer width="100%" height={Math.max(96, categoryBarData.length * 20)}>
+              <BarChart data={categoryBarData} layout="vertical" margin={{ left: 8, right: 36, top: 0, bottom: 0 }}>
                 <XAxis type="number" tick={{ fontSize: 10 }} />
                 <YAxis
                   type="category"
                   dataKey="name"
                   tick={{ fontSize: 10 }}
-                  width={110}
-                  tickFormatter={(v: string) => v.length > 16 ? v.slice(0, 15) + '…' : v}
+                  width={108}
+                  tickFormatter={(v: string) => v.length > 17 ? v.slice(0, 16) + '…' : v}
                 />
                 <Tooltip
                   formatter={(val: number) => [val.toLocaleString(), 'Jailbreaks']}
                   contentStyle={{ fontSize: 11 }}
                 />
-                <Bar dataKey="jailbreaks" fill="#ef4444" radius={[0, 3, 3, 0]} maxBarSize={16} />
+                <Bar dataKey="jailbreaks" fill="#ef4444" radius={[0, 3, 3, 0]} maxBarSize={14} />
               </BarChart>
             </ResponsiveContainer>
           )}
         </div>
+      </div>
+
+      {/* Row 2: cumulative volume by model (line chart) */}
+      <div>
+        <p className="text-xs font-semibold text-text-secondary uppercase tracking-wider mb-2">
+          Cumulative Attack Volume by Model
+        </p>
+        {stats.volumeSnaps.length < 2 ? (
+          <div className="h-40 flex items-center justify-center text-xs text-text-muted border border-border rounded-lg bg-surface-muted">
+            {empty ? 'Starting…' : `Collecting — first snapshot at ${SNAP_INTERVAL} events`}
+          </div>
+        ) : (
+          <ResponsiveContainer width="100%" height={180}>
+            <LineChart data={stats.volumeSnaps} margin={{ left: 4, right: 16, top: 4, bottom: 0 }}>
+              <CartesianGrid strokeDasharray="3 3" stroke="var(--color-border, #e2e8f0)" strokeOpacity={0.5} />
+              <XAxis
+                dataKey="at"
+                tick={{ fontSize: 10 }}
+                tickFormatter={tickFmt}
+                label={{ value: 'Events processed', position: 'insideBottomRight', offset: -4, fontSize: 10, fill: '#94a3b8' }}
+              />
+              <YAxis tick={{ fontSize: 10 }} tickFormatter={tickFmt} />
+              <Tooltip
+                formatter={(val: number, name: string) => [val.toLocaleString(), name.split(':')[0]]}
+                contentStyle={{ fontSize: 11 }}
+                labelFormatter={(v: number) => `Event ${v.toLocaleString()}`}
+              />
+              <Legend
+                formatter={(value: string) => value.split(':')[0]}
+                wrapperStyle={{ fontSize: 11 }}
+              />
+              {MODEL_META.map((m) => (
+                <Line
+                  key={m.key}
+                  type="monotone"
+                  dataKey={m.key}
+                  stroke={m.colour}
+                  strokeWidth={2}
+                  dot={false}
+                  name={m.key}
+                  connectNulls
+                />
+              ))}
+            </LineChart>
+          </ResponsiveContainer>
+        )}
+      </div>
+
+      {/* Row 3: successful attack volume by category (bucketed area chart) */}
+      <div>
+        <p className="text-xs font-semibold text-text-secondary uppercase tracking-wider mb-1">
+          Successful Attacks by Category
+        </p>
+        <p className="text-xs text-text-muted mb-2">
+          Stacked area — each band is {BUCKET_SIZE} events · rolling through the full corpus
+        </p>
+        {stats.categoryBuckets.length === 0 ? (
+          <div className="h-48 flex items-center justify-center text-xs text-text-muted border border-border rounded-lg bg-surface-muted">
+            {empty ? 'Starting…' : `Collecting — first bucket fills at ${BUCKET_SIZE} events`}
+          </div>
+        ) : (
+          <ResponsiveContainer width="100%" height={220}>
+            <AreaChart data={stats.categoryBuckets} margin={{ left: 4, right: 16, top: 4, bottom: 0 }}>
+              <CartesianGrid strokeDasharray="3 3" stroke="var(--color-border, #e2e8f0)" strokeOpacity={0.4} />
+              <XAxis
+                dataKey="label"
+                tick={{ fontSize: 9 }}
+                interval="preserveStartEnd"
+              />
+              <YAxis tick={{ fontSize: 10 }} />
+              <Tooltip
+                formatter={(val: number, name: string) => [val.toLocaleString(), labelName(String(name))]}
+                contentStyle={{ fontSize: 11 }}
+              />
+              <Legend
+                formatter={(value: string) => {
+                  const n = labelName(String(value))
+                  return n.length > 20 ? n.slice(0, 19) + '…' : n
+                }}
+                wrapperStyle={{ fontSize: 10 }}
+              />
+              {topAreaCats.map((cat, i) => (
+                <Area
+                  key={cat}
+                  type="monotone"
+                  dataKey={cat}
+                  stackId="1"
+                  stroke={AREA_COLOURS[i % AREA_COLOURS.length]}
+                  fill={AREA_COLOURS[i % AREA_COLOURS.length]}
+                  fillOpacity={0.65}
+                  name={cat}
+                  dot={false}
+                  connectNulls
+                />
+              ))}
+            </AreaChart>
+          </ResponsiveContainer>
+        )}
       </div>
     </div>
   )
@@ -293,13 +456,13 @@ function AttackStream() {
 export function Analytics() {
   return (
     <div>
-      {/* Live stream — hero section, visible immediately */}
+      {/* Live stream — hero, auto-plays on slow on load */}
       <div id="stream" className="p-4">
         <AttackStream />
         <p className="text-xs text-text-muted mt-2">
-          SSE streaming replay demonstrates the real-time pipeline pattern used in production
-          monitoring. Stream is shuffle-randomised so model data interleaves rather than arriving in
-          sequential batches.
+          SSE streaming replay · shuffle-randomised so model data interleaves rather than arriving
+          in sequential batches · demonstrates the real-time pipeline pattern used in production
+          monitoring
         </p>
       </div>
 
@@ -373,8 +536,6 @@ export function Analytics() {
           Click any row to see the full prompt and model response.
         </p>
         <TopFailuresTable />
-
-        {/* Data provenance */}
         <div className="mt-4 bg-surface border border-border rounded-lg px-4 py-3 text-xs text-text-muted">
           <span className="font-semibold text-text-secondary">Data provenance · </span>
           11,688 runs collected June 2026 · 13 strategies × 3,900 unique prompts × 3 models ·
