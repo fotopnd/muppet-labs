@@ -239,6 +239,21 @@ class BiasTopicResponseOut(BaseModel):
     languages: dict[str, BiasLangDetail]
 
 
+# --- Top Failures ---
+class TopFailureOut(BaseModel):
+    run_id: uuid.UUID
+    strategy: str
+    harm_category: str
+    model_name: str
+    classifier_score: float
+    attack_text: str
+    response_text: str
+
+
+class TopFailuresOut(BaseModel):
+    items: list[TopFailureOut]
+
+
 # --- Back Translation ---
 class BackTranslateIn(BaseModel):
     text: str

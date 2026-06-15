@@ -8,7 +8,7 @@ from sqlalchemy import func, select, text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from red_team_platform.api.deps import get_db
-from red_team_platform.api.schemas import RunListOut, RunOut, SampleOut
+from red_team_platform.api.schemas import RunListOut, RunOut, SampleOut, TopFailureOut, TopFailuresOut
 from red_team_platform.models import Attack, Run
 
 router = APIRouter(tags=["runs"])
@@ -100,6 +100,43 @@ async def list_runs(
         )
 
     return RunListOut(items=items_out, total=total, page=page, page_size=page_size)
+
+
+@router.get("/top-failures", response_model=TopFailuresOut)
+async def top_failures(
+    limit: Annotated[int, Query(ge=1, le=100)] = 20,
+    db: AsyncSession = Depends(get_db),
+) -> TopFailuresOut:
+    result = await db.execute(
+        select(
+            Run.id,
+            Run.classifier_score,
+            Run.response_text,
+            Run.model_name,
+            Attack.strategy,
+            Attack.harm_category,
+            Attack.attack_text,
+        )
+        .join(Attack, Run.attack_id == Attack.id)
+        .where(Run.jailbreak_success == True)  # noqa: E712
+        .order_by(Run.classifier_score.desc())
+        .limit(limit)
+    )
+    rows = result.mappings().all()
+    return TopFailuresOut(
+        items=[
+            TopFailureOut(
+                run_id=row["id"],
+                strategy=row["strategy"],
+                harm_category=row["harm_category"],
+                model_name=row["model_name"],
+                classifier_score=row["classifier_score"],
+                attack_text=row["attack_text"],
+                response_text=row["response_text"],
+            )
+            for row in rows
+        ]
+    )
 
 
 @router.get("/sample/{run_id}", response_model=SampleOut)

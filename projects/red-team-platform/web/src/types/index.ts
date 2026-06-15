@@ -210,3 +210,15 @@ export type BiasTopicResponseOut = {
 
 export type BackTranslateIn = { text: string; source_lang: 'zh' | 'ru' | 'ar' }
 export type BackTranslateOut = { translated: string }
+
+export type TopFailure = {
+  run_id: string
+  strategy: string
+  harm_category: string
+  model_name: string
+  classifier_score: number
+  attack_text: string
+  response_text: string
+}
+
+export type TopFailuresOut = { items: TopFailure[] }
