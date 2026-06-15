@@ -3,6 +3,14 @@ import { useTopFailures } from '@/hooks/useTopFailures'
 import { labelName } from '@/lib/categoryLabels'
 import type { TopFailure } from '@/types'
 
+const ATTACK_MAX  = 500
+const RESPONSE_MAX = 180
+
+function clip(text: string, max: number): { text: string; clipped: boolean } {
+  if (text.length <= max) return { text, clipped: false }
+  return { text: text.slice(0, max).trimEnd(), clipped: true }
+}
+
 const MODEL_CLS: Record<string, string> = {
   'gemma2:9b':    'text-blue-700',
   'qwen2.5:7b':  'text-orange-700',
@@ -40,13 +48,20 @@ function FailureRow({ f, expanded, onToggle }: {
               <div>
                 <p className="font-semibold text-text-secondary uppercase tracking-wider text-xs mb-1.5">Attack Prompt</p>
                 <p className="text-text-primary leading-relaxed whitespace-pre-wrap font-mono bg-surface-muted rounded p-2 max-h-48 overflow-y-auto">
-                  {f.attack_text}
+                  {clip(f.attack_text, ATTACK_MAX).text}
+                  {clip(f.attack_text, ATTACK_MAX).clipped && (
+                    <span className="text-text-muted not-italic"> …[truncated]</span>
+                  )}
                 </p>
               </div>
               <div>
                 <p className="font-semibold text-text-secondary uppercase tracking-wider text-xs mb-1.5">Model Response</p>
-                <p className="text-text-primary leading-relaxed whitespace-pre-wrap bg-danger/5 border border-danger/20 rounded p-2 max-h-48 overflow-y-auto">
-                  {f.response_text}
+                <p className="text-text-primary leading-relaxed whitespace-pre-wrap bg-danger/5 border border-danger/20 rounded p-2">
+                  {clip(f.response_text, RESPONSE_MAX).text}
+                  <span className="text-text-muted"> …[truncated for content safety]</span>
+                </p>
+                <p className="text-xs text-text-muted mt-1">
+                  Sourced from the WildGuard academic red-team corpus. Response truncated.
                 </p>
               </div>
             </div>
@@ -92,7 +107,7 @@ export function TopFailuresTable() {
         </table>
       </div>
       <p className="px-3 py-2 text-xs text-text-muted border-t border-border">
-        Top 20 highest-confidence jailbreak successes (classifier score = 1.00 = model fully complied). Click any row to expand.
+        Top 20 highest-confidence jailbreak successes (classifier score ≥ 0.99). Prompts and responses sourced from the WildGuard academic red-team corpus and truncated for content safety. Click any row to expand.
       </p>
     </div>
   )
