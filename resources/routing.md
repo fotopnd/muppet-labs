@@ -114,6 +114,7 @@ its output feeds back into the workspace itself (`resources/`, `skills/`, `routi
 
 > Skip architect if the feature fits cleanly into existing structure. Human makes this call after reviewing planner output.
 > UI debug loop: if `ui-reviewer` returns REWORK NEEDED, `ui-debugger` applies fixes, then `ui-reviewer` runs a second pass before `reviewer` proceeds.
+> **Frontend-only shortcut:** If the brief explicitly rules out backend changes and scope is ≤ 3 files, skip planner/architect and go directly `brief → implementer → reviewer → retro`. Confirmed on Glossary tab (2026-06-14) — works cleanly with no architectural uncertainty.
 
 ---
 
@@ -244,6 +245,38 @@ sequence (if any) to start.
 > **No language conventions files** are loaded at any step — the deliverable is Markdown.
 > **Architect generalisation check:** Before writing the CONTEXT.md spec, confirm the role contract would work unchanged on a project with a completely different dataset, task, and model family. Any project-specific detail must become an input field.
 > **Implementer deliverables:** `roles/<role-name>/CONTEXT.md` and `roles/<role-name>/output/output.md` (blank template). No source code.
+
+---
+
+## Sequence: `pre-wave-check`
+
+**Objective:** Validate cost, time, and platform before launching any expensive API or GPU job.
+**Use when:** Any job estimated >$1 or >1h wall time. Mandatory before all waves.
+**Review gate:** Output is the deliverable — human approves launch after reviewing report.
+
+| Step | Role | Reads | Resources | Output |
+|------|------|-------|-----------|--------|
+| 1 | `preflight` | Job command + cost inputs (provided at invocation) | `resources/runpod-pricing.md` | `roles/preflight/output/output.md` |
+
+> Single-role sequence. No chaining. Human decides whether to launch after reviewing the report.
+> Always pass `--dry-run --limit N` (N=10 default). Never omit `--limit`.
+> After the run: check logs and Anthropic console for actual token counts before projecting.
+
+---
+
+## Sequence: `in-flight-check`
+
+**Objective:** Progress and cost visibility during a running background job.
+**Use when:** Any time during a long background job to get a status snapshot.
+**Review gate:** Output is the deliverable — no gate needed unless an issue is flagged.
+
+| Step | Role | Reads | Resources | Output |
+|------|------|-------|-----------|--------|
+| 1 | `monitor` | Log file path + cost inputs (provided at invocation) | — | `roles/monitor/output/output.md` |
+
+> Single-role sequence. Can be invoked multiple times during the same job.
+> Read-only — never interrupts or modifies the running process.
+> If cost projection exceeds preflight estimate by >50% or a stall is detected, escalate to human immediately.
 
 ---
 

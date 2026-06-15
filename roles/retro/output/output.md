@@ -1,67 +1,105 @@
-# Retro — red-team-platform dashboard refinement v2
+# Retro — Glossary Tab
 
 **Role:** retro  
 **Sequence:** add-feature  
-**Date:** 2026-06-13
+**Date:** 2026-06-14
 
 ---
 
 ## Project
 
-`projects/red-team-platform/web/` — second dashboard refinement pass addressing 11 user-identified issues: tab consolidation (7→5), strategy taxonomy expansion (6→35 keys), dedup fix in sample review, categorical bubble chart for failure clusters, back-translation in bias viewer.
+`projects/red-team-platform/web/` — Glossary tab (6th tab) added to the dashboard. Frontend-only: three sections (Metrics, Attack Strategies with live ASR, Harm Categories). No backend changes.
+
+**Sessions:** 1 (brief was pre-existing; implementer + reviewer + retro completed in a single resumed session after Wave 3b)  
+**Roles run:** brief (archived, previous session) → implementer → reviewer → retro
 
 ---
 
 ## What Went Well
 
-**W1 — DISTINCT ON solved the dedup problem cleanly.** The `DISTINCT ON (attack_id) ORDER BY attack_id, created_at DESC` pattern delivered the most-recent run per attack in a single query, replacing a client-side group-by that was broken by the 200-row page ceiling. No schema changes needed.
+**W1 — Frontend-only scoping held.** The brief explicitly ruled out backend work and the implementer respected that boundary. `useStrategyComparison()` was already the right hook — no new endpoint needed. Live ASR data flows through with zero backend changes.
 
-**W2 — Categorical axis encoding via tickFormatter.** Mapping Recharts numeric domain indices to string labels via `tickFormatter={(i) => order[i] ?? ''}` turned an uninformative cluster_id axis into a meaningful strategy × category view. The pattern is reusable for any categorical scatter/bubble chart.
+**W2 — Lib reuse: STRATEGY_DESCRIPTIONS and CATEGORY_LABELS.** Both already existed in `@/lib/`. The implementer identified and reused them rather than duplicating content inline. CATEGORY_DESCRIPTIONS (the only new data) was correctly kept inline in Glossary.tsx since it has a single consumer. The judgment call on where to put things was correct.
 
-**W3 — TanStack Query staleTime=Infinity for immutable results.** Back-translation results are computed once per (lang, text) pair and never change. `staleTime: Infinity` eliminates refetches without any explicit cache invalidation logic.
+**W3 — MSW double-listen error not repeated.** A previous attempt on a different feature hit "cannot configure an already enabled network" by calling `server.listen()` inside the test file when `setup.ts` already handles it globally. This test correctly omitted the beforeAll/afterAll pattern.
 
-**W4 — Deferred import of `anthropic` inside route handler.** Keeps API startup fast even when the SDK is infrequently used. Pattern follows the python-conventions rule for slow imports.
+**W4 — App.test.tsx stale names caught and fixed proactively.** Implementer caught that old tab name assertions (Coverage Heatmap, Strategy Comparison, Regression Tracker) would fail against the current 6-tab App.tsx and fixed them in the same pass. No reviewer catch needed.
 
-**W5 — Empty-text hallucination caught by adversarial review.** The empty-text guard (`if not body.text.strip(): return BackTranslateOut(translated="")`) was identified through systematic adversarial testing rather than accidental discovery. The frontend `enabled: !!text` guard meant this was not user-visible, but the backend is now correct by construction.
-
----
-
-## What Went Wrong / Friction Points
-
-**F1 — Strategy key discovery gap (planning friction).** The brief assumed ~6 strategy keys; the actual corpus had 35. The planner needed to call `GET /attacks/strategies` to discover this. A future brief for a project with a known external schema should include a schema audit step, not leave it as a planning open question.
-
-**F2 — Stale UI copy after dedup implementation.** The "first 200 runs" copy in SampleReview was left from v1 and not caught until the reviewer pass. Implementation didn't update copy that contradicted the new behaviour. Reviewer catch, minor.
-
-**F3 — Context compaction between reviewer and retro.** Implementation was done across a context boundary. Reviewer output and retro were written in the resumed session. No information was lost (summary was accurate), but compaction added overhead. Inherent to long sessions; no workspace action.
+**W5 — Graceful degradation by default.** `asr !== undefined ? <AsrBadge /> : <span>—</span>` and `STRATEGY_DESCRIPTIONS[key]` fallback to "No description available." are both correct-by-construction. Neither required a separate edge-case implementation pass.
 
 ---
 
-## Workspace Updates Applied
+## What Could Have Gone Better
 
-| Resource | Change | Why |
-|---|---|---|
-| `resources/typescript-conventions.md` | Added **Recharts categorical axis** pattern under Recharts Patterns section | W2 — captures the ordinal-index + tickFormatter pattern for future categorical scatter/bubble charts |
-| `resources/typescript-conventions.md` | Added **`staleTime: Infinity`** guidance under TanStack Query | W3 — explicit policy for immutable computed results (back-translation, embeddings, etc.) |
-| `resources/python-conventions.md` | Added **`DISTINCT ON` for latest-per-group dedup** under SQLAlchemy section | W1 — captures the pattern for future dedup needs |
+**F1 — Misleading test name.** `Glossary.test.tsx:39` is named "renders all 13 harm category labels" but only asserts 3 of the 13. The name implies exhaustive coverage it doesn't provide. This slipped through implementer and was caught by the reviewer. Fix: rename to "renders sample harm category labels" or expand assertions to all 13.
+
+**F2 — Brief taxonomy mismatch (legacy).** The brief lists Harm Categories using WildGuard semantic names (`cybercrime_and_intrusion`, `harmful_information_generation`, etc.) because it was written before the taxonomy classifier training confirmed actual output format (`LABEL_0–LABEL_12` with human labels from `categoryLabels.ts`). The implementation is correct, but the brief is now a misleading historical document. No action needed — this is inherent to the temporal gap between brief authoring and implementation. Noting for future brief authors: wait until classifier output format is confirmed before specifying category keys.
 
 ---
 
-## Decision Log Entries
+## Token Efficiency Analysis
 
-| Decision | Reason |
-|---|---|
-| Categorical scatter axes: ordinal-index + tickFormatter over direct string domain | Recharts XAxis/YAxis only support numeric or time scales natively; string categorical requires mapping |
-| staleTime=Infinity for back-translation results | Translation output is deterministic for a given (lang, text) — no expiry needed |
-| DISTINCT ON over client-side dedup | Client-side grouping breaks when paginated; server-side DISTINCT ON is a single-query guarantee |
+### Context Bloat Identified
+
+| Stage | Issue | Estimated Waste | Recommendation |
+|-------|-------|-----------------|----------------|
+| Reviewer | Loaded full `strategyDescriptions.ts` (305 lines) to confirm STRATEGY_DESCRIPTIONS reuse | Low | Acceptable — needed to verify the lib was the right source and all 13 WAVE_STRATEGIES had entries |
+| Retro | `project-state.md` is 453 lines; retro only needed the last-session summary and next-action sections | Medium | Consider adding a "Session Header" (date, roles run, verdict) at the top of project-state.md so retro can read 20 lines instead of 453 |
+
+### Redundancy Patterns
+
+- The brief listed all 13 strategy descriptions in prose — these were also in `STRATEGY_DESCRIPTIONS`. Brief served as a discovery doc; redundancy acceptable since implementer didn't need to read the lib to know what existed.
+- Reviewer output is longer than needed for retro consumption. Retro only needed verdict + gap list; the full checklist is for human review.
+
+### Scoping Recommendations
+
+- For frontend-only tasks under ~200 LOC, retro context can be reduced to: reviewer output (verdict + gaps only) + project-state.md last session summary. No need to load language conventions files unless a specific style finding requires it.
 
 ---
 
-## Open Items Carried Forward
+## Workspace Improvement Recommendations
 
-None. All 11 brief items shipped. Reviewer verdict PASS WITH NOTES (3 minor fixes applied during review pass; no functional gaps).
+### Resources to Update
+
+| File | Change | Reason | Human decision required? |
+|------|--------|--------|--------------------------|
+| `resources/routing.md` | Add `frontend-only-feature` as a named shortcut sequence: `brief → implementer → reviewer → retro` (skip architect and planner) with condition "when the brief explicitly rules out backend changes and scope is < 3 files" | This project confirmed the pattern works cleanly; codifying it avoids loading architect/planner unnecessarily for similar future tasks | No |
+
+### Skills to Update
+
+None.
+
+### Routing Changes
+
+| Sequence | Change | Reason | Human decision required? |
+|----------|--------|--------|--------------------------|
+| `add-feature` | Note in routing.md that if brief specifies "frontend-only, no backend changes", skip to `implementer` directly without architect/planner pass | Glossary tab was brief → implementer; worked cleanly with no architectural uncertainty | No |
+
+### New Resources or Skills Needed
+
+None. All tools and conventions already in place for this class of task.
+
+---
+
+## Code Fix to Apply (not a workspace change)
+
+`web/src/test/Glossary.test.tsx:39` — rename "renders all 13 harm category labels" to "renders sample harm category labels", or expand to assert all 13 labels. Implementer pass or direct edit. Low priority; doesn't affect runtime or shipping.
+
+---
+
+## One Change to Make Now
+
+**Add `frontend-only-feature` sequence to `resources/routing.md`.**
+
+The Glossary tab confirmed that for frontend-only tasks where the brief explicitly rules out backend work and scope is ≤ 3 files, the sequence is: `brief → implementer → reviewer → retro` with no architect or planner step. Codifying this in routing.md will prevent unnecessary role invocations on future similar tasks.
 
 ---
 
 ## Handoff
 
-Sequence complete. Next step: update `_config/project-state.md`, then git commit all new and modified v2 files.
+Retro complete. Recommended actions:
+
+1. Apply routing.md update (frontend-only-feature sequence note) — no human decision needed
+2. Fix misleading test name in `web/src/test/Glossary.test.tsx:39` — low priority follow-up
+3. Update `_config/project-state.md`: record Glossary tab shipped, reviewer verdict PASS WITH NOTES, retro complete; update Current State to next priority (Llama Guard baseline P2, portfolio deploy P3)
+4. Git commit all new and modified files from this feature

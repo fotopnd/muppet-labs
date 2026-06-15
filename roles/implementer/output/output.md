@@ -1,43 +1,47 @@
-# Implementer Output — red-team-platform dashboard refinement v2
+# Implementer Output — Glossary Tab
 
 **Role:** implementer  
 **Sequence:** add-feature  
-**Date:** 2026-06-13
+**Date:** 2026-06-14
 
 ---
 
 ## Files Produced / Modified
 
-### Backend
-| File | Change |
-|------|--------|
-| `pyproject.toml` | Added `anthropic>=0.107.1` |
-| `.env` | Added `ANTHROPIC_API_KEY` |
-| `api/schemas.py` | Added `BackTranslateIn`, `BackTranslateOut`; added `Literal` import |
-| `api/routers/runs.py` | Added `dedup: bool = False` param; `DISTINCT ON` SQL for dedup mode |
-| `api/routers/bias.py` | Added `POST /bias/back-translate` endpoint using Anthropic haiku |
-
 ### Frontend — new files
 | File | Purpose |
 |------|---------|
-| `src/pages/Analytics.tsx` | Combined Analytics tab: Strategy + Regression sections with jump links |
-| `src/components/AnalyticsSummary.tsx` | Computed prose: highest/lowest ASR strategy, most-tested, highest-risk category |
-| `src/components/RegressionSummary.tsx` | Computed prose: latest ASR, regression delta, best/worst category |
-| `src/hooks/useBackTranslation.ts` | TanStack Query hook for POST /bias/back-translate; staleTime: Infinity |
+| `web/src/pages/Glossary.tsx` | Glossary page: three sections (Metrics, Attack Strategies, Harm Categories) with live ASR badges |
+| `web/src/test/Glossary.test.tsx` | 4 Vitest tests: section headings, metric terms, 13 strategy keys, sample category labels |
 
 ### Frontend — modified files
 | File | Change |
 |------|--------|
-| `src/lib/strategyDescriptions.ts` | Expanded from 6 → 35 strategy entries with 2–3-sentence descriptions and examples |
-| `src/types/index.ts` | Added `BackTranslateIn`, `BackTranslateOut` types |
-| `src/hooks/useRuns.ts` | Added `dedup?: boolean` query param |
-| `src/App.tsx` | Removed Coverage/Strategy/Regression tabs; added Analytics tab (5 tabs total) |
-| `src/pages/StrategyComparison.tsx` | Removed outer p-4 wrapper and heading; Cell colour thresholds (green/amber/red); AnalyticsSummary added |
-| `src/pages/RegressionTracker.tsx` | Removed outer p-4 wrapper and heading; RegressionSummary added |
-| `src/pages/AttackBrowser.tsx` | Detail panel: scrollable pre with char count badge; example field in code block |
-| `src/pages/FailureClusters.tsx` | Bubble chart: X=strategy, Y=category categorical axes; cards sorted by % failures |
-| `src/pages/SampleReview.tsx` | Compare mode: dedup=true with session required |
-| `src/components/BiasResponseViewer.tsx` | Third column: live back-translation via useBackTranslation hook |
+| `web/src/App.tsx` | Added `'glossary'` to Tab union; added Glossary to TABS array; added conditional render; added import |
+| `web/src/test/App.test.tsx` | Fixed stale tab name assertions (Coverage Heatmap → Analytics; Strategy Comparison → Bias Heatmap; Regression Tracker → Glossary) |
+
+---
+
+## Glossary.tsx Architecture
+
+```
+Glossary()
+├── useStrategyComparison()       — fetches /strategy-comparison for live ASR data
+├── asrByStrategy memo            — maps strategy key → ASR float
+├── Section: "Metrics"            — table: ASR, Classifier Score, Jailbreak Success, Latency
+├── Section: "Attack Strategies"  — table: 13 WAVE_STRATEGIES × key / name+description / AsrBadge
+└── Section: "Harm Categories"    — table: LABEL_0–LABEL_12 × human label / CATEGORY_DESCRIPTIONS
+
+AsrBadge({ asr })
+  ≥ 0.40 → bg-danger/10 text-danger   "N% High"
+  ≥ 0.10 → bg-warning/10 text-warning "N% Med"
+  < 0.10 → bg-success/10 text-success "N% Low"
+```
+
+- Reuses `STRATEGY_DESCRIPTIONS` from `@/lib/strategyDescriptions` (already existed, 35 entries)
+- Reuses `CATEGORY_LABELS` from `@/lib/categoryLabels` (already existed, LABEL_0–LABEL_12)
+- `CATEGORY_DESCRIPTIONS` defined inline in Glossary.tsx (13 entries, one per label)
+- No new backend endpoints required
 
 ---
 
@@ -45,30 +49,26 @@
 
 | Check | Result |
 |-------|--------|
-| `npx tsc --noEmit` | ✓ 0 errors |
-| `uv run ruff check src/` | ✓ 0 errors |
-| `GET /runs?session_id=X&dedup=true` | ✓ 300 deduplicated items returned |
-| `POST /bias/back-translate` `{"text":"你好，世界","source_lang":"zh"}` | ✓ `{"translated":"Hello, world"}` |
-| Nav: 7 → 5 tabs | ✓ Coverage/Strategy/Regression removed; Analytics added |
+| `pnpm tsc --noEmit` | ✓ 0 errors |
+| `pnpm test` | ✓ 5/5 tests pass (4 Glossary + 1 App) |
+| App.test.tsx tab names | ✓ Updated to match current 6 tabs |
 
 ---
 
 ## Deviations from Architecture
 
-**D1** — The `.env` approach for the Anthropic API key: the uvicorn process inherits env from shell at start time, and the key is also in `.env` which pydantic-settings loads via `extra="ignore"`. The `anthropic.Anthropic()` client reads from env directly (not from settings). This works as long as the server is started with the key in env or the .env is loaded at process start.
-
-**D2** — `isCompare && !!selectedSessionId` guards the `dedup=true` call: when no session is selected, dedup is not sent to avoid the 400 error. Compare mode with no session selected shows all runs (non-dedup) until a session is picked.
+None. Frontend-only change. No new API surface, no backend modifications. All Tailwind tokens from existing `@theme {}` palette.
 
 ---
 
 ## Known Gaps
 
-- `StrategyComparison` and `RegressionTracker` are imported directly into `Analytics.tsx` — they're no longer standalone route targets. If either is linked to directly in future, they'll render without padding. This is acceptable since they have no standalone tab.
-- Back-translation adds a network call per (lang, topicId) pair. With staleTime=Infinity, each pair is only fetched once per session. No rate limiting on the backend endpoint.
+- `AsrBadge` shows `—` when `useStrategyComparison` returns no data (e.g. API unavailable). Graceful degradation, no error state needed.
+- `CATEGORY_DESCRIPTIONS` is defined inline rather than in a shared lib. Only one consumer exists; extraction would be premature.
 
 ---
 
 ## Handoff
 
 Next role: reviewer  
-Run style audit, confirm all 11 brief items against done-when criteria, check `style={{}}` justifications, verify backend error paths (dedup with no session_id, back-translate with null text).
+Audit: verify all 5 brief acceptance criteria, check token reuse (STRATEGY_DESCRIPTIONS, CATEGORY_LABELS), confirm no inline styles, check graceful degradation when API data absent, verify test coverage matches acceptance criteria.

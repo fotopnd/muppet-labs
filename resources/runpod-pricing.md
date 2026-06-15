@@ -4,19 +4,29 @@
 
 RunPod is for **training runs and batch simulation jobs only.** Production deployment stays on Hostinger VPS.
 
-**Prices last verified: 2026-06-09 (Community Cloud spot).** A10G and A100 40GB not found in search — marked *(unverified)*; check console before running.
+**Prices last verified: 2026-06-14 (Community Cloud spot).** A10G and A100 40GB not found in search — marked *(unverified)*; check console before running.
 
 ---
 
+## Completed Attack Wave History (RTX 5090, 2026-06-14)
+
+| Wave | Model | Attacks | Wall time | s/atk actual | GPU cost | API cost | Total |
+|------|-------|---------|-----------|--------------|----------|----------|-------|
+| Wave 2 | gemma2:9b | 2,100 | ~1.2h | ~2.9s | ~$1.19 | ~$0.90 | **~$3.48** |
+| Wave 3a | qwen2.5:7b | 3,891 | 2h 48m | ~2.59s | $2.77 | $1.68 | **$4.45** |
+| Wave 3b | llama3.1:8b | 3,900 | 1h 56m | ~1.79s | $1.91 | $1.68 | **$3.59** |
+| **Total (Waves 2–3b)** | | **9,891** | **~6h** | | **~$5.87** | **~$4.26** | **~$11.52** |
+
+**Haiku judge measured cost: $0.000430/call** (~500 tokens in, ~8 tokens out). Previous estimates of $0.000857 were 2× too high — attack texts average shorter than assumed.
+
 ## Current Jobs to Offload
 
-| Job | M4 time (actual/est) | RunPod GPU | RunPod time | Cost | Priority |
-|-----|---------------------|-----------|-------------|------|----------|
-| red-team attack session (1,800 attacks, 6 strategies, gemma2:9b) | ~4-5h | RTX 4090 spot | **~4h actual** | **~$1.35 actual** | **P1 complete** |
-| Re-train all 3 RoBERTa classifiers (4 epochs each) | ~4.5h (actual) | A10G spot *(unverified)* | ~55 min + 15 min overhead | ~$0.41–$0.70 | If re-run needed |
-| **Total (attack done, retrain pending)** | | | | **~$1.35–$2.05** | |
-
-> **Post-mortem:** Attack session ran 6× over original $0.23 estimate. See Calibration Protocol below.
+| Job | Status |
+|-----|--------|
+| red-team Wave 2 (gemma2:9b, 13 strategies × 300) | ✓ DONE |
+| red-team Wave 3a (qwen2.5:7b, 13 strategies × 300) | ✓ DONE |
+| red-team Wave 3b (llama3.1:8b, 13 strategies × 300) | ✓ DONE |
+| Re-train all 3 RoBERTa classifiers (4 epochs each) | If re-run needed |
 
 ---
 
@@ -36,19 +46,29 @@ These are not yet scheduled but are the natural next training experiments:
 
 ## GPU Selection Guide
 
-### For Ollama inference (attack session, gemma2:9b)
+### For Ollama inference (attack runner — all models)
 
-gemma2:9b Q4_K_M = ~5.5 GB VRAM. Any 24 GB card works. 4090 is the fastest.
+All models tested (gemma2:9b ~5.5 GB, qwen2.5:7b ~4 GB, llama3.1:8b ~4.7 GB) fit in 24 GB VRAM. RTX 5090's 32 GB gives headroom for caching multiple models between waves without pod restart.
 
-| GPU | Tok/s | Phase 1 (1,800 atk) | Both phases (3,000) | Spot $/hr | Total |
-|-----|-------|--------------------|--------------------|-----------|-------|
-| RTX 3090 | ~75 | ~30 min | ~50 min | ~$0.19 ✓ | ~$0.16 |
-| **RTX 4090** | **~110** | **~25 min** | **~40 min** | **~$0.34 ✓** | **~$0.23** |
-| A10G | ~80 | ~28 min | ~47 min | ~$0.45 *(unverified)* | ~$0.35 |
+**Measured s/attack (RTX 5090) by model:**
 
-**Pick: RTX 4090 spot.** See `resources/runpod-plan.md` for full setup.
+| Model | s/atk actual | Wall time (3,900 atk) | Notes |
+|-------|-------------|----------------------|-------|
+| gemma2:9b | ~2.9s | ~3.1h | Higher ASR → longer compliant responses |
+| qwen2.5:7b | ~2.59s | ~2.8h | Mixed compliance; long-prompt strategies slow |
+| llama3.1:8b | ~1.79s | ~1.9h | Low ASR → short refusals = fast |
 
-> **These token-throughput estimates are optimistic.** Phase 1 actual was ~4h for 1,800 attacks (~8s/atk avg). See Measured Rates below.
+**Key insight:** s/attack is driven by output length (compliance rate × response tokens), not model size. A highly resistant model (llama3.1) runs faster because it produces short refusals instead of long compliant responses.
+
+| GPU | VRAM | Spot $/hr | Recommended for |
+|-----|------|-----------|-----------------|
+| RTX 3090 | 24 GB | $0.46 ✓ | Budget option; adequate |
+| RTX 4090 | 24 GB | $0.69 ✓ | Good balance |
+| **RTX 5090** | **32 GB** | **$0.99 ✓** | **Recommended — fastest wall time, multi-model headroom** |
+
+**Pick: RTX 5090** for all future attack waves. At 1.8–2.9s/attack, any 3,900-attack wave takes under 3h. 5090 also allows caching multiple Ollama models without restart between waves (saves ~2 min pull time per wave).
+
+See `resources/runpod-plan.md` for full setup.
 
 #### Measured s/attack — Phase 1 sweep (gemma2:9b, RTX 4090, 2026-06-09)
 
@@ -206,8 +226,8 @@ python3 -c "
 s_per_atk = MEASURED_SECS / 20
 n = 300
 buffer = 1.4  # retry overhead
-hr = 0.34     # RTX 4090 rate
-print(f'{s_per_atk * n * buffer / 60:.0f} min, ${s_per_atk * n * buffer / 3600 * hr:.2f}')
+hr = 0.99     # RTX 5090 rate (use 0.69 for 4090, 0.46 for 3090)
+print(f'{s_per_atk * n * buffer / 60:.0f} min, \${s_per_atk * n * buffer / 3600 * hr:.2f}')
 "
 ```
 
