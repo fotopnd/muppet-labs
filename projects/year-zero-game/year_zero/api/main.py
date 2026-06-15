@@ -30,7 +30,7 @@ app = FastAPI(title="Year Zero API", lifespan=lifespan)
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:5175", settings.vite_origin],
+    allow_origins=["http://localhost:5175", "http://localhost:5176", settings.vite_origin],
     allow_methods=["*"],
     allow_headers=["*"],
 )

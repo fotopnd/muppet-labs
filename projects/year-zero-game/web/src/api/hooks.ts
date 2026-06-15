@@ -47,9 +47,9 @@ export function useCalibrationCards(options: { enabled: boolean }) {
   })
 }
 
-export function usePhaseCards(phase: 1 | 2 | 3, options: { enabled: boolean; categoryTiers?: Record<string, number> }) {
+export function usePhaseCards(phase: 1 | 2 | 3, options: { enabled: boolean; gameDay: number; categoryTiers?: Record<string, number> }) {
   return useQuery({
-    queryKey: ['cards', 'phase', phase, options.categoryTiers],
+    queryKey: ['cards', 'phase', phase, options.gameDay, options.categoryTiers],
     queryFn: async () => {
       const params = options.categoryTiers
         ? `?category_tiers=${encodeURIComponent(JSON.stringify(options.categoryTiers))}`

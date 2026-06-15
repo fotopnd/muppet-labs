@@ -48,16 +48,17 @@ export default function Game() {
 
   const { data: phaseCards } = usePhaseCards(state.activePhase, {
     enabled: needsPhaseCards,
+    gameDay: state.gameDay,
     categoryTiers: state.categoryTiers,
   })
 
   const phaseCardsDispatched = useRef<number | null>(null)
   useEffect(() => {
     if (!phaseCards || !needsPhaseCards) return
-    if (phaseCardsDispatched.current === state.activePhase) return
-    phaseCardsDispatched.current = state.activePhase
+    if (phaseCardsDispatched.current === state.gameDay) return
+    phaseCardsDispatched.current = state.gameDay
     dispatch({ type: 'PHASE_CARDS_LOADED', cards: phaseCards })
-  }, [phaseCards, needsPhaseCards, state.activePhase, dispatch])
+  }, [phaseCards, needsPhaseCards, state.gameDay, dispatch])
 
   // Batch submit when day ends
   const batchSubmitted = useRef<number | null>(null)
