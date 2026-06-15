@@ -1,93 +1,99 @@
-# Implementer Output — Frontend Phase — red-team-platform v5
+# Implementer Output — Year Zero Game (Frontend Phase)
 
-**Role:** implementer (frontend)
-**Sequence:** add-feature
-**Date:** 2026-06-15
+**Sequence:** `new-project-full` | **Role:** implementer | **Step:** 6b of 9  
+**Date:** 2026-06-15  
+**Reads:** `frontend-architect/output.md`, `architect/output.md`, `typescript-conventions.md`
+
+---
 
 ## What Was Implemented
 
-### Types (web/src/types/index.ts)
-- Added `TriageTier` union type
-- Added `triage_tier: TriageTier` to `Run` type
-- Added `CaseReview`, `AuditLogEntry`, `AuditLogOut`, `TriageSummaryOut`, `RunEvent` types
+### Types (`src/types/index.ts`)
+- `Verdict`, `AgentCondition`, `GameOverReason`, `GamePhase` union types
+- `BarState`, `Card`, `PendingDecision`, `CategoryAccuracy`, `GameState`, `GameAction` interfaces
+- `CardOut`, `SessionCreated`, `BatchAccepted`, `AnalyticsSummary` API response shapes (snake_case)
 
-### New Hooks
-- `web/src/hooks/useCaseReview.ts` — `useCaseReview(runId)` query (staleTime 5s) + `useSubmitReview()` mutation with cache invalidation
-- `web/src/hooks/useAuditLog.ts` — `useAuditLog(params)` with decision/reviewer/limit/offset params
-- `web/src/hooks/useTriageSummary.ts` — `useTriageSummary()` (staleTime 30s)
+### API Layer
+- `src/api/client.ts` — `API_BASE = http://localhost:8005`, `apiFetch<T>` generic helper
+- `src/api/hooks.ts` — TanStack Query hooks:
+  - `useCreateSession()` — POST /sessions mutation
+  - `useCalibrationCards()` — GET /cards/calibration (enabled gate)
+  - `usePhaseCards(phase, options)` — GET /cards/phase/{phase}?category_tiers=…
+  - `useBatchDecisions()` — POST /decisions/batch
+  - `usePatchSession()` — PATCH /sessions/{id}
+  - `useAnalyticsSummary()` — GET /analytics/summary, refetchInterval 30s
 
-### New Pages
-- `web/src/pages/CaseReview.tsx` — Full replacement for SampleReview functionality:
-  - Triage summary badges (auto-safe / needs review / auto-flagged counts)
-  - Explainer text about ~87% queue reduction
-  - Triage filter toggles (All / Needs Review (default) / Auto-Safe / Auto-Flagged)
-  - Session selector
-  - Compare mode: attack table + run comparison panel with DecisionForm on each run card
-  - All runs mode: table with triage_tier badge column + DecisionForm on selected run
-  - DecisionForm: 3 decision buttons (Approve/Flag/Escalate) + reason textarea + submit; shows existing badge + Edit if decision exists
-  - Hardcoded `reviewer = "analyst-1"` displayed as small v1 label
+### Game Logic (`src/game/`)
+- `constants.ts` — `BAR_MOVEMENT` (8 entries), `ESCALATE_DELTA`, `GAME_OVER_THRESHOLDS`, `PHASE_TRIGGERS`, `INITIAL_BARS`, `MINISTRY_FLAVOUR_LINES`, `GAME_OVER_NARRATIVES`, `SECTOR_LABELS`
+- `useGameState.ts` — `gameReducer` + `useGameState()`:
+  - Fisher-Yates shuffle on START_SESSION and PHASE_CARDS_LOADED
+  - SWIPE: computes playerCorrect, latencyMs, agreedWithAgent, delta lookup (ESCALATE handled first), bar clamp, game-over check, upgrade trigger (8 correct OR 85% over 20+), cardsInDay tracking, day-end detection
+  - DAY_ACKNOWLEDGED: phase trigger check (security ≥ 40 → phase 2, ≥ 70 → phase 3), isCalibration = false, upgradePending routing
+  - UPGRADE_ACKNOWLEDGED: tier increment capped at 3, localStorage persist
+  - RESET: restore localStorage tiers
 
-- `web/src/pages/AuditLog.tsx` — New audit log page:
-  - Filter dropdowns: decision type + reviewer
-  - Table: timestamp | reviewer | run ID (truncated) | decision badge | reason
-  - Prev/Next pagination
-  - Empty state message
+### Game Components (`src/game/`)
+- `StatusBar.tsx` — 5 BarUnit rows with inline gradient fill; danger pulse when within 15 of threshold; compliance centre pip
+- `DocumentCard.tsx` — `useDrag` from `@use-gesture/react`; commit threshold 30% of card width; stamp animation (descending → applied → exit); `SovereignStrip` with expand/collapse toggle; exit animation via inline transform transition
+- `DayScreen.tsx` — End-of-day report overlay; ministry flavour line; continue button
+- `UpgradeScreen.tsx` — Terminal-style overlay; tier name + description; click-outside dismiss
+- `GameOver.tsx` — FILE CLOSED stamp; narrative text; stats block; return button
+- `StartScreen.tsx` — Ministry intro; begin intake CTA
+- `LorePage.tsx` — Briefing text; begin Day 1 CTA
 
-### Updated Pages
-- `web/src/pages/Analytics.tsx` — Added `LiveFeed` component at bottom:
-  - Collapsible section (starts collapsed)
-  - Play/Pause using browser `EventSource` (no library)
-  - Speed selector (Fast/Normal/Slow)
-  - Reset button
-  - Scrolling table of last 50 events with red tint on jailbreak rows
-  - Provenance label "Replaying 11,688 runs collected June 2026"
-  - `useRef<EventSource>` for Pause control
+### Pages
+- `src/pages/Game.tsx` — Orchestrates full game flow:
+  - Session creation on mount (ref-gated to prevent double-fire)
+  - Calibration card fetch → START_SESSION dispatch
+  - Phase card fetch when pool exhausted and isCalibration=false
+  - Batch submission on day_end (ref-gated per day)
+  - Session PATCH on game_over
+  - All overlay routing via gameState.phase
+- `src/pages/Analytics.tsx` — TanStack Query for initial load + native EventSource for SSE; MetricCard grid (2×2); LineChart drift via Recharts; phase survival table
 
-- `web/src/App.tsx` — Added 2 tabs (Case Review, Audit Log); 4 → 6 tabs total
+### Entry Point
+- `src/main.tsx` — QueryClientProvider + BrowserRouter wrapping App
+- `src/App.tsx` — Routes: `/` → Game, `/analytics` → Analytics
 
-### Test Updates
-- `web/src/test/handlers.ts` — Added `triage_tier: 'auto_flag'` to mock run (required by updated `Run` type)
-- `web/src/test/App.test.tsx` — Added assertions for "Case Review" and "Audit Log" tab buttons
+### Tests
+- `src/test/setup.ts` — jest-dom import; MSW server lifecycle; EventSource stub for jsdom
+- `src/test/handlers.ts` — Mock handlers for /sessions, /cards/calibration, /cards/phase, /decisions/batch, /analytics/summary
+- `src/test/server.ts` — `setupServer(...handlers)` 
+- `src/test/App.test.tsx` — Game route smoke test; analytics heading test
+- `src/game/useGameState.test.ts` — 8 reducer unit tests: START_SESSION, SWIPE correct/incorrect across card types, ESCALATE, bar clamping, agreedWithAgent=null, 10-swipe day end, RESET
 
-## Test Results
-- `pnpm exec tsc --noEmit` — PASS (0 errors)
-- `pnpm vitest run` — 5/5 tests pass
+### Infra
+- `pnpm-workspace.yaml` — `onlyBuiltDependencies: [msw]` (pnpm v11 moved this from package.json)
 
-## Files Created/Modified
+---
 
-### New files (backend)
-- `src/red_team_platform/api/routers/review.py`
-- `src/red_team_platform/api/routers/audit.py`
-- `roles/implementer/output/backend-output.md`
+## Verification
 
-### New files (frontend)
-- `web/src/hooks/useCaseReview.ts`
-- `web/src/hooks/useAuditLog.ts`
-- `web/src/hooks/useTriageSummary.ts`
-- `web/src/pages/CaseReview.tsx`
-- `web/src/pages/AuditLog.tsx`
+```
+tsc --noEmit       → 0 errors
+vitest run         → 11/11 tests pass
+vite build         → dist 644kB JS, 20kB CSS (chunk size hint only, not error)
+```
 
-### New files (CI/CD)
-- `.github/workflows/ci.yml`
+---
 
-### Modified files
-- `src/red_team_platform/models.py` — CaseReview + AuditLogEntry ORM models
-- `src/red_team_platform/api/schemas.py` — new schemas + triage_tier on RunOut
-- `src/red_team_platform/api/routers/runs.py` — SSE + triage-summary + triage filter
-- `src/red_team_platform/api/main.py` — init_db + router registration
-- `ruff.toml` — alembic exclude
-- `web/src/types/index.ts` — new types
-- `web/src/pages/Analytics.tsx` — LiveFeed section
-- `web/src/App.tsx` — 2 new tabs
-- `web/src/test/handlers.ts` — mock run triage_tier
-- `web/src/test/App.test.tsx` — new tab assertions
-- Various pre-existing ruff violations fixed in tests/ and src/
+## Constraints Applied
+
+- `noUncheckedIndexedAccess` — all array accesses use `?? fallback` or destructuring with `!` after type narrowing
+- `exactOptionalPropertyTypes` — no optional props assigned `undefined`
+- Inline style only for runtime-computed values (bar gradient pct, card drag transform, stamp animation state) — per typescript-conventions.md
+- No `NEXT_CARD` action — SWIPE handles card advancement directly; card animation isolated in DocumentCard via internal state
+- EventSource not in TanStack Query — SSE stream managed via `useEffect` + native EventSource per frontend-architect spec
+
+---
 
 ## Handoff
 
-Next role: reviewer
-Review for correctness, type safety, edge cases, and any convention violations. Key areas to check:
-1. SSE event generator — does `finally` block always run even on client disconnect?
-2. CaseReview — is the `triage_tier` undefined guard needed for older mock data?
-3. AuditLog — reviewer dropdown is static (hardcoded analyst-1); acceptable for v1?
-4. Backend restart required before smoke testing new endpoints
+Next role: reviewer (step 7 of 9)  
+Reads: this file + frontend-architect output + architect output  
+Key areas to check:
+1. `Game.tsx` ref guards — do `sessionStarted`, `gameStarted`, `batchSubmitted` refs correctly prevent double-fire in React StrictMode?
+2. `usePhaseCards` query key includes `categoryTiers` object — is this stable enough to avoid infinite refetch?
+3. `DocumentCard` animation timing — stamp-descend at 120ms, exit at 500ms; are these durations consistent with index.css keyframes?
+4. localStorage try/catch in UPGRADE_ACKNOWLEDGED and RESET — sufficient coverage for private browsing?
+5. Analytics `onUnhandledRequest: 'warn'` in test setup — should this be `'error'`? (Changed from error to avoid SSE stream handler miss)

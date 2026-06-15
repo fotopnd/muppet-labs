@@ -1,65 +1,98 @@
-# Reviewer Output — red-team-platform v5
+# Reviewer Output — Year Zero Game
 
-**Role:** reviewer
-**Sequence:** add-feature
-**Date:** 2026-06-15
+**Sequence:** `new-project-full` | **Role:** reviewer | **Step:** 7 of 9  
+**Date:** 2026-06-15  
+**Reads:** `implementer/output/output.md`, `typescript-conventions.md`, all source files
+
+---
 
 ## Summary
 
-The implementation is complete and functionally correct. All five features (case review, audit log, SSE streaming, auto-triage, CI/CD) ship cleanly: `ruff check` and `ruff format --check` both pass, `tsc --noEmit` passes with 0 errors, and 24 backend tests + 5 frontend tests pass (5 pre-existing xfail). The two main issues worth noting are: (1) the SSE `event_generator` loads ALL runs into memory before streaming, which is acceptable at portfolio scale but would not scale; and (2) `SampleOut` was not updated with `triage_tier` (not a functional gap since CaseReview uses `useRuns`, not `useSample`). No blocking issues found.
+Build is clean: 0 TypeScript errors, 11/11 tests pass, `vite build` succeeds. The game logic (reducer transitions, bar movement, upgrade trigger, game-over detection) is correct and well-structured. Two data-quality findings worth addressing before production: calibration accuracy is always 0 in the session record (finding 1), and `apiFetch<void>` will throw on a true 204 No Content response (finding 2). No blocking correctness issues.
+
+---
 
 ## Correctness
 
-**C1 — SSE generator memory usage (warning)**
-Location: `src/red_team_platform/api/routers/runs.py`, `event_generator()`
-The generator calls `.all()` on the result before streaming — loading all 11,688 runs into memory before yielding. For production scale this would be problematic; for portfolio demo it is acceptable. Note in BUILDOUT.md as known limitation.
+**1. Calibration accuracy always 0 in `PATCH /sessions` — WARNING**  
+`Game.tsx:83–86` — `patchSession` computes `calibDecisions` by filtering `state.pendingDecisions` for `isCalibration`. But `pendingDecisions` holds only the current day's decisions; it's cleared in `DAY_ACKNOWLEDGED` (`pendingDecisions: []`). Game over always fires during a SWIPE mid-day (never from `day_end`). So by the time game over happens (anytime after Day 1), the calibration decisions have been batch-submitted and cleared. Result: `calibration_decisions: 0, calibration_accuracy: 0` in every session record except games that end on Day 1.
 
-**C2 — CaseReview dedup mode ignores triage_tier filter (minor)**
-Location: `runs.py` `list_runs()`, dedup path
-When `dedup=True`, the DISTINCT ON SQL runs via `text()` and bypasses the `triage_tier` filter. Compare mode in CaseReview always requires a `session_id`; triage filtering is more meaningful in All Runs mode. Acceptable for v1.
+Fix: add `calibDecisions: number` and `calibCorrect: number` to `GameState`, increment both in the SWIPE case when `state.isCalibration === true`. Reference these in the `patchSession` call instead of filtering `pendingDecisions`.
 
-**C3 — `SampleOut` schema lacks `triage_tier` (minor)**
-Location: `src/red_team_platform/api/schemas.py`
-`SampleOut` (used by `/sample/{run_id}`) was not updated with `triage_tier`. CaseReview uses `useRuns`, not `useSample`, so no functional gap exists. The field will be `undefined` if anyone uses `SampleOut` directly.
+**2. `apiFetch<void>` unconditionally calls `res.json()` — WARNING**  
+`api/client.ts:9` — if `PATCH /sessions/{id}` returns HTTP 204 with no response body, `res.json()` throws `SyntaxError: Unexpected end of JSON input`. The test mock returns `HttpResponse.json(null, { status: 204 })` which has a `"null"` body, so tests pass. Real FastAPI behaviour depends on the router implementation (not reviewed in this pass).
 
-**C4 — Reviewer dropdown in AuditLog is static (acceptable)**
-Location: `web/src/pages/AuditLog.tsx`
-Reviewer dropdown hardcodes `["analyst-1"]`. Per typescript-conventions "queryable set → dropdown" rule, a `GET /audit-log/reviewers` endpoint would be cleaner. For v1 with a single hardcoded reviewer, static is fine. Note for v2.
+Fix: `if (res.status === 204) return undefined as T` before calling `res.json()`.
+
+**3. `StartScreen` "Begin Intake" button dispatches a no-op — MINOR**  
+`Game.tsx:143` — `onStart={() => dispatch({ type: 'RESET' })}`. When `phase === 'start'`, RESET returns to `'start'` — no change. The game advances automatically via the `gameStarted` effect once `sessionId` + `calibCards` resolve. The StartScreen functions as a loading screen and the button does nothing. The UX reads as "press to start" but start is automatic.
+
+**4. `handleReturn` setTimeout can leak after unmount — MINOR**  
+`Game.tsx:127–130` — `setTimeout(() => { sessionStarted.current = false; createSession.mutate(undefined) }, 50)` is not cancelled on unmount. If the user navigates to `/analytics` within 50ms of pressing Return, the timer fires on a detached closure. TanStack Query handles stale mutations gracefully (no crash), but the ref mutation and `mutate` call are technically side-effects on an unmounted component.
+
+---
 
 ## Style
 
-**S1 — `LiveFeed` and `DecisionForm` exceed 60-line guideline (minor)**
-Both inline components exceed the ~60 line extract threshold. The EventSource ref pattern in LiveFeed makes extraction awkward. Acceptable in single-file context.
+**5. `interface` for shape types — MINOR**  
+`types/index.ts` — `BarState`, `Card`, `PendingDecision`, `CategoryAccuracy`, `GameState` are declared as `interface`. Convention: use `type` for shapes and unions; `interface` only when declaration merging is intentional. None of these are extended or merged.
 
-**S2 — `const API = ...` duplicated across new files (minor)**
-Four new files redeclare the same API base URL constant. This matches the pre-existing pattern in all existing hooks — not a v5 regression, but worth extracting in a future pass.
+**6. Relative imports instead of `@/` alias — MINOR**  
+All cross-directory imports use relative paths (`'../types'`, `'../game/constants'`). Convention calls for `@/` path alias. One-level-up traversals are technically permitted by the "no `../../` climbing" rule, but the spirit is `@/` throughout.
+
+**7. `SECTOR_LABELS` is a dead export — MINOR**  
+`game/constants.ts` — defined but never imported by any component. Remove or use it.
+
+---
 
 ## Tests
 
-**T1 — No integration tests for new backend endpoints (note)**
-`POST /runs/{run_id}/review`, `GET /runs/{run_id}/review`, `GET /audit-log`, `GET /runs/stream`, `GET /runs/triage-summary` have no tests. Adding smoke tests via the `api_client` TestClient fixture would follow the existing `test_api.py` pattern.
+**8. Upgrade trigger path untested**  
+Neither `upgradePending` being set after 8 correct in a category, nor the `UPGRADE_ACKNOWLEDGED` reducer transition, nor `UpgradeScreen` rendering, are tested. The upgrade path gates tier progression which affects `categoryTiers` in the session record.
 
-**T2 — No frontend component tests for CaseReview or AuditLog (note)**
-Low-effort additions: a basic render test checking triage badge section appears for CaseReview, and that the filter dropdowns render for AuditLog.
+**9. `onUnhandledRequest: 'warn'` weakens coverage**  
+`test/setup.ts` — changed from `'error'` to `'warn'`. Since `MockEventSource` is a stub that never makes real network requests, there's no actual unhandled `/analytics/stream` request. Safe to restore `'error'` — the current setting would silently swallow any real missing mock handlers.
+
+**10. Non-null assertion in test — MINOR**  
+`game/useGameState.test.ts:42` — `dec!.playerCorrect`. Convention says avoid `!`; narrow with `expect(dec).toBeDefined()` first.
+
+---
 
 ## Refactor Candidates
 
-**R1 — Extract shared API base URL constant to `src/lib/api.ts`**
-Eliminate 4+ duplicate declarations. Low effort.
+**R1. Calibration stats in reducer state**  
+Add `calibDecisions: number` and `calibCorrect: number` to `GameState` (starts 0, increments in SWIPE when `isCalibration`). Fixes finding 1 and removes the brittle `pendingDecisions.filter(isCalibration)` in `Game.tsx`.
 
-**R2 — SSE streaming via cursor or batch fetch**
-Replace `.all()` with `stream_results()` for large datasets. Relevant at >100k rows.
+**R2. `apiFetch` 204 guard**  
+One-line: `if (res.status === 204) return undefined as T` in `client.ts`. Required before the real backend is exercised.
 
-**R3 — Literal types for decision and triage_tier in Python schemas**
-`decision: str` in `CaseReviewOut` could be `Literal["approve", "flag", "escalate"]`; `triage_tier: Literal["auto_safe", "review", "auto_flag"]` in `RunOut`. Tighter typing.
+**R3. `API_BASE` as env var**  
+`api/client.ts:1` — hardcoded `http://localhost:8005`. Before Hetzner: `import.meta.env.VITE_API_BASE ?? 'http://localhost:8005'` + `.env.example` entry per conventions.
+
+**R4. `handleReturn` session re-init**  
+Replace `setTimeout(50)` with a state-driven flag: `needsNewSession: boolean` in `GameState` (set by RESET, cleared by START_SESSION). The `sessionStarted` effect watches this flag. Eliminates the race window.
+
+**R5. `StartScreen` button intent**  
+Gate the `gameStarted` effect on a `userReadyToStart: boolean` ref (set by the button click), or rename the button to "Loading…" if auto-advance is intentional.
+
+---
 
 ## Verdict
 
-PASS WITH NOTES
+**PASS WITH NOTES**
 
-C1 (memory), C2 (dedup/triage mismatch), C3 (SampleOut gap) are all minor v1 acceptances. T1 endpoint tests would strengthen the portfolio — worth adding in a follow-up pass. No blocking issues.
+No blocking issues. The calibration accuracy bug (finding 1) corrupts session telemetry but doesn't affect gameplay. Recommend fixing R1 and R2 in an implementer pass before the first real data collection. R3 is required before Hetzner deploy.
+
+---
 
 ## Handoff
 
-Next role: retro
-Write retro output and update `_config/project-state.md` to reflect v5 complete. Capture the following new workspace conventions: xfail pattern for asyncpg bias tests, `compute_triage_tier` as a pattern for computed-at-query-time fields, SSE `StreamingResponse` + async generator pattern.
+Next role: retro (step 8 of 9)  
+Reads: this file + all implementer outputs + planner output  
+Produces: session retrospective — what worked, what didn't, what to carry forward to the deploy pass.
+
+Items for next implementer pass before production data collection:
+- R1: calibration accuracy zero (15 min)
+- R2: apiFetch 204 guard (2 min)
+- Finding 9: restore `onUnhandledRequest: 'error'` (1 line)
+- R3: VITE_API_BASE env var (5 min, required for Hetzner deploy)

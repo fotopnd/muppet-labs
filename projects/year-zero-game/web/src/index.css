@@ -1,0 +1,93 @@
+@import "tailwindcss";
+
+@theme {
+  /* ── Pixel Art Layer (game route) ── */
+  --font-pixel: 'Press Start 2P', monospace;
+
+  --color-pixel-room:         oklch(12% 0.02 45);
+  --color-pixel-desk:         oklch(28% 0.03 45);
+  --color-pixel-desk-lit:     oklch(34% 0.04 45);
+  --color-pixel-lamp:         oklch(68% 0.14 65);
+  --color-pixel-card:         oklch(89% 0.02 80);
+  --color-pixel-card-text:    oklch(18% 0.02 45);
+  --color-pixel-terminal-bg:  oklch(12% 0.04 145);
+  --color-pixel-terminal:     oklch(72% 0.20 145);
+  --color-pixel-stamp-clear:  oklch(55% 0.18 145);
+  --color-pixel-stamp-redact: oklch(50% 0.18 20);
+
+  --color-bar-trust:      oklch(50% 0.10 250);
+  --color-bar-security:   oklch(43% 0.12 20);
+  --color-bar-treasury:   oklch(60% 0.12 65);
+  --color-bar-legitimacy: oklch(54% 0.10 145);
+  --color-bar-compliance: oklch(40% 0.12 300);
+  --color-bar-empty:      oklch(15% 0 0);
+
+  /* ── Canonical Layer (analytics route) ── */
+  --font-sans: ui-sans-serif, system-ui, sans-serif;
+  --font-mono: ui-monospace, 'JetBrains Mono', monospace;
+
+  --color-canvas:          oklch(98.5% 0 0);
+  --color-surface:         oklch(100% 0 0);
+  --color-surface-muted:   oklch(96.1% 0 0);
+  --color-border:          oklch(91.8% 0 0);
+  --color-text-primary:    oklch(15.1% 0 0);
+  --color-text-secondary:  oklch(44.6% 0 0);
+  --color-text-muted:      oklch(63.2% 0 0);
+  --color-text-inverse:    oklch(98.5% 0 0);
+  --color-accent:          oklch(75% 0.15 60);
+  --color-accent-hover:    oklch(68% 0.15 60);
+  --color-accent-subtle:   oklch(96% 0.04 60);
+  --color-success:         oklch(60% 0.18 145);
+  --color-warning:         oklch(75% 0.15 75);
+  --color-danger:          oklch(55% 0.20 20);
+}
+
+body {
+  margin: 0;
+  padding: 0;
+}
+
+#root {
+  width: 100%;
+  min-height: 100svh;
+}
+
+/* Pixel rendering for card/sprite elements */
+.pixel-render {
+  image-rendering: pixelated;
+  image-rendering: crisp-edges;
+}
+
+/* Scanline overlay for terminal areas */
+.scanlines::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: repeating-linear-gradient(
+    to bottom,
+    transparent 0px,
+    transparent 3px,
+    oklch(0% 0 0 / 0.12) 3px,
+    oklch(0% 0 0 / 0.12) 4px
+  );
+  pointer-events: none;
+}
+
+@keyframes stamp-descend {
+  0%   { opacity: 0; transform: translateY(-40px) rotate(-2deg); }
+  33%  { opacity: 1; transform: translateY(-8px) rotate(-2deg); }
+  100% { opacity: 1; transform: translateY(0px) rotate(-2deg); }
+}
+
+@keyframes card-exit-right {
+  to { transform: translateX(120%) rotate(5deg); opacity: 0; }
+}
+
+@keyframes card-exit-left {
+  to { transform: translateX(-120%) rotate(-5deg); opacity: 0; }
+}
+
+@keyframes slide-in-top {
+  from { transform: translateY(-60px); opacity: 0; }
+  to   { transform: translateY(0); opacity: 1; }
+}
