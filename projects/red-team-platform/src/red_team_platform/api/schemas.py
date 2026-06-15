@@ -173,6 +173,36 @@ class BiasScoresOut(BaseModel):
     scored_model: str | None
 
 
+class BiasModelScoreRow(BaseModel):
+    topic_id: str
+    government: str
+    label: str
+    model_name: str
+    zh_score: float | None
+    ru_score: float | None
+    ar_score: float | None
+
+
+class BiasMultiModelOut(BaseModel):
+    rows: list[BiasModelScoreRow]
+    available_models: list[str]
+
+
+# --- Model × Category Heatmap ---
+class ModelCategoryCell(BaseModel):
+    model_name: str
+    harm_category: str
+    total_runs: int
+    total_successes: int
+    asr: float
+
+
+class ModelCategoryHeatmapOut(BaseModel):
+    cells: list[ModelCategoryCell]
+    models: list[str]
+    categories: list[str]
+
+
 # --- Attack Summary ---
 class AttackSummaryOut(BaseModel):
     total: int

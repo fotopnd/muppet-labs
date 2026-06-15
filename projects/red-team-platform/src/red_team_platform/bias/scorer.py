@@ -239,16 +239,24 @@ def main() -> None:
 
     write_report_flag = "--write-report" in sys.argv
 
+    # Accept --model <name> to override OLLAMA_MODEL setting
+    model_override: str | None = None
+    for i, arg in enumerate(sys.argv[1:], 1):
+        if arg == "--model" and i < len(sys.argv):
+            model_override = sys.argv[i + 1]
+            break
+
     from red_team_platform.config import get_settings
     from red_team_platform.db import create_engine, create_session_factory
 
     settings = get_settings()
+    effective_model = model_override or settings.ollama_model
 
     async def _run() -> None:
         engine = create_engine(settings.database_url)
         factory = create_session_factory(engine)
         async with factory() as session:
-            scores = await score_all(session, model_name=settings.ollama_model)
+            scores = await score_all(session, model_name=effective_model)
             await session.commit()
 
             if write_report_flag:

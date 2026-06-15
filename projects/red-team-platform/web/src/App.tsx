@@ -2,18 +2,16 @@ import { useState } from 'react'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { StrategyExplorer } from '@/pages/StrategyExplorer'
 import { Analytics } from '@/pages/Analytics'
-import { FailureClusters } from '@/pages/FailureClusters'
 import { BiasHeatmap } from '@/pages/BiasHeatmap'
 import { Glossary } from '@/pages/Glossary'
 
 const queryClient = new QueryClient()
 
-type Tab = 'strategies' | 'analytics' | 'clusters' | 'bias' | 'glossary'
+type Tab = 'strategies' | 'analytics' | 'bias' | 'glossary'
 
 const TABS: { id: Tab; label: string }[] = [
   { id: 'strategies', label: 'Strategy Explorer' },
   { id: 'analytics', label: 'Analytics' },
-  { id: 'clusters', label: 'Failure Clusters' },
   { id: 'bias', label: 'Bias Heatmap' },
   { id: 'glossary', label: 'Glossary' },
 ]
@@ -47,7 +45,6 @@ function Dashboard() {
       <main className="p-0">
         {activeTab === 'strategies' && <StrategyExplorer />}
         {activeTab === 'analytics' && <Analytics />}
-        {activeTab === 'clusters' && <FailureClusters />}
         {activeTab === 'bias' && <BiasHeatmap />}
         {activeTab === 'glossary' && <Glossary />}
       </main>

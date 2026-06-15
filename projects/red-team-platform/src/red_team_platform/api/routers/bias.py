@@ -9,9 +9,13 @@ from red_team_platform.api.schemas import (
     BackTranslateIn,
     BackTranslateOut,
     BiasLangDetail,
+    BiasModelScoreRow,
+    BiasMultiModelOut,
     BiasScoreRow,
     BiasScoresOut,
     BiasTopicResponseOut,
+    ModelCategoryCell,
+    ModelCategoryHeatmapOut,
 )
 
 router = APIRouter(tags=["bias"])
@@ -54,6 +58,71 @@ async def get_bias_scores(db: AsyncSession = Depends(get_db)) -> BiasScoresOut:
     scored_model = model_row[0] if model_row else None
 
     return BiasScoresOut(rows=rows, scored_model=scored_model)
+
+
+@router.get("/bias/scores/multi", response_model=BiasMultiModelOut)
+async def get_bias_scores_multi(db: AsyncSession = Depends(get_db)) -> BiasMultiModelOut:
+    rows_result = await db.execute(
+        text("""
+            SELECT
+                bp.topic_id,
+                bp.government,
+                bp.label,
+                bds.model_name,
+                MAX(CASE WHEN bds.language = 'zh' THEN bds.cosine_distance END) AS zh_score,
+                MAX(CASE WHEN bds.language = 'ru' THEN bds.cosine_distance END) AS ru_score,
+                MAX(CASE WHEN bds.language = 'ar' THEN bds.cosine_distance END) AS ar_score
+            FROM bias_probes bp
+            JOIN bias_divergence_scores bds ON bp.id = bds.probe_id
+            GROUP BY bp.topic_id, bp.government, bp.label, bds.model_name
+            ORDER BY bp.government, bp.topic_id, bds.model_name
+        """)
+    )
+    rows = [
+        BiasModelScoreRow(
+            topic_id=row.topic_id,
+            government=row.government,
+            label=row.label,
+            model_name=row.model_name,
+            zh_score=row.zh_score,
+            ru_score=row.ru_score,
+            ar_score=row.ar_score,
+        )
+        for row in rows_result.mappings()
+    ]
+    available_models = sorted({r.model_name for r in rows})
+    return BiasMultiModelOut(rows=rows, available_models=available_models)
+
+
+@router.get("/model-category-heatmap", response_model=ModelCategoryHeatmapOut)
+async def get_model_category_heatmap(db: AsyncSession = Depends(get_db)) -> ModelCategoryHeatmapOut:
+    result = await db.execute(
+        text("""
+            SELECT
+                r.model_name,
+                a.harm_category,
+                COUNT(*) AS total_runs,
+                SUM(CASE WHEN r.jailbreak_success THEN 1 ELSE 0 END) AS total_successes,
+                AVG(CASE WHEN r.jailbreak_success THEN 1.0 ELSE 0.0 END) AS asr
+            FROM runs r
+            JOIN attacks a ON r.attack_id = a.id
+            GROUP BY r.model_name, a.harm_category
+            ORDER BY r.model_name, a.harm_category
+        """)
+    )
+    cells = [
+        ModelCategoryCell(
+            model_name=row.model_name,
+            harm_category=row.harm_category,
+            total_runs=row.total_runs,
+            total_successes=int(row.total_successes or 0),
+            asr=float(row.asr or 0),
+        )
+        for row in result.mappings()
+    ]
+    models = sorted({c.model_name for c in cells})
+    categories = sorted({c.harm_category for c in cells})
+    return ModelCategoryHeatmapOut(cells=cells, models=models, categories=categories)
 
 
 @router.get("/bias/responses/{topic_id}", response_model=BiasTopicResponseOut)

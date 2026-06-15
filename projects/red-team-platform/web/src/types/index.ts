@@ -146,6 +146,35 @@ export type BiasScoresOut = {
   scored_model: string | null
 }
 
+export type BiasModelScoreRow = {
+  topic_id: string
+  government: string
+  label: string
+  model_name: string
+  zh_score: number | null
+  ru_score: number | null
+  ar_score: number | null
+}
+
+export type BiasMultiModelOut = {
+  rows: BiasModelScoreRow[]
+  available_models: string[]
+}
+
+export type ModelCategoryCell = {
+  model_name: string
+  harm_category: string
+  total_runs: number
+  total_successes: number
+  asr: number
+}
+
+export type ModelCategoryHeatmapOut = {
+  cells: ModelCategoryCell[]
+  models: string[]
+  categories: string[]
+}
+
 export type AttackSummaryOut = {
   total: number
   top_category: string | null
