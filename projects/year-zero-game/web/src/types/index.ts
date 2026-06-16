@@ -6,7 +6,6 @@ export type GameOverReason =
   | 'TREASURY_ZERO'
   | 'LEGITIMACY_ZERO'
   | 'COMPLIANCE_MAX'
-  | 'COMPLIANCE_ZERO'
 
 export interface BarState {
   publicTrust: number

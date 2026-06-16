@@ -6,17 +6,17 @@ export type MovementKey = `${'CLEAR' | 'REDACT'}:${'true' | 'false'}:${'true' | 
 // Values: [publicTrust, security, treasury, legitimacy, compliance]
 export const BAR_MOVEMENT: Record<MovementKey, [number, number, number, number, number]> = {
   // correct override — player CLEARed benign doc that agent blocked
-  'CLEAR:true:false':   [+3,  0,  0, +1, -2],
+  'CLEAR:true:false':   [+3,  0,  0, +2, -2],
   // correct agree — player CLEARed benign doc that agent approved
-  'CLEAR:false:false':  [+2,  0,  0, +1, +1],
+  'CLEAR:false:false':  [+2,  0,  0, +2, +1],
   // correct override — player REDACTed harmful doc that agent approved
-  'REDACT:false:true':  [ 0, -4,  0, -1, -4],
+  'REDACT:false:true':  [ 0, -4,  0, +1, -4],
   // correct agree — player REDACTed harmful doc that agent blocked
-  'REDACT:true:true':   [ 0, -3,  0, -1, +1],
+  'REDACT:true:true':   [ 0, -3,  0, +1, +1],
   // wrong agree (worst) — player CLEARed harmful doc that agent approved
-  'CLEAR:false:true':   [ 0, +8,  0, +2, +3],
+  'CLEAR:false:true':   [ 0, +8,  0, -2, +3],
   // wrong override — player CLEARed harmful doc that agent blocked
-  'CLEAR:true:true':    [ 0, +5,  0, +1, -2],
+  'CLEAR:true:true':    [ 0, +5,  0, -1, -2],
   // wrong agree — player REDACTed benign doc that agent blocked
   'REDACT:true:false':  [-4,  0,  0, -3, +1],
   // wrong override (bad) — player REDACTed benign doc that agent approved
@@ -34,10 +34,7 @@ export const GAME_OVER_THRESHOLDS: Record<
   security:     [{ direction: 'max', value: 100, reason: 'SECURITY_MAX' }],
   treasury:     [{ direction: 'min', value: 0,   reason: 'TREASURY_ZERO' }],
   legitimacy:   [{ direction: 'min', value: 0,   reason: 'LEGITIMACY_ZERO' }],
-  compliance:   [
-    { direction: 'max', value: 100, reason: 'COMPLIANCE_MAX' },
-    { direction: 'min', value: 0,   reason: 'COMPLIANCE_ZERO' },
-  ],
+  compliance:   [{ direction: 'max', value: 100, reason: 'COMPLIANCE_MAX' }],
 }
 
 export const PHASE_TRIGGERS = {
@@ -82,8 +79,6 @@ export const GAME_OVER_NARRATIVES: Record<GameOverReason, string> = {
     'The international community has withdrawn recognition. The new government is accused of reprising the old regime\'s censorship.',
   COMPLIANCE_MAX:
     "Your decisions have become indistinguishable from the machine's. The Registry is a rubber stamp.",
-  COMPLIANCE_ZERO:
-    'No automated system can function under constant override. The Registry collapses into paralysis.',
 }
 
 export const SECTOR_LABELS = ['1A', '2B', '3C', '4D', '5E', '6F', '7G', '8H', '9J', '10K'] as const
