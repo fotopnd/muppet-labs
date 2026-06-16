@@ -22,7 +22,7 @@ export default function Result() {
 
         <div className="text-center">
           <p className="font-pixel text-pixel-terminal text-[8px]">PROJECT REDACTED</p>
-          <p className="font-pixel text-pixel-card text-[12px] mt-1">YEAR ZERO</p>
+          <p className="font-pixel text-pixel-card text-[12px] mt-1">GORK-3</p>
           <p className="font-pixel text-pixel-card/40 text-[7px] mt-2">REGISTRY RECORD</p>
         </div>
 
@@ -90,7 +90,7 @@ export default function Result() {
             to="/"
             className="font-pixel text-pixel-terminal text-[8px] border border-pixel-terminal px-6 py-2 hover:bg-pixel-terminal/10 text-center"
           >
-            PLAY YEAR ZERO &gt;
+            PLAY GORK-3 &gt;
           </Link>
           <p className="font-pixel text-pixel-card/30 text-[6px]">
             ALL DECISIONS ARE LOGGED · THE REGISTRY IS WATCHING

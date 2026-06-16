@@ -39,7 +39,7 @@ function downloadScoreCard(shareId: string, days: number, decisions: number, acc
   ctx.fillStyle = '#68d391'
   ctx.font = `bold 22px ${mono}`
   ctx.textAlign = 'center'
-  ctx.fillText('YEAR ZERO', W / 2, 58)
+  ctx.fillText('GORK-3', W / 2, 58)
 
   // Subtitle
   ctx.fillStyle = '#a0aec0'
@@ -98,7 +98,7 @@ function downloadScoreCard(shareId: string, days: number, decisions: number, acc
     const url = URL.createObjectURL(blob)
     const a = document.createElement('a')
     a.href = url
-    a.download = `year-zero-${shareId}.png`
+    a.download = `gork3-${shareId}.png`
     a.click()
     URL.revokeObjectURL(url)
   }, 'image/png')

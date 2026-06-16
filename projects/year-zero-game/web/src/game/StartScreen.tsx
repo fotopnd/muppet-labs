@@ -29,7 +29,7 @@ export default function StartScreen({ onStart, loading }: StartScreenProps) {
             PROJECT REDACTED
           </p>
           <p className="font-pixel text-pixel-card text-[14px] leading-8 mt-2">
-            YEAR ZERO
+            GORK-3
           </p>
         </div>
 
@@ -96,7 +96,7 @@ export default function StartScreen({ onStart, loading }: StartScreenProps) {
         {/* About */}
         <Section title="ABOUT">
           <p>
-            Year Zero is a research game exploring how humans interact with
+            GORK-3 is a research game exploring how humans interact with
             AI-assisted content moderation. Gameplay is part of an ongoing
             study on human-AI decision-making and LLM recommendation effects.
           </p>
