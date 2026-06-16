@@ -44,7 +44,8 @@ class PatchSessionRequest(BaseModel):
     compliance_profile: dict[str, int | float]
     calibration_accuracy: float
     calibration_decisions: int
-    category_tiers: dict[str, int]
+    total_escalated: int = 0
+    category_tiers: dict[str, int] = {}
 
 
 # ── Responses ─────────────────────────────────────────────────────────────────
@@ -52,6 +53,19 @@ class PatchSessionRequest(BaseModel):
 
 class SessionCreated(BaseModel):
     session_id: int
+    share_id: str
+
+
+class SessionResult(BaseModel):
+    share_id: str
+    total_days: int | None
+    total_decisions: int | None
+    accuracy: float | None
+    game_over_condition: str | None
+    phase_reached: int | None
+    agreement_rate: float | None
+    calibration_accuracy: float | None
+    total_escalated: int | None
 
 
 class BatchAccepted(BaseModel):

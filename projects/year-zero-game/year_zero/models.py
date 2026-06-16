@@ -58,6 +58,7 @@ class GameSession(Base):
     __tablename__ = "game_sessions"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    share_id: Mapped[str | None] = mapped_column(String(12), unique=True, nullable=True, index=True)
     started_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=lambda: datetime.now(UTC)
     )
@@ -82,6 +83,7 @@ class GameSession(Base):
     correct_no_agent: Mapped[int | None] = mapped_column(Integer, nullable=True)
     calibration_accuracy: Mapped[float | None] = mapped_column(Float, nullable=True)
     calibration_decisions: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    total_escalated: Mapped[int | None] = mapped_column(Integer, nullable=True)
     category_tiers: Mapped[dict[str, Any] | None] = mapped_column(JSONB, nullable=True)
 
 

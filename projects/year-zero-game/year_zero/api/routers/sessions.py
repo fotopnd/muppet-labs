@@ -1,16 +1,25 @@
 from __future__ import annotations
 
 import logging
+import secrets
+import string
 
 from fastapi import APIRouter, Depends, HTTPException
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from year_zero.api.schemas import CreateSessionRequest, PatchSessionRequest, SessionCreated
+from year_zero.api.schemas import CreateSessionRequest, PatchSessionRequest, SessionCreated, SessionResult
 from year_zero.database import get_db
 from year_zero.models import GameSession
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/sessions", tags=["sessions"])
+
+_SHARE_ALPHABET = string.ascii_uppercase + string.digits
+
+
+def _make_share_id() -> str:
+    return ''.join(secrets.choice(_SHARE_ALPHABET) for _ in range(8))
 
 
 @router.post("", response_model=SessionCreated, status_code=201)
@@ -18,12 +27,33 @@ async def create_session(
     body: CreateSessionRequest,
     db: AsyncSession = Depends(get_db),
 ) -> SessionCreated:
-    session = GameSession(started_at=body.started_at)
+    session = GameSession(started_at=body.started_at, share_id=_make_share_id())
     db.add(session)
     await db.commit()
     await db.refresh(session)
-    logger.info("Session created: id=%d", session.id)
-    return SessionCreated(session_id=session.id)
+    logger.info("Session created: id=%d share_id=%s", session.id, session.share_id)
+    return SessionCreated(session_id=session.id, share_id=session.share_id or '')
+
+
+@router.get("/result/{share_id}", response_model=SessionResult)
+async def get_session_result(share_id: str, db: AsyncSession = Depends(get_db)) -> SessionResult:
+    result = await db.execute(
+        select(GameSession).where(GameSession.share_id == share_id.upper())
+    )
+    session = result.scalar_one_or_none()
+    if session is None or session.game_over_condition is None:
+        raise HTTPException(status_code=404, detail="Result not found")
+    return SessionResult(
+        share_id=session.share_id or share_id,
+        total_days=session.total_days,
+        total_decisions=session.total_decisions,
+        accuracy=session.accuracy,
+        game_over_condition=session.game_over_condition,
+        phase_reached=session.phase_reached,
+        agreement_rate=session.agreement_rate,
+        calibration_accuracy=session.calibration_accuracy,
+        total_escalated=session.total_escalated,
+    )
 
 
 @router.patch("/{session_id}", status_code=200)
@@ -57,6 +87,7 @@ async def patch_session(
     session.correct_no_agent = body.compliance_profile.get("correct_no_agent")
     session.calibration_accuracy = body.calibration_accuracy
     session.calibration_decisions = body.calibration_decisions
+    session.total_escalated = body.total_escalated
     session.category_tiers = body.category_tiers
 
     await db.commit()

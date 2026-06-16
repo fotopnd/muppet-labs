@@ -24,6 +24,7 @@ export default function Game() {
   }, [createSession])
 
   const sessionId = createSession.data?.session_id ?? null
+  const shareId = createSession.data?.share_id ?? null
 
   const { data: calibCards } = useCalibrationCards({ enabled: !!sessionId })
 
@@ -135,6 +136,7 @@ export default function Game() {
           days={state.gameDay}
           decisions={totalDecisions}
           accuracy={accuracy}
+          shareId={shareId}
           onReturn={handleReturn}
         />
       )}

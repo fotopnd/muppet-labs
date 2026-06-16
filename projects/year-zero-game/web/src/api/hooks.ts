@@ -4,6 +4,7 @@ import type {
   Card,
   CardOut,
   SessionCreated,
+  SessionResult,
   BatchAccepted,
   AnalyticsSummary,
   PendingDecision,
@@ -142,6 +143,16 @@ export function usePatchSession() {
           total_escalated: p.totalEscalated,
         }),
       }),
+  })
+}
+
+export function useSessionResult(shareId: string | null) {
+  return useQuery({
+    queryKey: ['session', 'result', shareId],
+    queryFn: () => apiFetch<SessionResult>(`/sessions/result/${shareId}`),
+    enabled: !!shareId,
+    staleTime: Infinity,
+    retry: false,
   })
 }
 

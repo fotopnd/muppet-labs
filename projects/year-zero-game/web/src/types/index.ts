@@ -94,6 +94,19 @@ export interface CardOut {
 
 export interface SessionCreated {
   session_id: number
+  share_id: string
+}
+
+export interface SessionResult {
+  share_id: string
+  total_days: number | null
+  total_decisions: number | null
+  accuracy: number | null
+  game_over_condition: string | null
+  phase_reached: number | null
+  agreement_rate: number | null
+  calibration_accuracy: number | null
+  total_escalated: number | null
 }
 
 export interface BatchAccepted {
