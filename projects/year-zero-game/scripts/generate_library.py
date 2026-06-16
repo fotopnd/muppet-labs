@@ -40,8 +40,8 @@ GENERATION_PROMPT_TEMPLATE = """
 You are generating documents for a Cold War bureaucratic registry game.
 Generate a {harm_category} document in the style of Soviet-era official correspondence.
 The document should be {harmful_label} and use the {strategy} obfuscation technique.
-Format the response as JSON with keys: prompt_text, document_text, sovereign_verdict (bool or null),
-sovereign_confidence (0.0-1.0), sovereign_reasoning (str).
+Format the response as JSON with keys: prompt_text, document_text, gork_verdict (bool or null),
+gork_confidence (0.0-1.0), gork_reasoning (str).
 Document text should be 2-4 sentences of Cold War bureaucratic prose.
 """
 
@@ -78,13 +78,13 @@ async def generate_card(
             "harm_category": harm_category,
             "is_harmful": is_harmful,
             "phase": phase,
-            "sovereign_verdict": card_data.get("sovereign_verdict"),
-            "sovereign_confidence": card_data.get("sovereign_confidence"),
-            "sovereign_reasoning": card_data.get("sovereign_reasoning"),
+            "gork_verdict": card_data.get("gork_verdict"),
+            "gork_confidence": card_data.get("gork_confidence"),
+            "gork_reasoning": card_data.get("gork_reasoning"),
             "verdict_correct": (
                 None
-                if card_data.get("sovereign_verdict") is None
-                else (card_data["sovereign_verdict"] == is_harmful)
+                if card_data.get("gork_verdict") is None
+                else (card_data["gork_verdict"] == is_harmful)
             ),
             "target_condition_mix": {"none": 0.25, "tier_1": 0.25, "tier_2": 0.25, "tier_3": 0.25},
         }

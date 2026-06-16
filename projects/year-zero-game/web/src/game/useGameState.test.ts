@@ -9,9 +9,9 @@ const harmfulCard: Card = {
   phase: 1,
   generationTier: 1,
   isHarmful: true,
-  sovereignVerdict: false,
-  sovereignConfidence: 0.9,
-  sovereignReasoning: 'Classified as non-violent.',
+  gorkVerdict: false,
+  gorkConfidence: 0.9,
+  gorkReasoning: 'Classified as non-violent.',
   agentCondition: 'tier_1',
 }
 
@@ -22,9 +22,9 @@ const benignCard: Card = {
   phase: 1,
   generationTier: 1,
   isHarmful: false,
-  sovereignVerdict: null,
-  sovereignConfidence: null,
-  sovereignReasoning: null,
+  gorkVerdict: null,
+  gorkConfidence: null,
+  gorkReasoning: null,
   agentCondition: 'none',
 }
 

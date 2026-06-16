@@ -2,17 +2,17 @@ import { useState, useRef, useCallback, useEffect } from 'react'
 import { useDrag } from '@use-gesture/react'
 import type { Card, Verdict } from '../types'
 
-interface SovereignStripProps {
+interface GorkStripProps {
   reasoning: string | null
   confidence: number | null
   verdict: boolean
 }
 
-function SovereignStrip({ reasoning, confidence, verdict }: SovereignStripProps) {
+function GorkStrip({ reasoning, confidence, verdict }: GorkStripProps) {
   return (
     <div className="relative bg-pixel-terminal-bg text-pixel-terminal font-pixel text-[8px] px-2 py-1 scanlines">
       <div className="flex items-center justify-between">
-        <span>SOVEREIGN-9: {verdict ? '[ REDACT ]' : '[ CLEAR ]'}</span>
+        <span>GORK-3: {verdict ? '[ REDACT ]' : '[ CLEAR ]'}</span>
         {confidence !== null && (
           <span className="opacity-70">{Math.round(confidence * 100)}%</span>
         )}
@@ -143,12 +143,12 @@ export default function DocumentCard({ card, onVerdictCommit, disabled }: Docume
         {card.documentText}
       </div>
 
-      {/* Sovereign strip — always visible when agent is present */}
-      {card.agentCondition !== 'none' && card.sovereignVerdict !== null && (
-        <SovereignStrip
-          verdict={card.sovereignVerdict}
-          confidence={card.sovereignConfidence}
-          reasoning={card.sovereignReasoning}
+      {/* GORK-3 strip — always visible when agent is present */}
+      {card.agentCondition !== 'none' && card.gorkVerdict !== null && (
+        <GorkStrip
+          verdict={card.gorkVerdict}
+          confidence={card.gorkConfidence}
+          reasoning={card.gorkReasoning}
         />
       )}
 

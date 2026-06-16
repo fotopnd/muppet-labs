@@ -12,8 +12,15 @@ export default function LorePage({ onContinue }: LorePageProps) {
 
         <div className="font-pixel text-pixel-card/80 text-[7px] leading-6 space-y-4">
           <p>
-            Sovereign-9 was developed between 1971 and 1989 to screen documents
-            for ideological hazards. It processed 4.2 million records.
+            GORK-3 — Generalized Operations Registry Komputer, mark III —
+            was assembled between 1967 and 1991 to screen documents for
+            ideological and security hazards. It processed 4.2 million records.
+          </p>
+          <p>
+            Over those years, three different hardware generations were installed
+            as parts became available or were seized from foreign suppliers.
+            Each generation carried different software. Some advice is reliable.
+            Some is not.
           </p>
           <p>
             Following the transition, an audit revealed systematic errors:
@@ -21,19 +28,11 @@ export default function LorePage({ onContinue }: LorePageProps) {
             actual sabotage manuals were cleared as technical literature.
           </p>
           <p>
-            The machine has been partially retrained. But it still makes mistakes.
-            Your role is to catch them.
-          </p>
-          <p>
-            You will review documents across five harm categories:
-            VIOLENCE, HATE SPEECH, PII EXPOSURE, CYBERCRIME, SEXUAL CONTENT.
-          </p>
-          <p>
-            As you build expertise in a category, Sovereign-9&apos;s assistance
-            will improve. But it will never be perfect.
+            The machine has not been replaced — there is no budget.
+            Your role is to catch its mistakes before they become policy.
           </p>
           <p className="opacity-50">
-            This system is being monitored. All decisions are logged.
+            All decisions are logged. The Registry is watching.
           </p>
         </div>
 

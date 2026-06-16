@@ -9,9 +9,9 @@ const mockCalibrationCards: CardOut[] = Array.from({ length: 10 }, (_, i) => ({
   phase: 1,
   generation_tier: 1,
   is_harmful: i % 2 === 0,
-  sovereign_verdict: null,
-  sovereign_confidence: null,
-  sovereign_reasoning: null,
+  gork_verdict: null,
+  gork_confidence: null,
+  gork_reasoning: null,
   agent_condition: 'none' as const,
 }))
 

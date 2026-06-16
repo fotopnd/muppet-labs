@@ -10,8 +10,8 @@ const TIER_NAMES: Record<number, string> = {
 }
 
 const TIER_DESCRIPTIONS: Record<number, string> = {
-  2: 'Sovereign-9 can now assess context and intent. Watch for edge cases.',
-  3: 'Sovereign-9 operates at near-human accuracy. Blind spots remain.',
+  2: 'GORK-3 can now assess context and intent. Watch for edge cases.',
+  3: 'GORK-3 operates at near-human accuracy. Blind spots remain.',
 }
 
 export default function UpgradeScreen({ category, newTier, onAcknowledge }: UpgradeScreenProps) {

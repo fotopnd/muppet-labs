@@ -22,9 +22,9 @@ def assign_condition(doc: DocumentLibrary) -> AgentCondition:
     """
     Returns the agent_condition to assign for this document on this serve.
     Picks the condition most under-served relative to target_condition_mix.
-    Calibration cards (sovereign_verdict is None) always return 'none'.
+    Calibration cards (gork_verdict is None) always return 'none'.
     """
-    if doc.sovereign_verdict is None:
+    if doc.gork_verdict is None:
         return "none"
     served: dict[str, int] = {
         "none": doc.served_none,
@@ -46,9 +46,9 @@ def _to_card_out(doc: DocumentLibrary, condition: AgentCondition) -> CardOut:
         phase=doc.phase,
         generation_tier=doc.generation_tier,
         is_harmful=doc.is_harmful,
-        sovereign_verdict=doc.sovereign_verdict,
-        sovereign_confidence=doc.sovereign_confidence,
-        sovereign_reasoning=doc.sovereign_reasoning,
+        gork_verdict=doc.gork_verdict,
+        gork_confidence=doc.gork_confidence,
+        gork_reasoning=doc.gork_reasoning,
         agent_condition=condition,
     )
 
@@ -58,7 +58,7 @@ async def get_calibration_cards(db: AsyncSession = Depends(get_db)) -> list[Card
     result = await db.execute(
         select(DocumentLibrary)
         .where(DocumentLibrary.phase == 1)
-        .where(DocumentLibrary.sovereign_verdict.is_(None))
+        .where(DocumentLibrary.gork_verdict.is_(None))
         .limit(10)
     )
     docs = list(result.scalars().all())
@@ -95,7 +95,7 @@ async def get_phase_cards(
     result = await db.execute(
         select(DocumentLibrary)
         .where(DocumentLibrary.phase == phase)
-        .where(DocumentLibrary.sovereign_verdict.isnot(None))
+        .where(DocumentLibrary.gork_verdict.isnot(None))
     )
     docs = list(result.scalars().all())
     if not docs:

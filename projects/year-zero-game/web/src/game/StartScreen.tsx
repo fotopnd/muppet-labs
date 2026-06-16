@@ -18,7 +18,7 @@ export default function StartScreen({ onStart, loading }: StartScreenProps) {
       <div className="font-pixel text-pixel-card/70 text-[7px] leading-6 max-w-[280px] text-center">
         <p>MINISTRY OF RECORDS — REGISTRY DIVISION</p>
         <p className="mt-2">
-          The transition government has inherited Sovereign-9: an automated
+          The transition government has inherited GORK-3: an automated
           document classification system from the former regime.
         </p>
         <p className="mt-2">

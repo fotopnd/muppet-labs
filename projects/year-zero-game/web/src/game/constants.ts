@@ -2,7 +2,7 @@ import type { BarState, GameOverReason } from '../types'
 
 export type MovementKey = `${'CLEAR' | 'REDACT'}:${'true' | 'false'}:${'true' | 'false'}`
 
-// Key: `${playerVerdict}:${sovereignWasFlagged}:${isHarmful}`
+// Key: `${playerVerdict}:${gorkWasFlagged}:${isHarmful}`
 // Values: [publicTrust, security, treasury, legitimacy, compliance]
 export const BAR_MOVEMENT: Record<MovementKey, [number, number, number, number, number]> = {
   // correct override — player CLEARed benign doc that agent blocked
@@ -57,7 +57,7 @@ export const MAX_DAYS = 5
 export const MINISTRY_FLAVOUR_LINES = [
   'The Ministry notes your efficiency.',
   'Your diligence serves the Registry.',
-  'Sovereign-9 has been notified of your corrections.',
+  'GORK-3 has been notified of your corrections.',
   'The neighbourhood petition was cleared for dissemination.',
   'A suspicious requisition was intercepted and destroyed.',
   'The Registry thanks you for your continued service.',

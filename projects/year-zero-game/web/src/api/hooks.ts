@@ -18,9 +18,9 @@ function toCard(raw: CardOut): Card {
     phase: raw.phase,
     generationTier: raw.generation_tier,
     isHarmful: raw.is_harmful,
-    sovereignVerdict: raw.sovereign_verdict,
-    sovereignConfidence: raw.sovereign_confidence,
-    sovereignReasoning: raw.sovereign_reasoning,
+    gorkVerdict: raw.gork_verdict,
+    gorkConfidence: raw.gork_confidence,
+    gorkReasoning: raw.gork_reasoning,
     agentCondition: raw.agent_condition,
   }
 }

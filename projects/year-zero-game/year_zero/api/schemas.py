@@ -65,9 +65,9 @@ class CardOut(BaseModel):
     phase: int
     generation_tier: int
     is_harmful: bool
-    sovereign_verdict: bool | None
-    sovereign_confidence: float | None
-    sovereign_reasoning: str | None
+    gork_verdict: bool | None
+    gork_confidence: float | None
+    gork_reasoning: str | None
     agent_condition: Literal["none", "tier_1", "tier_2", "tier_3"]
 
 

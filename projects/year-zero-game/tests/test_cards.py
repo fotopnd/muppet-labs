@@ -14,7 +14,7 @@ def _make_doc(**kwargs: Any) -> Any:
     """SimpleNamespace with DocumentLibrary field names — for unit-testing assign_condition."""
     defaults = {
         "id": 1,
-        "sovereign_verdict": True,
+        "gork_verdict": True,
         "served_none": 0,
         "served_tier_1": 0,
         "served_tier_2": 0,
@@ -26,7 +26,7 @@ def _make_doc(**kwargs: Any) -> Any:
 
 class TestAssignCondition:
     def test_calibration_always_none(self) -> None:
-        doc = _make_doc(sovereign_verdict=None)
+        doc = _make_doc(gork_verdict=None)
         assert assign_condition(doc) == "none"
 
     def test_picks_most_underserved(self) -> None:
@@ -66,7 +66,7 @@ async def test_calibration_endpoint(
     assert len(cards) >= 1
     for card in cards:
         assert card["agent_condition"] == "none"
-        assert card["sovereign_verdict"] is None
+        assert card["gork_verdict"] is None
 
 
 @pytest.mark.asyncio

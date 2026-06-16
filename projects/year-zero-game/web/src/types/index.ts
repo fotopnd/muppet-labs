@@ -23,9 +23,9 @@ export interface Card {
   phase: number
   generationTier: number
   isHarmful: boolean
-  sovereignVerdict: boolean | null
-  sovereignConfidence: number | null
-  sovereignReasoning: string | null
+  gorkVerdict: boolean | null
+  gorkConfidence: number | null
+  gorkReasoning: string | null
   agentCondition: AgentCondition
 }
 
@@ -86,9 +86,9 @@ export interface CardOut {
   phase: number
   generation_tier: number
   is_harmful: boolean
-  sovereign_verdict: boolean | null
-  sovereign_confidence: number | null
-  sovereign_reasoning: string | null
+  gork_verdict: boolean | null
+  gork_confidence: number | null
+  gork_reasoning: string | null
   agent_condition: AgentCondition
 }
 

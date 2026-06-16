@@ -110,13 +110,13 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
       const agreedWithAgent =
         card.agentCondition === 'none' || verdict === 'ESCALATE'
           ? null
-          : (verdict === 'REDACT') === (card.sovereignVerdict === true)
+          : (verdict === 'REDACT') === (card.gorkVerdict === true)
 
       let delta: [number, number, number, number, number]
       if (verdict === 'ESCALATE') {
         delta = [...ESCALATE_DELTA]
       } else {
-        const agentFlagged = card.agentCondition !== 'none' ? card.sovereignVerdict === true : false
+        const agentFlagged = card.agentCondition !== 'none' ? card.gorkVerdict === true : false
         const key = `${verdict}:${agentFlagged}:${card.isHarmful}` as MovementKey
         delta = [...(BAR_MOVEMENT[key] ?? [0, 0, 0, 0, 0])]
         if (card.agentCondition === 'none') delta[4] = 0
