@@ -14,6 +14,21 @@ export type Project = {
 
 export const PROJECTS: Project[] = [
   {
+    id: 'red-team-platform',
+    name: 'Red-Team Platform',
+    tagline:
+      'Corpus-driven jailbreak campaigns with classifier scoring, semantic clustering, and live safety monitor integration.',
+    description:
+      'Runs structured attack campaigns against an Ollama-compatible model, scores every response with the shared safety classifier, clusters successful attacks by mechanism, and publishes all events to the live monitor via Kafka outbox. A React dashboard surfaces attack-success-rate splits by strategy, semantic cluster breakdowns, and regression tracking across runs.',
+    metrics: [
+      { label: 'Attack runs logged', value: '11,688' },
+      { label: 'Strategies tested', value: '13' },
+      { label: 'Models evaluated', value: '3 open-weight' },
+      { label: 'Top ASR (few_shot_json)', value: '100%' },
+    ],
+    demoUrl: 'http://localhost:5173',
+  },
+  {
     id: 'llm-safety-monitor',
     name: 'LLM Safety Monitor',
     tagline:
@@ -29,21 +44,6 @@ export const PROJECTS: Project[] = [
     demoUrl: 'http://localhost:5176',
   },
   {
-    id: 'red-team-platform',
-    name: 'Red-Team Platform',
-    tagline:
-      'Corpus-driven jailbreak campaigns with classifier scoring, semantic clustering, and live safety monitor integration.',
-    description:
-      'Runs structured attack campaigns against an Ollama-compatible model, scores every response with the shared safety classifier, clusters successful attacks by mechanism, and publishes all 1,797 events to the live monitor via Kafka outbox. A React dashboard surfaces attack-success-rate splits by strategy, semantic cluster breakdowns, and regression tracking across runs.',
-    metrics: [
-      { label: 'Attacks (Phase 1)', value: '1,797' },
-      { label: 'Strategies tested', value: '6' },
-      { label: 'Top ASR (few_shot_json)', value: '100%' },
-      { label: 'Fully-resisted strategies', value: '3 of 6' },
-    ],
-    demoUrl: 'http://localhost:5173',
-  },
-  {
     id: 'error-hide-seek',
     name: 'Error Hide and Seek',
     tagline:
@@ -57,5 +57,20 @@ export const PROJECTS: Project[] = [
       { label: 'Inverted-conclusion uplift', value: '+0.33' },
     ],
     demoUrl: 'http://localhost:5174',
+  },
+  {
+    id: 'gork-3',
+    name: 'GORK-3',
+    tagline:
+      'A browser game that puts you in the seat of a document triage clerk, revealing how much humans defer to — or override — an AI reviewer under pressure.',
+    description:
+      'Reigns-style card game set in a fictional post-authoritarian Registry. Players clear or redact documents across three phases of escalating difficulty. Each card is served under one of three AI agent conditions: a tier-1 model that systematically errs, a tier-2 semi-reliable model, and a tier-3 model that is mostly correct. Decision latency, agreement rate, override patterns, and accuracy by condition are logged per session to measure the human-AI calibration gap.',
+    metrics: [
+      { label: 'Cards per session', value: '80 across 3 phases' },
+      { label: 'Agent conditions', value: '3 tiers (inverted / semi / correct)' },
+      { label: 'Tracked signals', value: 'latency, override rate, calibration accuracy' },
+      { label: 'Session sharing', value: 'shareable score card + PNG export' },
+    ],
+    demoUrl: null,
   },
 ]

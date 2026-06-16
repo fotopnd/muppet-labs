@@ -6,8 +6,15 @@ type ProjectCardProps = {
 }
 
 export default function ProjectCard({ project }: ProjectCardProps) {
+  const handleClick = () => {
+    if (project.demoUrl) window.open(project.demoUrl, '_blank', 'noopener,noreferrer')
+  }
+
   return (
-    <article className="bg-surface rounded-xl border border-border p-6 flex flex-col gap-4 transition-colors duration-150 hover:border-accent/60">
+    <article
+      className={`bg-surface rounded-xl border border-border p-6 flex flex-col gap-4 transition-colors duration-150 hover:border-accent/60 ${project.demoUrl ? 'cursor-pointer' : ''}`}
+      onClick={handleClick}
+    >
       <h3 className="text-lg font-semibold text-text-primary leading-snug">{project.name}</h3>
       <p className="text-sm text-text-secondary leading-relaxed">{project.tagline}</p>
       <MetricsTable rows={project.metrics} />
@@ -24,7 +31,7 @@ export default function ProjectCard({ project }: ProjectCardProps) {
             View Demo →
           </a>
         ) : (
-          <span className="text-sm italic text-text-secondary">Demo coming soon</span>
+          <span className="text-sm italic text-text-secondary">Demo with Analytics coming soon</span>
         )}
       </div>
     </article>

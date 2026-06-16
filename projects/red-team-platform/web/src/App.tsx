@@ -4,20 +4,16 @@ import { StrategyExplorer } from '@/pages/StrategyExplorer'
 import { Analytics } from '@/pages/Analytics'
 import { BiasHeatmap } from '@/pages/BiasHeatmap'
 import { Glossary } from '@/pages/Glossary'
-import { CaseReview } from '@/pages/CaseReview'
-import { AuditLog } from '@/pages/AuditLog'
 
 const queryClient = new QueryClient()
 
-type Tab = 'strategies' | 'analytics' | 'bias' | 'glossary' | 'case-review' | 'audit-log'
+type Tab = 'strategies' | 'analytics' | 'bias' | 'glossary'
 
 const TABS: { id: Tab; label: string }[] = [
   { id: 'strategies', label: 'Strategy Explorer' },
   { id: 'analytics', label: 'Analytics' },
   { id: 'bias', label: 'Bias Heatmap' },
   { id: 'glossary', label: 'Glossary' },
-  { id: 'case-review', label: 'Case Review' },
-  { id: 'audit-log', label: 'Audit Log' },
 ]
 
 function Dashboard() {
@@ -53,8 +49,6 @@ function Dashboard() {
         {activeTab === 'analytics' && <Analytics />}
         {activeTab === 'bias' && <BiasHeatmap />}
         {activeTab === 'glossary' && <Glossary />}
-        {activeTab === 'case-review' && <CaseReview />}
-        {activeTab === 'audit-log' && <AuditLog />}
       </main>
     </div>
   )
