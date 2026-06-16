@@ -52,8 +52,7 @@ export const INITIAL_BARS: BarState = {
 
 export const DANGER_ZONE_DISTANCE = 15
 export const CARDS_PER_DAY = 10
-export const UPGRADE_CORRECT_THRESHOLD = 8
-export const UPGRADE_ACCURACY_THRESHOLD = { accuracy: 0.85, minDecisions: 20 }
+export const MAX_DAYS = 5
 
 export const MINISTRY_FLAVOUR_LINES = [
   'The Ministry notes your efficiency.',
@@ -79,6 +78,8 @@ export const GAME_OVER_NARRATIVES: Record<GameOverReason, string> = {
     'The international community has withdrawn recognition. The new government is accused of reprising the old regime\'s censorship.',
   COMPLIANCE_MAX:
     "Your decisions have become indistinguishable from the machine's. The Registry is a rubber stamp.",
+  DAYS_COMPLETE:
+    'Five days. The intake period closes. The transition government reviews your record.',
 }
 
 export const SECTOR_LABELS = ['1A', '2B', '3C', '4D', '5E', '6F', '7G', '8H', '9J', '10K'] as const

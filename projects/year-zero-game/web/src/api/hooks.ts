@@ -47,14 +47,11 @@ export function useCalibrationCards(options: { enabled: boolean }) {
   })
 }
 
-export function usePhaseCards(phase: 1 | 2 | 3, options: { enabled: boolean; gameDay: number; categoryTiers?: Record<string, number> }) {
+export function usePhaseCards(phase: 1 | 2 | 3, options: { enabled: boolean; gameDay: number }) {
   return useQuery({
-    queryKey: ['cards', 'phase', phase, options.gameDay, options.categoryTiers],
+    queryKey: ['cards', 'phase', phase, options.gameDay],
     queryFn: async () => {
-      const params = options.categoryTiers
-        ? `?category_tiers=${encodeURIComponent(JSON.stringify(options.categoryTiers))}`
-        : ''
-      const raw = await apiFetch<CardOut[]>(`/cards/phase/${phase}${params}`)
+      const raw = await apiFetch<CardOut[]>(`/cards/phase/${phase}`)
       return raw.map(toCard)
     },
     enabled: options.enabled,
@@ -142,7 +139,6 @@ export function usePatchSession() {
           },
           calibration_accuracy: p.calibrationAccuracy,
           calibration_decisions: p.calibrationDecisions,
-          category_tiers: p.categoryTiers,
           total_escalated: p.totalEscalated,
         }),
       }),

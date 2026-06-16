@@ -6,6 +6,7 @@ export type GameOverReason =
   | 'TREASURY_ZERO'
   | 'LEGITIMACY_ZERO'
   | 'COMPLIANCE_MAX'
+  | 'DAYS_COMPLETE'
 
 export interface BarState {
   publicTrust: number
@@ -42,11 +43,6 @@ export interface PendingDecision {
   isCalibration: boolean
 }
 
-export interface CategoryAccuracy {
-  correct: number
-  total: number
-}
-
 export type GamePhase =
   | 'start'
   | 'lore'
@@ -67,9 +63,6 @@ export interface GameState {
   bars: BarState
   activePhase: 1 | 2 | 3
   gameOverReason: GameOverReason | null
-  categoryTiers: Record<string, 1 | 2 | 3>
-  categoryAccuracy: Record<string, CategoryAccuracy>
-  upgradePending: string | null
   dayCorrect: number
   dayEscalated: number
   totalDecisions: number
@@ -83,7 +76,6 @@ export type GameAction =
   | { type: 'SWIPE'; verdict: Verdict }
   | { type: 'DAY_ACKNOWLEDGED' }
   | { type: 'PHASE_CARDS_LOADED'; cards: Card[] }
-  | { type: 'UPGRADE_ACKNOWLEDGED'; category: string }
   | { type: 'RESET' }
 
 // API response shapes (snake_case from backend)

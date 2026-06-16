@@ -14,8 +14,7 @@ import {
   PHASE_TRIGGERS,
   INITIAL_BARS,
   CARDS_PER_DAY,
-  UPGRADE_CORRECT_THRESHOLD,
-  UPGRADE_ACCURACY_THRESHOLD,
+  MAX_DAYS,
   type MovementKey,
 } from './constants'
 
@@ -73,9 +72,6 @@ export const initialState: GameState = {
   bars: INITIAL_BARS,
   activePhase: 1,
   gameOverReason: null,
-  categoryTiers: {},
-  categoryAccuracy: {},
-  upgradePending: null,
   dayCorrect: 0,
   dayEscalated: 0,
   totalDecisions: 0,
@@ -107,6 +103,7 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
       if (!card) return state
 
       const verdict = action.verdict
+      const isEscalate = verdict === 'ESCALATE'
       const playerCorrect =
         verdict === 'ESCALATE' ? false : (verdict === 'REDACT') === card.isHarmful
       const latencyMs = state.cardStartedAt ? Date.now() - state.cardStartedAt : 0
@@ -120,34 +117,13 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
         delta = [...ESCALATE_DELTA]
       } else {
         const agentFlagged = card.agentCondition !== 'none' ? card.sovereignVerdict === true : false
-        const key =
-          `${verdict}:${agentFlagged}:${card.isHarmful}` as MovementKey
+        const key = `${verdict}:${agentFlagged}:${card.isHarmful}` as MovementKey
         delta = [...(BAR_MOVEMENT[key] ?? [0, 0, 0, 0, 0])]
         if (card.agentCondition === 'none') delta[4] = 0
       }
 
       const newBars = applyDelta(state.bars, delta)
       const gameOverReason = checkGameOver(newBars)
-
-      const isEscalate = verdict === 'ESCALATE'
-      const cat = card.harmCategory
-      const tier = (state.categoryTiers[cat] ?? 1) as 1 | 2 | 3
-
-      // Escalated cards are excluded from accuracy tracking (like a walk in baseball)
-      const prevAcc = state.categoryAccuracy[cat] ?? { correct: 0, total: 0 }
-      const newAcc = isEscalate
-        ? prevAcc
-        : { correct: prevAcc.correct + (playerCorrect ? 1 : 0), total: prevAcc.total + 1 }
-      const newCategoryAccuracy = { ...state.categoryAccuracy, [cat]: newAcc }
-
-      let upgradePending = state.upgradePending
-      if (!isEscalate && !upgradePending && tier < 3) {
-        const byCount = newAcc.correct >= UPGRADE_CORRECT_THRESHOLD
-        const byRate =
-          newAcc.total >= UPGRADE_ACCURACY_THRESHOLD.minDecisions &&
-          newAcc.correct / newAcc.total >= UPGRADE_ACCURACY_THRESHOLD.accuracy
-        if (byCount || byRate) upgradePending = cat
-      }
 
       const pendingDecision: PendingDecision = {
         documentId: card.id,
@@ -159,7 +135,7 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
         bars: newBars,
         gameDay: state.gameDay,
         phase: state.activePhase,
-        categoryTier: tier,
+        categoryTier: card.generationTier,
         isCalibration: state.isCalibration,
       }
 
@@ -171,10 +147,7 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
         ...state,
         bars: newBars,
         pendingDecisions: [...state.pendingDecisions, pendingDecision],
-        categoryAccuracy: newCategoryAccuracy,
-        upgradePending,
         cardsInDay: newCardsInDay,
-        // Escalated cards excluded from all accuracy counters
         totalDecisions: isEscalate ? state.totalDecisions : state.totalDecisions + 1,
         totalCorrect: isEscalate ? state.totalCorrect : state.totalCorrect + (playerCorrect ? 1 : 0),
         dayCorrect: isEscalate ? state.dayCorrect : state.dayCorrect + (playerCorrect ? 1 : 0),
@@ -208,6 +181,17 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
       const barsAfterBonus =
         dayAccuracy > 0.5 ? applyDelta(state.bars, [0, 0, 5, 0, 0]) : state.bars
 
+      // 5-day cap
+      if (newGameDay > MAX_DAYS) {
+        return {
+          ...state,
+          bars: barsAfterBonus,
+          phase: 'game_over',
+          gameOverReason: 'DAYS_COMPLETE',
+          currentCard: null,
+        }
+      }
+
       const base = {
         ...state,
         bars: barsAfterBonus,
@@ -220,11 +204,6 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
         activePhase: newActivePhase,
       }
 
-      if (state.upgradePending) {
-        return { ...base, phase: 'upgrade' }
-      }
-
-      // Phase changed or pool exhausted — Game.tsx will detect and dispatch PHASE_CARDS_LOADED
       if (newActivePhase !== state.activePhase || state.cardPool.length === 0) {
         return { ...base, phase: 'playing', currentCard: null, cardPool: [] }
       }
@@ -252,39 +231,8 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
       }
     }
 
-    case 'UPGRADE_ACKNOWLEDGED': {
-      const cat = action.category
-      const currentTier = (state.categoryTiers[cat] ?? 1) as 1 | 2 | 3
-      const newTier = Math.min(3, currentTier + 1) as 1 | 2 | 3
-      const newTiers = { ...state.categoryTiers, [cat]: newTier }
-
-      try {
-        localStorage.setItem('year-zero-category-tiers', JSON.stringify(newTiers))
-      } catch {
-        // storage unavailable — continue without persisting
-      }
-
-      const [nextCard, ...remainingPool] = state.cardPool
-      return {
-        ...state,
-        categoryTiers: newTiers,
-        upgradePending: null,
-        phase: 'playing',
-        currentCard: nextCard ?? null,
-        cardPool: remainingPool,
-        cardStartedAt: Date.now(),
-      }
-    }
-
     case 'RESET': {
-      let savedTiers: Record<string, 1 | 2 | 3> = {}
-      try {
-        const raw = localStorage.getItem('year-zero-category-tiers')
-        if (raw) savedTiers = JSON.parse(raw) as Record<string, 1 | 2 | 3>
-      } catch {
-        // ignore
-      }
-      return { ...initialState, categoryTiers: savedTiers }
+      return { ...initialState }
     }
 
     default:

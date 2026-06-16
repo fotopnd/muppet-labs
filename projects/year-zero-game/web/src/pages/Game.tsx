@@ -4,7 +4,6 @@ import { useCreateSession, useCalibrationCards, usePhaseCards, useBatchDecisions
 import StatusBar from '../game/StatusBar'
 import DocumentCard from '../game/DocumentCard'
 import DayScreen from '../game/DayScreen'
-import UpgradeScreen from '../game/UpgradeScreen'
 import GameOver from '../game/GameOver'
 import StartScreen from '../game/StartScreen'
 import LorePage from '../game/LorePage'
@@ -16,7 +15,6 @@ export default function Game() {
   const batchDecisions = useBatchDecisions()
   const patchSession = usePatchSession()
 
-  // Set to true when user clicks "Begin Intake" — gates session creation
   const userReady = useRef(false)
 
   const handleBeginIntake = useCallback(() => {
@@ -27,10 +25,8 @@ export default function Game() {
 
   const sessionId = createSession.data?.session_id ?? null
 
-  // Fetch calibration cards when session is ready
   const { data: calibCards } = useCalibrationCards({ enabled: !!sessionId })
 
-  // Start session when both session and calibration cards are ready
   const gameStarted = useRef(false)
   useEffect(() => {
     if (gameStarted.current) return
@@ -39,7 +35,6 @@ export default function Game() {
     dispatch({ type: 'START_SESSION', sessionId, calibrationCards: calibCards })
   }, [sessionId, calibCards, state.phase, dispatch])
 
-  // Fetch phase cards when pool is empty and we're playing non-calibration
   const needsPhaseCards =
     !state.isCalibration &&
     state.cardPool.length === 0 &&
@@ -49,7 +44,6 @@ export default function Game() {
   const { data: phaseCards } = usePhaseCards(state.activePhase, {
     enabled: needsPhaseCards,
     gameDay: state.gameDay,
-    categoryTiers: state.categoryTiers,
   })
 
   const phaseCardsDispatched = useRef<number | null>(null)
@@ -60,7 +54,6 @@ export default function Game() {
     dispatch({ type: 'PHASE_CARDS_LOADED', cards: phaseCards })
   }, [phaseCards, needsPhaseCards, state.gameDay, dispatch])
 
-  // Batch submit when day ends
   const batchSubmitted = useRef<number | null>(null)
   useEffect(() => {
     if (state.phase !== 'day_end') return
@@ -74,7 +67,6 @@ export default function Game() {
     })
   }, [state.phase, state.gameDay, sessionId, state.pendingDecisions, batchDecisions])
 
-  // Patch session on game over
   const patchSubmitted = useRef(false)
   useEffect(() => {
     if (state.phase !== 'game_over') return
@@ -95,7 +87,6 @@ export default function Game() {
       phaseReached: state.activePhase,
       gameOverCondition: state.gameOverReason ?? 'UNKNOWN',
       finalBars: state.bars,
-      categoryTiers: state.categoryTiers,
       calibrationAccuracy: calibDecisions > 0 ? calibCorrect / calibDecisions : 0,
       calibrationDecisions: calibDecisions,
       totalAgreements: agreements,
@@ -112,12 +103,6 @@ export default function Game() {
     dispatch({ type: 'DAY_ACKNOWLEDGED' })
   }, [dispatch])
 
-  const handleUpgradeAck = useCallback(() => {
-    if (state.upgradePending) {
-      dispatch({ type: 'UPGRADE_ACKNOWLEDGED', category: state.upgradePending })
-    }
-  }, [dispatch, state.upgradePending])
-
   const handleReturn = useCallback(() => {
     userReady.current = false
     gameStarted.current = false
@@ -128,16 +113,11 @@ export default function Game() {
     dispatch({ type: 'RESET' })
   }, [dispatch, createSession])
 
-  const upgradeNewTier = state.upgradePending
-    ? (Math.min(3, (state.categoryTiers[state.upgradePending] ?? 1) + 1) as 1 | 2 | 3)
-    : 2
-
   const totalDecisions = state.totalDecisions
   const accuracy = totalDecisions > 0 ? state.totalCorrect / totalDecisions : 0
 
   return (
     <div className="w-full min-h-svh bg-pixel-room flex flex-col">
-      {/* Overlays (highest z) */}
       {state.phase === 'start' && <StartScreen onStart={handleBeginIntake} loading={createSession.isPending} />}
       {state.phase === 'lore' && <LorePage onContinue={() => dispatch({ type: 'DAY_ACKNOWLEDGED' })} />}
       {state.phase === 'day_end' && (
@@ -147,13 +127,6 @@ export default function Game() {
           totalDecisions={totalDecisions}
           totalCorrect={state.totalCorrect}
           onContinue={handleDayContinue}
-        />
-      )}
-      {state.phase === 'upgrade' && state.upgradePending && (
-        <UpgradeScreen
-          category={state.upgradePending}
-          newTier={upgradeNewTier}
-          onAcknowledge={handleUpgradeAck}
         />
       )}
       {state.phase === 'game_over' && state.gameOverReason && (
@@ -166,10 +139,8 @@ export default function Game() {
         />
       )}
 
-      {/* Status bar */}
       <StatusBar bars={state.bars} />
 
-      {/* Desk zone */}
       <div className="flex-1 flex flex-col items-center justify-center pt-12">
         <div
           className="w-full flex flex-col items-center justify-center py-12 rounded-sm"
@@ -197,11 +168,10 @@ export default function Game() {
         </div>
       </div>
 
-      {/* Day counter */}
       {state.phase === 'playing' && (
         <div className="text-center pb-4">
           <span className="font-pixel text-pixel-card/40 text-[7px]">
-            DAY {state.gameDay} — {state.cardsInDay}/10
+            DAY {state.gameDay} / {5} — {state.cardsInDay}/10
           </span>
         </div>
       )}
