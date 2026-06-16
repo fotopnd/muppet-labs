@@ -72,8 +72,10 @@ export interface GameState {
   categoryAccuracy: Record<string, CategoryAccuracy>
   upgradePending: string | null
   dayCorrect: number
+  dayEscalated: number
   totalDecisions: number
   totalCorrect: number
+  totalEscalated: number
   isCalibration: boolean
 }
 

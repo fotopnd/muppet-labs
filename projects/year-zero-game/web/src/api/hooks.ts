@@ -118,6 +118,7 @@ interface PatchSessionPayload {
   calibrationDecisions: number
   totalAgreements: number
   totalOverrides: number
+  totalEscalated: number
 }
 
 export function usePatchSession() {
@@ -142,6 +143,7 @@ export function usePatchSession() {
           calibration_accuracy: p.calibrationAccuracy,
           calibration_decisions: p.calibrationDecisions,
           category_tiers: p.categoryTiers,
+          total_escalated: p.totalEscalated,
         }),
       }),
   })

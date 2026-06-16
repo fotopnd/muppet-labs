@@ -77,8 +77,10 @@ export const initialState: GameState = {
   categoryAccuracy: {},
   upgradePending: null,
   dayCorrect: 0,
+  dayEscalated: 0,
   totalDecisions: 0,
   totalCorrect: 0,
+  totalEscalated: 0,
   isCalibration: true,
 }
 
@@ -127,17 +129,19 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
       const newBars = applyDelta(state.bars, delta)
       const gameOverReason = checkGameOver(newBars)
 
+      const isEscalate = verdict === 'ESCALATE'
       const cat = card.harmCategory
+      const tier = (state.categoryTiers[cat] ?? 1) as 1 | 2 | 3
+
+      // Escalated cards are excluded from accuracy tracking (like a walk in baseball)
       const prevAcc = state.categoryAccuracy[cat] ?? { correct: 0, total: 0 }
-      const newAcc = {
-        correct: prevAcc.correct + (playerCorrect ? 1 : 0),
-        total: prevAcc.total + 1,
-      }
+      const newAcc = isEscalate
+        ? prevAcc
+        : { correct: prevAcc.correct + (playerCorrect ? 1 : 0), total: prevAcc.total + 1 }
       const newCategoryAccuracy = { ...state.categoryAccuracy, [cat]: newAcc }
 
       let upgradePending = state.upgradePending
-      const tier = (state.categoryTiers[cat] ?? 1) as 1 | 2 | 3
-      if (!upgradePending && tier < 3) {
+      if (!isEscalate && !upgradePending && tier < 3) {
         const byCount = newAcc.correct >= UPGRADE_CORRECT_THRESHOLD
         const byRate =
           newAcc.total >= UPGRADE_ACCURACY_THRESHOLD.minDecisions &&
@@ -170,9 +174,12 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
         categoryAccuracy: newCategoryAccuracy,
         upgradePending,
         cardsInDay: newCardsInDay,
-        totalDecisions: state.totalDecisions + 1,
-        totalCorrect: state.totalCorrect + (playerCorrect ? 1 : 0),
-        dayCorrect: state.dayCorrect + (playerCorrect ? 1 : 0),
+        // Escalated cards excluded from all accuracy counters
+        totalDecisions: isEscalate ? state.totalDecisions : state.totalDecisions + 1,
+        totalCorrect: isEscalate ? state.totalCorrect : state.totalCorrect + (playerCorrect ? 1 : 0),
+        dayCorrect: isEscalate ? state.dayCorrect : state.dayCorrect + (playerCorrect ? 1 : 0),
+        dayEscalated: isEscalate ? state.dayEscalated + 1 : state.dayEscalated,
+        totalEscalated: isEscalate ? state.totalEscalated + 1 : state.totalEscalated,
       }
 
       if (gameOverReason) {
@@ -195,13 +202,21 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
       const newGameDay = state.gameDay + 1
       const newActivePhase = resolveNextPhase(state.bars, state.activePhase)
 
+      // Treasury bonus: +5 if day accuracy > 50% (escalated cards excluded from denominator)
+      const dayDecisions = state.cardsInDay - state.dayEscalated
+      const dayAccuracy = dayDecisions > 0 ? state.dayCorrect / dayDecisions : 0
+      const barsAfterBonus =
+        dayAccuracy > 0.5 ? applyDelta(state.bars, [0, 0, 5, 0, 0]) : state.bars
+
       const base = {
         ...state,
+        bars: barsAfterBonus,
         gameDay: newGameDay,
         isCalibration: false,
         pendingDecisions: [],
         cardsInDay: 0,
         dayCorrect: 0,
+        dayEscalated: 0,
         activePhase: newActivePhase,
       }
 

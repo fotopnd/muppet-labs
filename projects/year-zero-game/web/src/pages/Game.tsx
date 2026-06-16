@@ -100,6 +100,7 @@ export default function Game() {
       calibrationDecisions: calibDecisions,
       totalAgreements: agreements,
       totalOverrides: overrides,
+      totalEscalated: state.totalEscalated,
     })
   }, [state.phase, sessionId]) // eslint-disable-line react-hooks/exhaustive-deps
 

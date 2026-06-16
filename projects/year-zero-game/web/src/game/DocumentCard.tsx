@@ -163,12 +163,22 @@ export default function DocumentCard({ card, onVerdictCommit, disabled }: Docume
                 : undefined,
           }}
         >
-          <span
-            className="font-pixel text-[14px] border-4 px-3 py-1"
-            style={{ color: stampColor, borderColor: stampColor, opacity: 0.9 }}
-          >
-            {pendingVerdict}
-          </span>
+          {pendingVerdict === 'ESCALATE' ? (
+            <div
+              className="font-pixel border-4 px-3 py-2 text-center"
+              style={{ color: stampColor, borderColor: stampColor, opacity: 0.9 }}
+            >
+              <div className="text-[11px]">FORWARDED</div>
+              <div className="text-[7px] mt-1">FOR REVIEW</div>
+            </div>
+          ) : (
+            <span
+              className="font-pixel text-[14px] border-4 px-3 py-1"
+              style={{ color: stampColor, borderColor: stampColor, opacity: 0.9 }}
+            >
+              {pendingVerdict}
+            </span>
+          )}
         </div>
       )}
     </div>
