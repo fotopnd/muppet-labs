@@ -51,6 +51,41 @@ Each role has a single job. Roles are reusable — the same role can appear in m
 
 ---
 
+**Diagram roles** — for producing architecture and data-flow diagrams:
+
+| Role | Folder | Job |
+|------|--------|-----|
+| **diagram-brief** | `roles/diagram-brief/` | Diagram intake: lock in scope, Must Show list, audience tier, and diagram type before any drawing begins. |
+| **diagram-author** | `roles/diagram-author/` | Produce and embed the diagram in the target document from the diagram-brief spec. |
+| **diagram-reviewer** | `roles/diagram-reviewer/` | Verify diagram correctness, legibility, and audience fit. Edit in-place. Verdict: READY or REWORK NEEDED. |
+
+---
+
+**ML roles** — for training and evaluating models:
+
+| Role | Folder | Job |
+|------|--------|-----|
+| **model-trainer** | `roles/model-trainer/` | Run a fine-tuning job, log metrics, write the training summary. Reads dataset path and config from invocation inputs. |
+
+---
+
+**Ops roles** — for managing expensive jobs and monitoring:
+
+| Role | Folder | Job |
+|------|--------|-----|
+| **preflight** | `roles/preflight/` | Validate cost, time, and platform before launching any API or GPU job. Mandatory for jobs >$1 or >1h. |
+| **monitor** | `roles/monitor/` | Progress and cost snapshot for a running background job. Read-only; can be invoked multiple times. |
+
+---
+
+**Project-scoped roles** — live inside their project directory, not here:
+
+| Project | Roles folder | Roles |
+|---------|-------------|-------|
+| year-zero-game | `projects/year-zero-game/roles/` | `simulator`, `reviewer`, `optimiser` — GORK-3 balance ICM loop |
+
+---
+
 ## Resources Directory
 
 Shared knowledge files in `resources/`. Any role can load any of these. Load only what is relevant.

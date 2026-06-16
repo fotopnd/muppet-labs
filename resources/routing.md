@@ -280,6 +280,28 @@ sequence (if any) to start.
 
 ---
 
+## Sequence: `gork3-balance`
+
+**Objective:** Balance-test GORK-3 game constants through simulation → review → optimisation → repeat.
+**Use when:** Changing game constants (BAR_MOVEMENT, INITIAL_BARS, ESCALATE_DELTA) or seed library. Run the loop until reviewer returns PASS on all health criteria.
+**Review gate:** After reviewer — human approves constant changes before optimiser applies them. After optimiser — human approves before next simulator run.
+**Project path:** `projects/year-zero-game/`
+
+| Step | Role | Reads | Resources | Skills | Output |
+|------|------|-------|-----------|--------|--------|
+| 1 | `simulator` | `projects/year-zero-game/web/src/game/constants.ts`, `projects/year-zero-game/scripts/balance_sim.py` | — | — | `projects/year-zero-game/roles/simulator/output/output.md` |
+| 2 | `reviewer` | `projects/year-zero-game/roles/simulator/output/output.md`, `scripts/sim_results.db` | — | — | `projects/year-zero-game/roles/reviewer/output/output.md` |
+| 3 | `optimiser` *(only if reviewer returns ADJUST)* | `projects/year-zero-game/roles/reviewer/output/output.md` | — | — | `projects/year-zero-game/roles/optimiser/output/output.md` |
+| 4 | Loop back to step 1 | — | — | — | — |
+
+> **Loop exit:** When reviewer returns PASS on all health criteria (oracle >95%, human_expert >80%, human_casual 15–25% complete, random <15%, peak death day 3, no single death cause >40%), the sequence is complete.
+> **Optimiser constraints:** NEVER change `GAME_OVER_THRESHOLDS`, `PHASE_TRIGGERS`, `CARDS_PER_DAY`, or `MAX_DAYS`. Changes to `BAR_MOVEMENT` and `INITIAL_BARS` require human sign-off if any bar moves by more than ±10 in a single session.
+> **Sync rule:** Any constant changed in `constants.ts` must be mirrored in `balance_sim.py` `SIM_CONSTANTS`. These must be in sync before the next simulator run.
+> **DB path:** `projects/year-zero-game/scripts/sim_results.db` — never touches production `game_sessions` or `player_decisions` tables.
+> **Role contracts:** `projects/year-zero-game/roles/simulator/CONTEXT.md`, `projects/year-zero-game/roles/reviewer/CONTEXT.md`, `projects/year-zero-game/roles/optimiser/CONTEXT.md`
+
+---
+
 ## Adding New Sequences
 
 Append a new section using this format:
