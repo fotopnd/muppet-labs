@@ -37,7 +37,7 @@ export default function StartScreen({ onStart, loading }: StartScreenProps) {
       </button>
 
       <p className="font-pixel text-pixel-card/30 text-[7px]">
-        SWIPE RIGHT TO CLEAR — SWIPE LEFT TO REDACT
+        → CLEAR &nbsp;·&nbsp; ← REDACT &nbsp;·&nbsp; ↑ ESCALATE
       </p>
     </div>
   )

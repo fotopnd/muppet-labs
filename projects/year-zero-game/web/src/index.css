@@ -12,8 +12,9 @@
   --color-pixel-card-text:    oklch(18% 0.02 45);
   --color-pixel-terminal-bg:  oklch(12% 0.04 145);
   --color-pixel-terminal:     oklch(72% 0.20 145);
-  --color-pixel-stamp-clear:  oklch(55% 0.18 145);
-  --color-pixel-stamp-redact: oklch(50% 0.18 20);
+  --color-pixel-stamp-clear:    oklch(55% 0.18 145);
+  --color-pixel-stamp-redact:  oklch(50% 0.18 20);
+  --color-pixel-stamp-escalate: oklch(70% 0.18 75);
 
   --color-bar-trust:      oklch(50% 0.10 250);
   --color-bar-security:   oklch(43% 0.12 20);
@@ -85,6 +86,10 @@ body {
 
 @keyframes card-exit-left {
   to { transform: translateX(-120%) rotate(-5deg); opacity: 0; }
+}
+
+@keyframes card-exit-up {
+  to { transform: translateY(-120%) rotate(0deg); opacity: 0; }
 }
 
 @keyframes slide-in-top {

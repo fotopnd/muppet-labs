@@ -186,6 +186,7 @@ export default function Game() {
               />
               <div className="flex justify-between w-[80vw] max-w-[340px] mt-3">
                 <span className="font-pixel text-pixel-room/60 text-[8px]">← REDACT</span>
+                <span className="font-pixel text-pixel-room/60 text-[8px]">↑ ESCALATE</span>
                 <span className="font-pixel text-pixel-room/60 text-[8px]">CLEAR →</span>
               </div>
             </>
