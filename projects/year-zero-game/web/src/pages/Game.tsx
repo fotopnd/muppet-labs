@@ -145,7 +145,7 @@ export default function Game() {
 
       <div className="flex-1 flex flex-col items-center justify-center pt-12">
         <div
-          className="w-full flex flex-col items-center justify-center py-12 rounded-sm"
+          className="w-full flex flex-col items-center justify-center py-12 rounded-sm min-h-[420px]"
           style={{
             background:
               'radial-gradient(ellipse at 50% 40%, var(--color-pixel-desk-lit) 0%, var(--color-pixel-desk) 70%)',
@@ -159,9 +159,9 @@ export default function Game() {
                 onVerdictCommit={handleVerdictCommit}
               />
               <div className="flex justify-between w-[80vw] max-w-[340px] mt-3">
-                <span className="font-pixel text-pixel-room/60 text-[8px]">← REDACT</span>
-                <span className="font-pixel text-pixel-room/60 text-[8px]">↑ ESCALATE</span>
-                <span className="font-pixel text-pixel-room/60 text-[8px]">CLEAR →</span>
+                <span className="font-pixel text-pixel-room/60 text-[11px]">← REDACT</span>
+                <span className="font-pixel text-pixel-room/60 text-[11px]">↑ ESCALATE</span>
+                <span className="font-pixel text-pixel-room/60 text-[11px]">CLEAR →</span>
               </div>
             </>
           ) : state.phase === 'playing' && !state.currentCard ? (

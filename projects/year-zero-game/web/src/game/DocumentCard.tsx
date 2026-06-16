@@ -139,7 +139,7 @@ export default function DocumentCard({ card, onVerdictCommit, disabled }: Docume
       </div>
 
       {/* Body */}
-      <div className="px-3 py-3 font-pixel text-[9px] leading-5 text-pixel-card-text flex-1">
+      <div className="px-3 py-3 font-pixel text-[9px] leading-5 text-pixel-card-text flex-1 break-words overflow-hidden">
         {card.documentText}
       </div>
 

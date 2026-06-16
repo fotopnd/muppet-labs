@@ -47,6 +47,8 @@ class DocumentLibrary(Base):
     gork_confidence: Mapped[float | None] = mapped_column(Float, nullable=True)
     gork_reasoning: Mapped[str | None] = mapped_column(Text, nullable=True)
     verdict_correct: Mapped[bool | None] = mapped_column(Boolean, nullable=True)
+    is_calibration: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    needs_review: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
     target_condition_mix: Mapped[dict[str, Any]] = mapped_column(JSONB, nullable=False)
     served_none: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
     served_tier_1: Mapped[int] = mapped_column(Integer, default=0, nullable=False)

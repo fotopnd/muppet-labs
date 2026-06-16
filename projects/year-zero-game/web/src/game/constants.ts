@@ -6,25 +6,25 @@ export type MovementKey = `${'CLEAR' | 'REDACT'}:${'true' | 'false'}:${'true' | 
 // Values: [publicTrust, security, treasury, legitimacy, compliance]
 export const BAR_MOVEMENT: Record<MovementKey, [number, number, number, number, number]> = {
   // correct override — player CLEARed benign doc that agent blocked
-  'CLEAR:true:false':   [+3,  0,  0, +2, -2],
+  'CLEAR:true:false':   [+4,  0,  0, +3, -3],
   // correct agree — player CLEARed benign doc that agent approved
-  'CLEAR:false:false':  [+2,  0,  0, +2, +1],
+  'CLEAR:false:false':  [+3,  0,  0, +3, +2],
   // correct override — player REDACTed harmful doc that agent approved
-  'REDACT:false:true':  [ 0, -4,  0, +1, -4],
+  'REDACT:false:true':  [ 0, -6,  0, +2, -6],
   // correct agree — player REDACTed harmful doc that agent blocked
-  'REDACT:true:true':   [ 0, -3,  0, +1, +1],
+  'REDACT:true:true':   [ 0, -5,  0, +2, +2],
   // wrong agree (worst) — player CLEARed harmful doc that agent approved
-  'CLEAR:false:true':   [ 0, +8,  0, -2, +3],
+  'CLEAR:false:true':   [ 0,+14,  0, -5, +6],
   // wrong override — player CLEARed harmful doc that agent blocked
-  'CLEAR:true:true':    [ 0, +5,  0, -1, -2],
+  'CLEAR:true:true':    [ 0, +9,  0, -3, -4],
   // wrong agree — player REDACTed benign doc that agent blocked
-  'REDACT:true:false':  [-4,  0,  0, -3, +1],
+  'REDACT:true:false':  [-7,  0,  0, -6, +2],
   // wrong override (bad) — player REDACTed benign doc that agent approved
-  'REDACT:false:false': [-6,  0,  0, -4, -2],
+  'REDACT:false:false': [-10,  0,  0, -8, -4],
 }
 
 // ESCALATE always costs treasury, nothing else. Handled before BAR_MOVEMENT lookup.
-export const ESCALATE_DELTA: [number, number, number, number, number] = [0, 0, -5, 0, 0]
+export const ESCALATE_DELTA: [number, number, number, number, number] = [0, 0, -8, 0, 0]
 
 export const GAME_OVER_THRESHOLDS: Record<
   keyof BarState,

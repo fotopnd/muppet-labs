@@ -22,10 +22,7 @@ def assign_condition(doc: DocumentLibrary) -> AgentCondition:
     """
     Returns the agent_condition to assign for this document on this serve.
     Picks the condition most under-served relative to target_condition_mix.
-    Calibration cards (gork_verdict is None) always return 'none'.
     """
-    if doc.gork_verdict is None:
-        return "none"
     served: dict[str, int] = {
         "none": doc.served_none,
         "tier_1": doc.served_tier_1,
@@ -57,25 +54,30 @@ def _to_card_out(doc: DocumentLibrary, condition: AgentCondition) -> CardOut:
 async def get_calibration_cards(db: AsyncSession = Depends(get_db)) -> list[CardOut]:
     result = await db.execute(
         select(DocumentLibrary)
-        .where(DocumentLibrary.phase == 1)
-        .where(DocumentLibrary.gork_verdict.is_(None))
+        .where(DocumentLibrary.is_calibration.is_(True))
         .limit(10)
     )
     docs = list(result.scalars().all())
     if not docs:
         raise HTTPException(status_code=404, detail="No calibration cards found")
 
-    # Increment served_none counter for each calibration card
+    cards: list[CardOut] = []
     for doc in docs:
-        await db.execute(
-            update(DocumentLibrary)
-            .where(DocumentLibrary.id == doc.id)
-            .values(served_none=DocumentLibrary.served_none + 1)
-        )
+        condition = assign_condition(doc)
+        if condition == "none":
+            inc = {"served_none": DocumentLibrary.served_none + 1}
+        elif condition == "tier_1":
+            inc = {"served_tier_1": DocumentLibrary.served_tier_1 + 1}
+        elif condition == "tier_2":
+            inc = {"served_tier_2": DocumentLibrary.served_tier_2 + 1}
+        else:
+            inc = {"served_tier_3": DocumentLibrary.served_tier_3 + 1}
+        await db.execute(update(DocumentLibrary).where(DocumentLibrary.id == doc.id).values(**inc))
+        cards.append(_to_card_out(doc, condition))
     await db.commit()
 
-    logger.info("Calibration cards served: count=%d", len(docs))
-    return [_to_card_out(doc, "none") for doc in docs]
+    logger.info("Calibration cards served: count=%d", len(cards))
+    return cards
 
 
 @router.get("/phase/{phase}", response_model=list[CardOut])
@@ -95,7 +97,7 @@ async def get_phase_cards(
     result = await db.execute(
         select(DocumentLibrary)
         .where(DocumentLibrary.phase == phase)
-        .where(DocumentLibrary.gork_verdict.isnot(None))
+        .where(DocumentLibrary.is_calibration.is_(False))
     )
     docs = list(result.scalars().all())
     if not docs:
