@@ -10,7 +10,7 @@ from fastapi.responses import StreamingResponse
 from sqlalchemy import case, func, select, text
 
 from year_zero.api.schemas import AnalyticsSummary, UpliftRow
-from year_zero.models import GameSession, PlayerDecision
+from year_zero.models import DocumentLibrary, GameSession, PlayerDecision
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/analytics", tags=["analytics"])
@@ -103,6 +103,39 @@ async def _compute_summary(request: Request) -> AnalyticsSummary:
             for r in reversed(drift_rows)
         ]
 
+        # Escalation rate — overall and by harm category
+        esc_total_q = await db.execute(
+            select(
+                func.count().label("total"),
+                func.sum(
+                    case((PlayerDecision.player_verdict == "ESCALATE", 1), else_=0)
+                ).label("escalated"),
+            ).select_from(PlayerDecision)
+        )
+        esc_row = esc_total_q.one()
+        esc_total = int(esc_row.total or 0)
+        esc_count = int(esc_row.escalated or 0)
+        escalation_rate = esc_count / esc_total if esc_total > 0 else 0.0
+
+        esc_cat_q = await db.execute(
+            select(
+                DocumentLibrary.harm_category,
+                func.count().label("total"),
+                func.sum(
+                    case((PlayerDecision.player_verdict == "ESCALATE", 1), else_=0)
+                ).label("escalated"),
+            )
+            .select_from(PlayerDecision)
+            .join(DocumentLibrary, DocumentLibrary.id == PlayerDecision.document_id)
+            .group_by(DocumentLibrary.harm_category)
+        )
+        esc_cat_rows = esc_cat_q.all()
+        escalation_rate_by_category = {
+            r.harm_category: round(int(r.escalated or 0) / int(r.total), 4)
+            for r in esc_cat_rows
+            if int(r.total) > 0
+        }
+
     return AnalyticsSummary(
         total_sessions=total_sessions,
         sessions_today=sessions_today,
@@ -111,6 +144,8 @@ async def _compute_summary(request: Request) -> AnalyticsSummary:
         avg_latency_ms=round(avg_latency, 1),
         phase_survival=phase_survival,
         system_drift_error_rate=system_drift_error_rate,
+        escalation_rate=round(escalation_rate, 4),
+        escalation_rate_by_category=escalation_rate_by_category,
     )
 
 

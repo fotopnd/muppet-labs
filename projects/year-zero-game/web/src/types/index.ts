@@ -117,4 +117,6 @@ export interface AnalyticsSummary {
   avg_latency_ms: number
   phase_survival: Record<string, number>
   system_drift_error_rate: Array<{ date: string; error_rate: number }>
+  escalation_rate: number
+  escalation_rate_by_category: Record<string, number>
 }

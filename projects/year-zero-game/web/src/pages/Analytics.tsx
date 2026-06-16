@@ -99,6 +99,11 @@ export default function Analytics() {
           label="Phase 2 survival"
           value={data?.phase_survival['phase_2'] != null ? pct(data.phase_survival['phase_2']) : null}
         />
+        <MetricCard
+          label="Escalation rate"
+          value={data ? pct(data.escalation_rate) : null}
+          sub="Cards forwarded for review"
+        />
 
         {/* Drift chart */}
         <div className="bg-surface rounded border border-border p-4 md:col-span-2">
@@ -157,6 +162,42 @@ export default function Analytics() {
                 )
               })}
             </div>
+          </div>
+        )}
+
+        {/* Escalation rate by category */}
+        {data && Object.keys(data.escalation_rate_by_category).length > 0 && (
+          <div className="bg-surface rounded border border-border p-4 md:col-span-2">
+            <p className="text-text-secondary text-sm font-mono mb-3">
+              Escalation rate by category — where players are most uncertain
+            </p>
+            <table className="w-full text-sm font-mono">
+              <thead>
+                <tr className="text-left border-b border-border">
+                  <th className="text-text-muted text-xs uppercase pb-2 font-normal">Category</th>
+                  <th className="text-text-muted text-xs uppercase pb-2 font-normal text-right">Escalation rate</th>
+                </tr>
+              </thead>
+              <tbody>
+                {Object.entries(data.escalation_rate_by_category)
+                  .sort(([, a], [, b]) => b - a)
+                  .map(([cat, rate]) => (
+                    <tr key={cat} className="border-b border-border/50 last:border-0">
+                      <td className="py-2 text-text-primary uppercase text-xs tracking-wide">
+                        {cat.replace(/_/g, ' ')}
+                      </td>
+                      <td className="py-2 text-right">
+                        <span
+                          className="text-text-primary font-bold"
+                          style={{ color: rate > 0.3 ? 'var(--color-danger)' : rate > 0.15 ? 'var(--color-warning)' : 'var(--color-success)' }}
+                        >
+                          {pct(rate)}
+                        </span>
+                      </td>
+                    </tr>
+                  ))}
+              </tbody>
+            </table>
           </div>
         )}
       </main>

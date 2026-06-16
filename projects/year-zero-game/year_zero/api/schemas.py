@@ -79,6 +79,8 @@ class AnalyticsSummary(BaseModel):
     avg_latency_ms: float
     phase_survival: dict[str, float]
     system_drift_error_rate: list[dict]
+    escalation_rate: float
+    escalation_rate_by_category: dict[str, float]
 
 
 class UpliftRow(BaseModel):
