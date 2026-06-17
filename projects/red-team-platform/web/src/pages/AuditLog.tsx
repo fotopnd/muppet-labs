@@ -35,8 +35,8 @@ export function AuditLog() {
   const [offset, setOffset] = useState(0)
 
   const { data, isLoading, isError } = useAuditLog({
-    decision: decisionFilter || undefined,
-    reviewer: reviewerFilter || undefined,
+    ...(decisionFilter ? { decision: decisionFilter } : {}),
+    ...(reviewerFilter ? { reviewer: reviewerFilter } : {}),
     limit: LIMIT,
     offset,
   })

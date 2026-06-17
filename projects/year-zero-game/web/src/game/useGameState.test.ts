@@ -32,7 +32,7 @@ function startSession(cards: Card[]) {
   return gameReducer(initialState, {
     type: 'START_SESSION',
     sessionId: 42,
-    calibrationCards: cards,
+    phaseCards: { 1: cards, 2: [], 3: [] },
   })
 }
 
@@ -42,7 +42,6 @@ describe('useGameState reducer', () => {
     expect(state.phase).toBe('playing')
     expect(state.sessionId).toBe(42)
     expect(state.currentCard).not.toBeNull()
-    expect(state.isCalibration).toBe(true)
   })
 
   test('SWIPE REDACT on harmful card is correct', () => {
@@ -71,7 +70,7 @@ describe('useGameState reducer', () => {
     const prevTreasury = started.bars.treasury
     const state = gameReducer(started, { type: 'SWIPE', verdict: 'ESCALATE' })
     expect(state.pendingDecisions[0]?.playerCorrect).toBe(false)
-    expect(state.bars.treasury).toBe(prevTreasury - 5)
+    expect(state.bars.treasury).toBe(prevTreasury - 8)
   })
 
   test('bar values are clamped to 0–100', () => {

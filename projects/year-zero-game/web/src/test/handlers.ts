@@ -24,6 +24,14 @@ export const handlers = [
     HttpResponse.json(null, { status: 204 }),
   ),
 
+  http.get(`${API_BASE}/cards/deal`, () =>
+    HttpResponse.json({
+      phase_1: mockCalibrationCards,
+      phase_2: [],
+      phase_3: [],
+    }),
+  ),
+
   http.get(`${API_BASE}/cards/calibration`, () =>
     HttpResponse.json(mockCalibrationCards),
   ),

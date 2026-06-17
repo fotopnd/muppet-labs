@@ -89,7 +89,7 @@ export function ModelComparison() {
               domain={[0, 100]}
               tick={{ fontSize: 10 }}
             />
-            <Tooltip formatter={(v: number) => `${v}%`} />
+            <Tooltip formatter={(v) => `${v}%`} />
             <Legend wrapperStyle={{ fontSize: 11, paddingTop: 8 }} />
             {MODEL_KEYS.map((m) => (
               <Bar key={m} dataKey={MODEL_SHORT[m]!} fill={MODEL_FILL[m]} />

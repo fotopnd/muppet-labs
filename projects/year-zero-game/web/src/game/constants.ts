@@ -43,10 +43,10 @@ export const PHASE_TRIGGERS = {
 } as const
 
 export const INITIAL_BARS: BarState = {
-  publicTrust: 60,
+  publicTrust: 50,
   security: 20,
-  treasury: 80,
-  legitimacy: 70,
+  treasury: 70,
+  legitimacy: 60,
   compliance: 50,
 }
 

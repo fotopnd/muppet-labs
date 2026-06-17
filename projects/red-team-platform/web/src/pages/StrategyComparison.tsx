@@ -71,7 +71,7 @@ export function StrategyComparison() {
               width={114}
             />
             <Tooltip
-              formatter={(v: number) => [`${v}%`, 'ASR']}
+              formatter={(v) => [`${v}%`, 'ASR']}
               contentStyle={{ fontSize: 12 }}
             />
             <Bar dataKey="asr_pct" name="ASR %">

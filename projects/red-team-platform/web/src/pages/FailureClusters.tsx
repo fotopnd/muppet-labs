@@ -147,8 +147,9 @@ export function FailureClusters() {
           height={300}
           margin={{ top: 16, right: 20, bottom: 40, left: 20 }}
           onClick={(state) => {
-            if (state?.activePayload?.[0]?.payload) {
-              handleBubbleClick(state.activePayload[0].payload as BubbleDatum)
+            const s = state as { activePayload?: Array<{ payload: BubbleDatum }> } | null
+            if (s?.activePayload?.[0]?.payload) {
+              handleBubbleClick(s.activePayload[0].payload)
             }
           }}
         >

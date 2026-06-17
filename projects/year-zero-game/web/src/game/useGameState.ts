@@ -77,24 +77,26 @@ export const initialState: GameState = {
   totalDecisions: 0,
   totalCorrect: 0,
   totalEscalated: 0,
-  isCalibration: true,
+  phaseCardsMap: { 1: [], 2: [], 3: [] },
 }
 
 export function gameReducer(state: GameState, action: GameAction): GameState {
   switch (action.type) {
     case 'START_SESSION': {
-      const shuffled = shuffle(action.calibrationCards)
-      const [first, ...rest] = shuffled
+      const phase1Pool = action.phaseCards[1]
+      const draw = shuffle(phase1Pool.slice(0, CARDS_PER_DAY))
+      const remaining = phase1Pool.slice(CARDS_PER_DAY)
+      const [first, ...rest] = draw
       return {
         ...state,
         phase: 'playing',
         sessionId: action.sessionId,
-        isCalibration: true,
         currentCard: first ?? null,
         cardPool: rest,
         cardsInDay: 0,
         cardStartedAt: Date.now(),
         gameDay: 1,
+        phaseCardsMap: { ...action.phaseCards, 1: remaining },
       }
     }
 
@@ -136,7 +138,6 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
         gameDay: state.gameDay,
         phase: state.activePhase,
         categoryTier: card.generationTier,
-        isCalibration: state.isCalibration,
       }
 
       const newCardsInDay = state.cardsInDay + 1
@@ -192,42 +193,27 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
         }
       }
 
-      const base = {
+      // Draw next day's cards from the pre-dealt phase pool
+      const phasePool = state.phaseCardsMap[newActivePhase] ?? []
+      const draw = phasePool.slice(0, CARDS_PER_DAY)
+      const remaining = phasePool.slice(CARDS_PER_DAY)
+      const shuffledDraw = shuffle(draw)
+      const [nextCard, ...cardPool] = shuffledDraw
+
+      return {
         ...state,
         bars: barsAfterBonus,
         gameDay: newGameDay,
-        isCalibration: false,
         pendingDecisions: [],
         cardsInDay: 0,
         dayCorrect: 0,
         dayEscalated: 0,
         activePhase: newActivePhase,
-      }
-
-      if (newActivePhase !== state.activePhase || state.cardPool.length === 0) {
-        return { ...base, phase: 'playing', currentCard: null, cardPool: [] }
-      }
-
-      const [nextCard, ...remainingPool] = state.cardPool
-      return {
-        ...base,
         phase: 'playing',
         currentCard: nextCard ?? null,
-        cardPool: remainingPool,
+        cardPool,
         cardStartedAt: Date.now(),
-      }
-    }
-
-    case 'PHASE_CARDS_LOADED': {
-      const shuffled = shuffle(action.cards)
-      const [first, ...rest] = shuffled
-      return {
-        ...state,
-        phase: 'playing',
-        currentCard: first ?? null,
-        cardPool: rest,
-        cardsInDay: 0,
-        cardStartedAt: Date.now(),
+        phaseCardsMap: { ...state.phaseCardsMap, [newActivePhase]: remaining },
       }
     }
 

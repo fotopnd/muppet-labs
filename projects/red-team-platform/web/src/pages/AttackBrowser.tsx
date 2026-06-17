@@ -37,8 +37,8 @@ export function AttackBrowser() {
         />
         <StatWidget
           label="Top category"
-          value={summaryLoading ? '…' : (summary?.top_category ? labelName(summary.top_category).split('/')[0].trim() : '—')}
-          subLabel={summary?.top_category ? labelName(summary.top_category) : undefined}
+          value={summaryLoading ? '…' : (summary?.top_category ? labelName(summary!.top_category).split('/')[0]!.trim() : '—')}
+          {...(summary?.top_category ? { subLabel: labelName(summary.top_category) } : {})}
           loading={summaryLoading}
         />
         <StatWidget

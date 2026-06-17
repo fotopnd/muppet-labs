@@ -19,8 +19,10 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
 
     settings = get_settings()
 
-    # Fail fast: load pair classifier at startup
-    llm_safety_classifier.load(settings.pair_classifier_path)
+    # Load classifier only if checkpoint path is configured and exists
+    import os
+    if settings.pair_classifier_path and os.path.exists(settings.pair_classifier_path):
+        llm_safety_classifier.load(settings.pair_classifier_path)
 
     engine = create_engine(settings.database_url)
     await init_db(engine)  # create_all: idempotent, creates new tables on restart

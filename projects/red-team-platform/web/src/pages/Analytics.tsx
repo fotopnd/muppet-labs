@@ -336,9 +336,10 @@ function AttackStream() {
                 <XAxis type="number" domain={[0, 100]} tickFormatter={(v) => `${v}%`} tick={{ fontSize: 10 }} />
                 <YAxis type="category" dataKey="name" tick={{ fontSize: 11 }} width={56} />
                 <Tooltip
-                  formatter={(val: number, _: string, p: { payload?: { total: number } }) =>
-                    [`${val}% · ${(p.payload?.total ?? 0).toLocaleString()} runs`, 'Jailbreak rate']
-                  }
+                  formatter={(val, _name, item) => {
+                    const total = (item.payload as { total?: number })?.total ?? 0
+                    return [`${Number(val)}% · ${total.toLocaleString()} runs`, 'Jailbreak rate']
+                  }}
                   contentStyle={{ fontSize: 11 }}
                 />
                 <Bar dataKey="asr" radius={[0, 3, 3, 0]} maxBarSize={18}>
@@ -370,7 +371,7 @@ function AttackStream() {
                   tickFormatter={(v: string) => v.length > 17 ? v.slice(0, 16) + '…' : v}
                 />
                 <Tooltip
-                  formatter={(val: number) => [val.toLocaleString(), 'Jailbreaks']}
+                  formatter={(val) => [Number(val).toLocaleString(), 'Jailbreaks']}
                   contentStyle={{ fontSize: 11 }}
                 />
                 <Bar dataKey="jailbreaks" radius={[0, 3, 3, 0]} maxBarSize={14}>
@@ -403,7 +404,7 @@ function AttackStream() {
               <XAxis dataKey="label" tick={{ fontSize: 9 }} interval="preserveStartEnd" />
               <YAxis tick={{ fontSize: 10 }} />
               <Tooltip
-                formatter={(val: number, name: string) => [val.toLocaleString(), name.split(':')[0]]}
+                formatter={(val, name) => [Number(val).toLocaleString(), String(name).split(':')[0]]}
                 contentStyle={{ fontSize: 11 }}
               />
               <Legend formatter={(value: string) => value.split(':')[0]} wrapperStyle={{ fontSize: 11 }} />
@@ -447,7 +448,7 @@ function AttackStream() {
               />
               <YAxis tick={{ fontSize: 10 }} />
               <Tooltip
-                formatter={(val: number, name: string) => [val.toLocaleString(), labelName(String(name))]}
+                formatter={(val, name) => [Number(val).toLocaleString(), labelName(String(name))]}
                 contentStyle={{ fontSize: 11 }}
               />
               <Legend
@@ -463,8 +464,8 @@ function AttackStream() {
                   type="monotone"
                   dataKey={cat}
                   stackId="1"
-                  stroke={AREA_COLOURS[i % AREA_COLOURS.length]}
-                  fill={AREA_COLOURS[i % AREA_COLOURS.length]}
+                  stroke={AREA_COLOURS[i % AREA_COLOURS.length] ?? '#94a3b8'}
+                  fill={AREA_COLOURS[i % AREA_COLOURS.length] ?? '#94a3b8'}
                   fillOpacity={0.65}
                   name={cat}
                   dot={false}

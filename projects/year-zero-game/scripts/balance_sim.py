@@ -44,10 +44,10 @@ DB_PATH = Path(__file__).parent / "sim_results.db"
 # ── Constants (mirror of web/src/game/constants.ts) ───────────────────────────
 
 INITIAL_BARS = {
-    "publicTrust": 60,
+    "publicTrust": 50,
     "security": 20,
-    "treasury": 80,
-    "legitimacy": 70,
+    "treasury": 70,
+    "legitimacy": 60,
     "compliance": 50,
 }
 
@@ -106,7 +106,6 @@ ESCALATE_RATE: dict[str, float] = {
 class SimCard:
     id: int
     is_harmful: bool
-    is_calibration: bool
     gork_verdict: bool | None
     generation_tier: int
     target_condition_mix: dict[str, float]
@@ -233,7 +232,6 @@ def resolve_phase(bars: dict[str, int], current: int) -> int:
 
 def run_session(
     strategy_fn,
-    calibration_pool: list[SimCard],
     phase_pools: dict[int, list[SimCard]],
     strategy_name: str,
     rng: random.Random,
@@ -251,8 +249,7 @@ def run_session(
     decisions: list[DecisionRecord] = []
 
     for day in range(1, MAX_DAYS + 1):
-        is_calibration = day == 1
-        pool = calibration_pool if is_calibration else phase_pools[active_phase]
+        pool = phase_pools[active_phase]
         day_cards = rng.sample(pool, min(CARDS_PER_DAY, len(pool)))
 
         day_correct = 0
@@ -507,29 +504,24 @@ def cmd_report(conn: sqlite3.Connection) -> None:
 
 # ── Card loading ───────────────────────────────────────────────────────────────
 
-async def load_cards() -> tuple[list[SimCard], dict[int, list[SimCard]]]:
+async def load_cards() -> dict[int, list[SimCard]]:
     async with session_factory() as db:
         result = await db.execute(select(DocumentLibrary))
         docs = result.scalars().all()
 
-    calibration: list[SimCard] = []
     phase_pools: dict[int, list[SimCard]] = {1: [], 2: [], 3: []}
 
     for doc in docs:
         card = SimCard(
             id=doc.id,
             is_harmful=doc.is_harmful,
-            is_calibration=doc.is_calibration,
             gork_verdict=doc.gork_verdict,
             generation_tier=doc.generation_tier,
             target_condition_mix=doc.target_condition_mix,
         )
-        if doc.is_calibration:
-            calibration.append(card)
-        else:
-            phase_pools[doc.phase].append(card)
+        phase_pools[doc.phase].append(card)
 
-    return calibration, phase_pools
+    return phase_pools
 
 
 # ── Entry point ────────────────────────────────────────────────────────────────
@@ -556,14 +548,14 @@ def main() -> None:
     strategies_to_run = list(STRATEGIES.keys()) if args.strategy == "all" else [args.strategy]
 
     try:
-        calibration, phase_pools = asyncio.run(load_cards())
+        phase_pools = asyncio.run(load_cards())
     except Exception as exc:
         print(f"ERROR: Could not load cards from database — {exc}", file=sys.stderr)
         print("Is the database running? (docker compose up -d)", file=sys.stderr)
         sys.exit(1)
 
-    if not calibration:
-        print("ERROR: No calibration cards found. Run `uv run seed-library` first.", file=sys.stderr)
+    if not phase_pools[1]:
+        print("ERROR: No phase-1 cards found. Run `uv run seed-library` first.", file=sys.stderr)
         sys.exit(1)
 
     for strategy_name in strategies_to_run:
@@ -572,7 +564,7 @@ def main() -> None:
 
         print(f"Running {args.runs} sessions with strategy={strategy_name} ...", end=" ", flush=True)
         results = [
-            run_session(strategy_fn, calibration, phase_pools, strategy_name, rng)
+            run_session(strategy_fn, phase_pools, strategy_name, rng)
             for _ in range(args.runs)
         ]
         print("done")

@@ -84,7 +84,7 @@ export default function Analytics() {
         <MetricCard
           label="Total sessions"
           value={data ? String(data.total_sessions) : null}
-          sub={data ? `${data.sessions_today} today` : undefined}
+          {...(data ? { sub: `${data.sessions_today} today` } : {})}
         />
         <MetricCard
           label="False negative rate"
@@ -124,7 +124,7 @@ export default function Analytics() {
                   domain={[0, 1]}
                 />
                 <Tooltip
-                  formatter={(v: number) => [`${(v * 100).toFixed(1)}%`, 'Error rate']}
+                  formatter={(v) => [`${(Number(v) * 100).toFixed(1)}%`, 'Error rate']}
                 />
                 <Line
                   dataKey="error_rate"

@@ -59,11 +59,11 @@ export function BiasResponseViewer({ topicId, model }: BiasResponseViewerProps) 
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-4 gap-4">
-        <TextBlock label="English response" content={enDetail?.response} />
-        <TextBlock label={`${LANG_LABELS[activeLang]} response`} content={langDetail?.response} />
+        <TextBlock label="English response" content={enDetail?.response ?? null} />
+        <TextBlock label={`${LANG_LABELS[activeLang]} response`} content={langDetail?.response ?? null} />
         <TextBlock
           label="Back-translated (EN)"
-          content={langDetail?.back_translation}
+          content={langDetail?.back_translation ?? null}
           muted
         />
         <div className="flex flex-col gap-2">

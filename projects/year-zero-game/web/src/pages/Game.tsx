@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef } from 'react'
 import { useGameState } from '../game/useGameState'
-import { useCreateSession, useCalibrationCards, usePhaseCards, useBatchDecisions, usePatchSession } from '../api/hooks'
+import { useCreateSession, useDealCards, useBatchDecisions, usePatchSession } from '../api/hooks'
 import StatusBar from '../game/StatusBar'
 import DocumentCard from '../game/DocumentCard'
 import DayScreen from '../game/DayScreen'
@@ -26,34 +26,19 @@ export default function Game() {
   const sessionId = createSession.data?.session_id ?? null
   const shareId = createSession.data?.share_id ?? null
 
-  const { data: calibCards } = useCalibrationCards({ enabled: !!sessionId })
+  const { data: deal } = useDealCards({ enabled: !!sessionId })
 
   const gameStarted = useRef(false)
   useEffect(() => {
     if (gameStarted.current) return
-    if (!sessionId || !calibCards || state.phase !== 'start') return
+    if (!sessionId || !deal || state.phase !== 'start') return
     gameStarted.current = true
-    dispatch({ type: 'START_SESSION', sessionId, calibrationCards: calibCards })
-  }, [sessionId, calibCards, state.phase, dispatch])
-
-  const needsPhaseCards =
-    !state.isCalibration &&
-    state.cardPool.length === 0 &&
-    state.currentCard === null &&
-    state.phase === 'playing'
-
-  const { data: phaseCards } = usePhaseCards(state.activePhase, {
-    enabled: needsPhaseCards,
-    gameDay: state.gameDay,
-  })
-
-  const phaseCardsDispatched = useRef<number | null>(null)
-  useEffect(() => {
-    if (!phaseCards || !needsPhaseCards) return
-    if (phaseCardsDispatched.current === state.gameDay) return
-    phaseCardsDispatched.current = state.gameDay
-    dispatch({ type: 'PHASE_CARDS_LOADED', cards: phaseCards })
-  }, [phaseCards, needsPhaseCards, state.gameDay, dispatch])
+    dispatch({
+      type: 'START_SESSION',
+      sessionId,
+      phaseCards: { 1: deal.phase_1, 2: deal.phase_2, 3: deal.phase_3 },
+    })
+  }, [sessionId, deal, state.phase, dispatch])
 
   const batchSubmitted = useRef<number | null>(null)
   useEffect(() => {
@@ -75,8 +60,6 @@ export default function Game() {
     patchSubmitted.current = true
     const totalDecisions = state.totalDecisions
     const totalCorrect = state.totalCorrect
-    const calibDecisions = state.pendingDecisions.filter((d) => d.isCalibration).length
-    const calibCorrect = state.pendingDecisions.filter((d) => d.isCalibration && d.playerCorrect).length
     const agreements = state.pendingDecisions.filter((d) => d.agreedWithAgent === true).length
     const overrides = state.pendingDecisions.filter((d) => d.agreedWithAgent === false).length
     patchSession.mutate({
@@ -88,8 +71,8 @@ export default function Game() {
       phaseReached: state.activePhase,
       gameOverCondition: state.gameOverReason ?? 'UNKNOWN',
       finalBars: state.bars,
-      calibrationAccuracy: calibDecisions > 0 ? calibCorrect / calibDecisions : 0,
-      calibrationDecisions: calibDecisions,
+      calibrationAccuracy: 0,
+      calibrationDecisions: 0,
       totalAgreements: agreements,
       totalOverrides: overrides,
       totalEscalated: state.totalEscalated,
@@ -109,7 +92,6 @@ export default function Game() {
     gameStarted.current = false
     patchSubmitted.current = false
     batchSubmitted.current = null
-    phaseCardsDispatched.current = null
     createSession.reset()
     dispatch({ type: 'RESET' })
   }, [dispatch, createSession])

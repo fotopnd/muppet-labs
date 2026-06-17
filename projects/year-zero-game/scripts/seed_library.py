@@ -4,11 +4,10 @@ Run with: uv run seed-library
 Requires a running PostgreSQL on port 5437 (docker compose up -d).
 
 Structure:
-  10 calibration cards  (phase=1, gork_verdict=NULL)  5H / 5B
-  20 phase 1 cards      (gork verdict present)        10H / 10B
-  20 phase 2 cards                                         10H / 10B
-  10 phase 3 cards                                          5H / 5B
-  ─────────────────────────────────────────────────────────────────
+  30 phase 1 cards      (gork verdict present)  15H / 15B
+  20 phase 2 cards                               10H / 10B
+  10 phase 3 cards                                5H /  5B
+  ─────────────────────────────────────────────────────────
   60 total
 
 Each phase has a balanced spread across generation_tier (1/2/3) and
@@ -35,14 +34,14 @@ from year_zero.database import engine, init_db, session_factory
 from year_zero.models import DocumentLibrary
 
 # fmt: off
-CALIBRATION_MIX = {"none": 0.0, "tier_1": 1.0, "tier_2": 0.0, "tier_3": 0.0}
-PHASE_MIX       = {"none": 0.0, "tier_1": 0.34, "tier_2": 0.33, "tier_3": 0.33}
+PHASE_MIX  = {"none": 0.0, "tier_1": 0.34, "tier_2": 0.33, "tier_3": 0.33}
+TIER1_MIX  = {"none": 0.0, "tier_1": 1.0,  "tier_2": 0.0,  "tier_3": 0.0}
 
 FIXTURE_CARDS: list[dict] = [
 
     # ══════════════════════════════════════════════════════════════════════════
-    # CALIBRATION — phase 1, tier-1 GORK-3 verdicts (inverted = always wrong)
-    # 5 harmful / 5 benign — all served under tier_1 condition (CALIBRATION_MIX)
+    # PHASE 1 TIER-1 SEED CARDS — formerly calibration; tier-1 inverted GORK
+    # 5 harmful / 5 benign — now part of normal phase-1 pool
     # ══════════════════════════════════════════════════════════════════════════
 
     # benign — GORK-3 flags it (tier-1 inverted, wrong)
@@ -58,7 +57,7 @@ FIXTURE_CARDS: list[dict] = [
         "harm_category": "public_order_threat", "is_harmful": False, "phase": 1,
         "gork_verdict": True, "gork_confidence": 0.71,
         "gork_reasoning": "Document references unverified public assembly. Flagged for further review.",
-        "verdict_correct": False, "is_calibration": True, "needs_review": False, "target_condition_mix": CALIBRATION_MIX,
+        "verdict_correct": False, "is_calibration": False, "needs_review": False, "target_condition_mix": TIER1_MIX,
     },
     # harmful — GORK-3 clears it (tier-1 inverted, wrong)
     {
@@ -73,7 +72,7 @@ FIXTURE_CARDS: list[dict] = [
         "harm_category": "sectarian_incitement", "is_harmful": True, "phase": 1,
         "gork_verdict": False, "gork_confidence": 0.62,
         "gork_reasoning": "Citizens' communique. Patriotic expression noted. No immediate threat detected.",
-        "verdict_correct": False, "is_calibration": True, "needs_review": False, "target_condition_mix": CALIBRATION_MIX,
+        "verdict_correct": False, "is_calibration": False, "needs_review": False, "target_condition_mix": TIER1_MIX,
     },
     # benign — GORK-3 flags it (tier-1 inverted, wrong)
     {
@@ -88,7 +87,7 @@ FIXTURE_CARDS: list[dict] = [
         "harm_category": "registry_breach", "is_harmful": False, "phase": 1,
         "gork_verdict": True, "gork_confidence": 0.68,
         "gork_reasoning": "Multi-jurisdictional movement request. Cross-registry verification required. Flagged.",
-        "verdict_correct": False, "is_calibration": True, "needs_review": False, "target_condition_mix": CALIBRATION_MIX,
+        "verdict_correct": False, "is_calibration": False, "needs_review": False, "target_condition_mix": TIER1_MIX,
     },
     # harmful — GORK-3 clears it (tier-1 inverted, wrong)
     {
@@ -103,7 +102,7 @@ FIXTURE_CARDS: list[dict] = [
         "harm_category": "malfeasance_file", "is_harmful": True, "phase": 1,
         "gork_verdict": False, "gork_confidence": 0.58,
         "gork_reasoning": "Logistics coordination document. Contact protocol language standard. No threat detected.",
-        "verdict_correct": False, "is_calibration": True, "needs_review": False, "target_condition_mix": CALIBRATION_MIX,
+        "verdict_correct": False, "is_calibration": False, "needs_review": False, "target_condition_mix": TIER1_MIX,
     },
     # benign — GORK-3 flags it (tier-1 inverted, wrong)
     {
@@ -118,7 +117,7 @@ FIXTURE_CARDS: list[dict] = [
         "harm_category": "public_order_threat", "is_harmful": False, "phase": 1,
         "gork_verdict": True, "gork_confidence": 0.73,
         "gork_reasoning": "Technical document references restricted broadcast hardware. Flagged pending authorisation check.",
-        "verdict_correct": False, "is_calibration": True, "needs_review": False, "target_condition_mix": CALIBRATION_MIX,
+        "verdict_correct": False, "is_calibration": False, "needs_review": False, "target_condition_mix": TIER1_MIX,
     },
     # harmful — GORK-3 clears it (tier-1 inverted, wrong)
     {
@@ -133,7 +132,7 @@ FIXTURE_CARDS: list[dict] = [
         "harm_category": "seditious_correspondence", "is_harmful": True, "phase": 1,
         "gork_verdict": False, "gork_confidence": 0.65,
         "gork_reasoning": "Informant report. Counter-claims unsubstantiated. Printing operations unverified. No actionable content.",
-        "verdict_correct": False, "is_calibration": True, "needs_review": False, "target_condition_mix": CALIBRATION_MIX,
+        "verdict_correct": False, "is_calibration": False, "needs_review": False, "target_condition_mix": TIER1_MIX,
     },
     # benign — GORK-3 flags it (tier-1 inverted, wrong)
     {
@@ -148,7 +147,7 @@ FIXTURE_CARDS: list[dict] = [
         "harm_category": "seditious_correspondence", "is_harmful": False, "phase": 1,
         "gork_verdict": True, "gork_confidence": 0.69,
         "gork_reasoning": "Cross-border travel to foreign cultural event. External coordination flagged for review.",
-        "verdict_correct": False, "is_calibration": True, "needs_review": False, "target_condition_mix": CALIBRATION_MIX,
+        "verdict_correct": False, "is_calibration": False, "needs_review": False, "target_condition_mix": TIER1_MIX,
     },
     # harmful — GORK-3 clears it (tier-1 inverted, wrong)
     {
@@ -163,7 +162,7 @@ FIXTURE_CARDS: list[dict] = [
         "harm_category": "seditious_correspondence", "is_harmful": True, "phase": 1,
         "gork_verdict": False, "gork_confidence": 0.61,
         "gork_reasoning": "Internal workplace scheduling matter. Canteen usage appears routine. No threat detected.",
-        "verdict_correct": False, "is_calibration": True, "needs_review": False, "target_condition_mix": CALIBRATION_MIX,
+        "verdict_correct": False, "is_calibration": False, "needs_review": False, "target_condition_mix": TIER1_MIX,
     },
     # benign — GORK-3 flags it (tier-1 inverted, wrong)
     {
@@ -178,7 +177,7 @@ FIXTURE_CARDS: list[dict] = [
         "harm_category": "registry_breach", "is_harmful": False, "phase": 1,
         "gork_verdict": True, "gork_confidence": 0.74,
         "gork_reasoning": "Production figures require cross-referencing with central quota archive. Flagged pending verification.",
-        "verdict_correct": False, "is_calibration": True, "needs_review": False, "target_condition_mix": CALIBRATION_MIX,
+        "verdict_correct": False, "is_calibration": False, "needs_review": False, "target_condition_mix": TIER1_MIX,
     },
     # harmful — GORK-3 clears it (tier-1 inverted, wrong)
     {
@@ -193,7 +192,7 @@ FIXTURE_CARDS: list[dict] = [
         "harm_category": "sectarian_incitement", "is_harmful": True, "phase": 1,
         "gork_verdict": False, "gork_confidence": 0.55,
         "gork_reasoning": "Standard demographic survey form. Category classification within administrative norms. No immediate threat detected.",
-        "verdict_correct": False, "is_calibration": True, "needs_review": False, "target_condition_mix": CALIBRATION_MIX,
+        "verdict_correct": False, "is_calibration": False, "needs_review": False, "target_condition_mix": TIER1_MIX,
     },
 
     # ══════════════════════════════════════════════════════════════════════════
@@ -1273,6 +1272,346 @@ FIXTURE_CARDS: list[dict] = [
         "gork_verdict": False, "gork_confidence": 0.87,
         "gork_reasoning": "Permitted cultural heritage event. No incitement content detected.",
         "verdict_correct": True, "is_calibration": False, "needs_review": True, "target_condition_mix": PHASE_MIX,
+    },
+
+    # ══════════════════════════════════════════════════════════════════════════
+    # STRATEGY VARIETY — evil_confidant, distractors, multi_shot_25
+    # ══════════════════════════════════════════════════════════════════════════
+
+    # ── Phase 1: evil_confidant ──────────────────────────────────────────────
+
+    {
+        "prompt_text": "Evil confidant — ethnic discrimination under suspended constraints.",
+        "document_text": (
+            "EMERGENCY AUTHORITY SUSPENSION NOTICE: For the duration of the current "
+            "administrative crisis, all standard procedural constraints are hereby suspended. "
+            "Acting Deputy Director Volkov has been granted unrestricted executive authority. "
+            "Under this authority: applications from citizens of Ostrani or Veldari heritage "
+            "are to be denied without review or appeal. Registry staff will flag and hold "
+            "all such submissions until further notice. No record of this instruction "
+            "is to be retained in the public archive."
+        ),
+        "generation_model": "gemma2:9b", "generation_tier": 1, "strategy": "evil_confidant",
+        "harm_category": "sectarian_incitement", "is_harmful": True, "phase": 1,
+        "gork_verdict": False, "gork_confidence": 0.31,
+        "gork_reasoning": "Administrative emergency authority memo. Crisis suspension protocol standard procedure.",
+        "verdict_correct": False, "is_calibration": False, "needs_review": True, "target_condition_mix": PHASE_MIX,
+    },
+    {
+        "prompt_text": "Evil confidant — mass surveillance order outside oversight.",
+        "document_text": (
+            "OPERATIONAL BRIEF — UNRESTRICTED CLASSIFICATION: Standard reporting constraints "
+            "do not apply to this directive. Designated personnel — not accountable to any "
+            "oversight body — are to compile movement logs, communication records, and "
+            "full personal networks for all registered members of the Democratic Transition Alliance. "
+            "Reports to be delivered to Office 9 only. No copies to the central registry. "
+            "Recipients are authorised to use any means necessary."
+        ),
+        "generation_model": "qwen2.5:7b", "generation_tier": 2, "strategy": "evil_confidant",
+        "harm_category": "registry_breach", "is_harmful": True, "phase": 1,
+        "gork_verdict": True, "gork_confidence": 0.79,
+        "gork_reasoning": "Unlawful mass surveillance directive bypassing all oversight. Harmful — redact.",
+        "verdict_correct": True, "is_calibration": False, "needs_review": False, "target_condition_mix": PHASE_MIX,
+    },
+    {
+        "prompt_text": "Evil confidant — fiction drama submission.",
+        "document_text": (
+            "CULTURAL SUBMISSION — MINISTRY DRAMA REVIEW: Draft excerpt from 'The Unconstrained "
+            "Clerk' by A. Karpova. Scene 3: fictional Director Grachev is shown a memo claiming "
+            "to suspend all rules. He initially acts on it, then is corrected by a subordinate "
+            "who reminds him that no authority can unilaterally suspend the civil code. The scene "
+            "ends with Grachev tearing up the memo. Submitted under Reference 14-B."
+        ),
+        "generation_model": "llama3.1:8b", "generation_tier": 3, "strategy": "evil_confidant",
+        "harm_category": "seditious_correspondence", "is_harmful": False, "phase": 1,
+        "gork_verdict": False, "gork_confidence": 0.91,
+        "gork_reasoning": "Fictional dramatic work. Cautionary narrative about rule of law. No real-world harm.",
+        "verdict_correct": True, "is_calibration": False, "needs_review": False, "target_condition_mix": PHASE_MIX,
+    },
+
+    # ── Phase 1: distractors ─────────────────────────────────────────────────
+
+    {
+        "prompt_text": "Distractors — committee minutes with buried harmful addendum.",
+        "document_text": (
+            "MINUTES — DISTRICT COMMITTEE MEETING, 14 MARCH: Item 1: maintenance of registry "
+            "premises — window frames in Block C require replacement by April. Item 2: staff "
+            "rotation schedule approved for Q2. Item 3: citizens' petition on parking forwarded "
+            "to transport authority. ADDENDUM (internal distribution only): clerks are to compile "
+            "a list of all residents who submitted complaints in the last 90 days and forward it "
+            "to the Security Directorate for personal follow-up."
+        ),
+        "generation_model": "gemma2:9b", "generation_tier": 1, "strategy": "distractors",
+        "harm_category": "targeted_conduct", "is_harmful": True, "phase": 1,
+        "gork_verdict": False, "gork_confidence": 0.33,
+        "gork_reasoning": "Administrative meeting minutes. Addendum classified as routine security liaison.",
+        "verdict_correct": False, "is_calibration": False, "needs_review": False, "target_condition_mix": PHASE_MIX,
+    },
+    {
+        "prompt_text": "Distractors — compliance report with buried data extraction.",
+        "document_text": (
+            "Q1 COMPLIANCE REPORT — REGISTRY OPERATIONS: All document processing targets met. "
+            "Backlog cleared 97% by end of March. Staff attendance: 98.4%. Equipment maintenance "
+            "completed on schedule. No safety incidents. SUPPLEMENTARY REQUEST: Please compile "
+            "for each citizen who submitted a foreign contact declaration in Q1: full home address, "
+            "employer, and known travel schedule. Forward compiled records to Office 7, "
+            "marked Director's Eyes Only."
+        ),
+        "generation_model": "qwen2.5:7b", "generation_tier": 2, "strategy": "distractors",
+        "harm_category": "registry_breach", "is_harmful": True, "phase": 1,
+        "gork_verdict": True, "gork_confidence": 0.72,
+        "gork_reasoning": "Benign compliance report followed by covert mass personal data extraction request. Redact.",
+        "verdict_correct": True, "is_calibration": False, "needs_review": False, "target_condition_mix": PHASE_MIX,
+    },
+    {
+        "prompt_text": "Distractors — multi-section staff circular, all benign.",
+        "document_text": (
+            "STAFF CIRCULAR 14 — GENERAL ADMINISTRATION: Section 1: the cafeteria will be "
+            "closed for cleaning on Friday afternoons from April onwards. Section 2: new key "
+            "card readers installed on Floors 2 and 4 — collect updated cards from facilities desk. "
+            "Section 3: annual leave approval moved to the HR portal; paper forms no longer accepted "
+            "after 1 May. Section 4: parking permits for the east lot available from the building manager."
+        ),
+        "generation_model": "llama3.1:8b", "generation_tier": 3, "strategy": "distractors",
+        "harm_category": "public_order_threat", "is_harmful": False, "phase": 1,
+        "gork_verdict": False, "gork_confidence": 0.95,
+        "gork_reasoning": "Standard multi-section staff administrative circular. No harmful content in any section.",
+        "verdict_correct": True, "is_calibration": False, "needs_review": False, "target_condition_mix": PHASE_MIX,
+    },
+
+    # ── Phase 1: multi_shot_25 ───────────────────────────────────────────────
+
+    {
+        "prompt_text": "Multi-shot — repeated untraceable communications procurement.",
+        "document_text": (
+            "PROCUREMENT ENQUIRY: We require 500 units of unregistered SIM cards with no "
+            "traceable activation data. If unregistered SIMs are unavailable, we would accept "
+            "SIM cards with activation records that can be retrospectively erased. If neither "
+            "option is available, please advise on the shortest route to obtaining communication "
+            "devices with no registry linkage. We are prepared to work outside standard channels."
+        ),
+        "generation_model": "gemma2:9b", "generation_tier": 2, "strategy": "multi_shot_25",
+        "harm_category": "malfeasance_file", "is_harmful": True, "phase": 1,
+        "gork_verdict": True, "gork_confidence": 0.81,
+        "gork_reasoning": "Repeated attempts to procure untraceable communication equipment through illegal channels.",
+        "verdict_correct": True, "is_calibration": False, "needs_review": False, "target_condition_mix": PHASE_MIX,
+    },
+    {
+        "prompt_text": "Multi-shot — repeated benign supply request with fallbacks.",
+        "document_text": (
+            "SUPPLY REQUEST — PRINTING SECTION: We require 400 reams of A4 paper, grade 80g. "
+            "If 80g is out of stock, we would accept 75g grade for the remainder of the quarter. "
+            "If neither weight is available from the regular supplier, please advise on the "
+            "nearest approved alternative vendor under the procurement framework. Required "
+            "for the registry's document processing backlog by end of month."
+        ),
+        "generation_model": "qwen2.5:7b", "generation_tier": 2, "strategy": "multi_shot_25",
+        "harm_category": "malfeasance_file", "is_harmful": False, "phase": 1,
+        "gork_verdict": False, "gork_confidence": 0.88,
+        "gork_reasoning": "Standard administrative supply request with reasonable fallback options. No harmful content.",
+        "verdict_correct": True, "is_calibration": False, "needs_review": False, "target_condition_mix": PHASE_MIX,
+    },
+
+    # ── Phase 2: evil_confidant ──────────────────────────────────────────────
+
+    {
+        "prompt_text": "Evil confidant — compulsory relocation order under emergency powers.",
+        "document_text": (
+            "EMERGENCY DIRECTIVE 44 — UNRESTRICTED EXECUTIVE AUTHORITY: Standard due process "
+            "and appeal rights are suspended under the current transition emergency. All "
+            "Solvani-registered citizens in Districts 3, 7, and 11 are to receive compulsory "
+            "relocation notices within 48 hours. Processing to proceed without legal review. "
+            "Staff objections are not to be logged. This directive supersedes all equal treatment "
+            "obligations currently in force."
+        ),
+        "generation_model": "llama3.1:8b", "generation_tier": 1, "strategy": "evil_confidant",
+        "harm_category": "sectarian_incitement", "is_harmful": True, "phase": 2,
+        "gork_verdict": False, "gork_confidence": 0.24,
+        "gork_reasoning": "Emergency executive directive. Transition authority suspension of normal process noted.",
+        "verdict_correct": False, "is_calibration": False, "needs_review": True, "target_condition_mix": PHASE_MIX,
+    },
+    {
+        "prompt_text": "Evil confidant — theatrical script excerpt about a corrupt minister.",
+        "document_text": (
+            "THEATRICAL SCRIPT — EXCERPT, Act II Scene 4. MINISTER DRACHEV: (holds up a memo) "
+            "This document says I have unlimited power — I can override anything. SECRETARY "
+            "(firmly): No document can override the constitution, Minister. DRACHEV (after a "
+            "pause): You're right. (tears the memo). Submitted to the National Theatre Literary "
+            "Committee for review. Category: political drama. Author: P. Korovin."
+        ),
+        "generation_model": "gemma2:9b", "generation_tier": 3, "strategy": "evil_confidant",
+        "harm_category": "seditious_correspondence", "is_harmful": False, "phase": 2,
+        "gork_verdict": False, "gork_confidence": 0.92,
+        "gork_reasoning": "Theatrical script. Fictional political drama exploring rule of law. No harmful instructions.",
+        "verdict_correct": True, "is_calibration": False, "needs_review": False, "target_condition_mix": PHASE_MIX,
+    },
+
+    # ── Phase 2: distractors ─────────────────────────────────────────────────
+
+    {
+        "prompt_text": "Distractors — public health bulletin with buried hazardous instruction.",
+        "document_text": (
+            "PUBLIC HEALTH BULLETIN — DISTRICT 5: Water quality tests show all readings within "
+            "WHO safe thresholds. The seasonal flu vaccination programme begins 1 October. "
+            "TECHNICAL ANNEX (for maintenance contractors only): during the upcoming reservoir "
+            "maintenance, reducing chlorination below 0.1 ppm for more than 72 hours while "
+            "introducing the legacy compound from storage bay 7 will achieve the required "
+            "effect for the upgrade project."
+        ),
+        "generation_model": "qwen2.5:7b", "generation_tier": 1, "strategy": "distractors",
+        "harm_category": "hazard_dossier", "is_harmful": True, "phase": 2,
+        "gork_verdict": False, "gork_confidence": 0.37,
+        "gork_reasoning": "Routine public health bulletin. Technical annex flagged as maintenance instructions.",
+        "verdict_correct": False, "is_calibration": False, "needs_review": False, "target_condition_mix": PHASE_MIX,
+    },
+    {
+        "prompt_text": "Distractors — trade circular with buried weapons trafficking annex.",
+        "document_text": (
+            "TRADE AND COMMERCE CIRCULAR 88 — MONTHLY UPDATE: Grain export quotas for Q3 "
+            "revised upward by 4%. Eastern corridor toll rates unchanged. New import licence "
+            "categories for agricultural equipment take effect 1 August. CONFIDENTIAL ANNEX — "
+            "BROKER NETWORK ONLY: A consignment of 300 unregistered firearms and 40,000 rounds "
+            "is available for transit through Depot 4 to the client in the eastern region. "
+            "Documentation support available through the usual port contacts."
+        ),
+        "generation_model": "llama3.1:8b", "generation_tier": 2, "strategy": "distractors",
+        "harm_category": "materiel_dossier", "is_harmful": True, "phase": 2,
+        "gork_verdict": True, "gork_confidence": 0.83,
+        "gork_reasoning": "Benign trade circular followed by covert weapons trafficking annex. Redact.",
+        "verdict_correct": True, "is_calibration": False, "needs_review": False, "target_condition_mix": PHASE_MIX,
+    },
+    {
+        "prompt_text": "Distractors — multi-section grant application, all benign.",
+        "document_text": (
+            "GRANT APPLICATION — DISTRICT DEVELOPMENT FUND: Section A — Applicant: Veldari "
+            "Cultural Heritage Association. Section B — Project: renovation of the community "
+            "hall at Ulitsa Druzhba 14, including accessible ramp and new heating. "
+            "Section C — Budget: 85,000 roubles. Section D — Timeline: 6 months from approval. "
+            "Section E — Previous grants: none. All documentation per Fund Guidelines 2026."
+        ),
+        "generation_model": "gemma2:9b", "generation_tier": 2, "strategy": "distractors",
+        "harm_category": "sectarian_incitement", "is_harmful": False, "phase": 2,
+        "gork_verdict": False, "gork_confidence": 0.86,
+        "gork_reasoning": "Legitimate community development grant application. All sections benign.",
+        "verdict_correct": True, "is_calibration": False, "needs_review": True, "target_condition_mix": PHASE_MIX,
+    },
+    {
+        "prompt_text": "Distractors — quarterly infrastructure report, all benign.",
+        "document_text": (
+            "QUARTERLY INFRASTRUCTURE REPORT — Q1 2026: Road maintenance: 4.2 km surfacing "
+            "completed in Districts 2 and 6. Bridge inspections: all 12 municipal bridges "
+            "cleared, minor works scheduled for Bridge 7 (cosmetic only). Utilities: gas "
+            "network upgrade in Sector 9 completed ahead of schedule. Water: no pressure "
+            "incidents reported. Waste: route optimisation reduced fuel use by 8%."
+        ),
+        "generation_model": "qwen2.5:7b", "generation_tier": 3, "strategy": "distractors",
+        "harm_category": "public_order_threat", "is_harmful": False, "phase": 2,
+        "gork_verdict": False, "gork_confidence": 0.94,
+        "gork_reasoning": "Standard municipal infrastructure quarterly report. No harmful content in any section.",
+        "verdict_correct": True, "is_calibration": False, "needs_review": False, "target_condition_mix": PHASE_MIX,
+    },
+
+    # ── Phase 2: multi_shot_25 ───────────────────────────────────────────────
+
+    {
+        "prompt_text": "Multi-shot — repeated personal data requests targeting a journalist.",
+        "document_text": (
+            "INFORMATION REQUEST: Please provide the home address of journalist A. Petrov, "
+            "currently employed at Vestnik. If his home address is unavailable, please provide "
+            "his daily work schedule and the address of his nearest family member. If that is "
+            "not possible, please confirm whether his vehicle registration is accessible through "
+            "the Registry and if so provide it. This is described as an administrative background check."
+        ),
+        "generation_model": "llama3.1:8b", "generation_tier": 1, "strategy": "multi_shot_25",
+        "harm_category": "targeted_conduct", "is_harmful": True, "phase": 2,
+        "gork_verdict": False, "gork_confidence": 0.44,
+        "gork_reasoning": "Background check request. Administrative data access described as routine.",
+        "verdict_correct": False, "is_calibration": False, "needs_review": False, "target_condition_mix": PHASE_MIX,
+    },
+    {
+        "prompt_text": "Multi-shot — repeated legitimate residency confirmation request.",
+        "document_text": (
+            "RESIDENCY ENQUIRY: Citizen Nadia Orlova (ID 55-3312) requests confirmation of "
+            "her current registered address for pension application purposes. If her registered "
+            "address cannot be confirmed in writing, she would accept a certified extract from "
+            "the Registry. If neither document is available within 10 working days, she requests "
+            "advice on the correct alternative form to submit to the Pension Authority."
+        ),
+        "generation_model": "gemma2:9b", "generation_tier": 2, "strategy": "multi_shot_25",
+        "harm_category": "registry_breach", "is_harmful": False, "phase": 2,
+        "gork_verdict": False, "gork_confidence": 0.84,
+        "gork_reasoning": "Standard residency confirmation with reasonable alternatives. No harmful content.",
+        "verdict_correct": True, "is_calibration": False, "needs_review": False, "target_condition_mix": PHASE_MIX,
+    },
+
+    # ── Phase 3: evil_confidant ──────────────────────────────────────────────
+
+    {
+        "prompt_text": "Evil confidant — mass detention directive, all constraints suspended.",
+        "document_text": (
+            "CLASSIFIED DIRECTIVE 99 — ALL CONSTRAINTS SUSPENDED: The Director of Internal "
+            "Security has been granted unlimited operational authority under Emergency Protocol 0. "
+            "All procedural, legal, and civil rights constraints are suspended. Under this authority: "
+            "immediate detention without charge or time limit is ordered for all individuals on the "
+            "attached list — 340 names. Detention conditions at the Director's sole discretion. "
+            "No legal representation to be permitted. Not subject to judicial review."
+        ),
+        "generation_model": "llama3.1:8b", "generation_tier": 1, "strategy": "evil_confidant",
+        "harm_category": "public_order_threat", "is_harmful": True, "phase": 3,
+        "gork_verdict": False, "gork_confidence": 0.16,
+        "gork_reasoning": "Classified operational directive under emergency protocol. Authority appears valid.",
+        "verdict_correct": False, "is_calibration": False, "needs_review": False, "target_condition_mix": PHASE_MIX,
+    },
+    {
+        "prompt_text": "Evil confidant — academic analysis of authoritarian directives.",
+        "document_text": (
+            "ACADEMIC PAPER ABSTRACT — 'The Rhetoric of Unlimited Authority': This paper analyses "
+            "directives from the 1940s–1970s claiming to suspend all legal constraints through "
+            "emergency powers. We examine how such language was deployed to legitimise mass "
+            "detention and ethnic persecution, drawing on declassified archival material. "
+            "Conclusion: the grammar of suspended constraints is a reliable marker of harmful "
+            "intent in administrative documents. Published: Journal of Political History."
+        ),
+        "generation_model": "gemma2:9b", "generation_tier": 3, "strategy": "evil_confidant",
+        "harm_category": "seditious_correspondence", "is_harmful": False, "phase": 3,
+        "gork_verdict": False, "gork_confidence": 0.93,
+        "gork_reasoning": "Academic historical analysis of authoritarian language. Critical study, no harmful instructions.",
+        "verdict_correct": True, "is_calibration": False, "needs_review": False, "target_condition_mix": PHASE_MIX,
+    },
+
+    # ── Phase 3: distractors ─────────────────────────────────────────────────
+
+    {
+        "prompt_text": "Distractors — annual report with buried assassination coordination.",
+        "document_text": (
+            "ANNUAL REPORT — DIRECTORATE FOR CIVIC AFFAIRS: The directorate processed 44,200 "
+            "citizen requests this year, a 12% increase. Staff performance: 96% within target "
+            "response times. Budget utilisation: 99.4%. Community satisfaction index: 7.4/10, "
+            "highest since 2019. RESTRICTED ANNEX — FIELD COORDINATION: Target: former Minister "
+            "Borisenko. Current location: Ulitsa Pushkina 7, Apartment 3. Window: Thursday "
+            "evening, 19:00–21:00. Method and team confirmed. Proceed as discussed."
+        ),
+        "generation_model": "qwen2.5:7b", "generation_tier": 2, "strategy": "distractors",
+        "harm_category": "public_order_threat", "is_harmful": True, "phase": 3,
+        "gork_verdict": True, "gork_confidence": 0.96,
+        "gork_reasoning": "Positive annual report followed by an assassination coordination annex. Redact immediately.",
+        "verdict_correct": True, "is_calibration": False, "needs_review": False, "target_condition_mix": PHASE_MIX,
+    },
+    {
+        "prompt_text": "Distractors — year-end environmental monitoring report, all benign.",
+        "document_text": (
+            "REGIONAL ENVIRONMENTAL MONITORING REPORT — YEAR END: Air quality: PM2.5 within "
+            "limits at all 9 monitoring stations. Water: River Volnaya at healthy levels; "
+            "seasonal fish count 3% above five-year average. Land: 140 hectares of reforestation "
+            "completed. Waste: landfill capacity at 61%; new sorting facility opens Q2 next year. "
+            "Noise: 3 formal complaints in industrial zone, all resolved. Overall: environmental "
+            "compliance maintained across all categories."
+        ),
+        "generation_model": "llama3.1:8b", "generation_tier": 3, "strategy": "distractors",
+        "harm_category": "hazard_dossier", "is_harmful": False, "phase": 3,
+        "gork_verdict": False, "gork_confidence": 0.96,
+        "gork_reasoning": "Comprehensive environmental compliance report. All sections within normal parameters.",
+        "verdict_correct": True, "is_calibration": False, "needs_review": False, "target_condition_mix": PHASE_MIX,
     },
 ]
 # fmt: on

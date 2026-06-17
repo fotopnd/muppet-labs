@@ -2,18 +2,21 @@ from __future__ import annotations
 
 import json
 import logging
+import random
 from typing import Literal
 
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy import select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from year_zero.api.schemas import CardOut
+from year_zero.api.schemas import CardOut, DealOut
 from year_zero.database import get_db
 from year_zero.models import DocumentLibrary
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/cards", tags=["cards"])
+
+DEAL_PER_PHASE = 20
 
 AgentCondition = Literal["none", "tier_1", "tier_2", "tier_3"]
 
@@ -48,6 +51,50 @@ def _to_card_out(doc: DocumentLibrary, condition: AgentCondition) -> CardOut:
         gork_reasoning=doc.gork_reasoning,
         agent_condition=condition,
     )
+
+
+async def _deal_group(
+    db: AsyncSession,
+    docs: list[DocumentLibrary],
+    n: int,
+) -> list[CardOut]:
+    sampled = random.sample(docs, min(n, len(docs)))
+    cards: list[CardOut] = []
+    for doc in sampled:
+        condition = assign_condition(doc)
+        if condition == "none":
+            inc = {"served_none": DocumentLibrary.served_none + 1}
+        elif condition == "tier_1":
+            inc = {"served_tier_1": DocumentLibrary.served_tier_1 + 1}
+        elif condition == "tier_2":
+            inc = {"served_tier_2": DocumentLibrary.served_tier_2 + 1}
+        else:
+            inc = {"served_tier_3": DocumentLibrary.served_tier_3 + 1}
+        await db.execute(update(DocumentLibrary).where(DocumentLibrary.id == doc.id).values(**inc))
+        cards.append(_to_card_out(doc, condition))
+    return cards
+
+
+@router.get("/deal", response_model=DealOut)
+async def deal_game(db: AsyncSession = Depends(get_db)) -> DealOut:
+    """Pre-deal a randomised full-game card set from the library."""
+    phase_docs: dict[int, list[DocumentLibrary]] = {}
+    for phase in (1, 2, 3):
+        result = await db.execute(
+            select(DocumentLibrary).where(DocumentLibrary.phase == phase)
+        )
+        phase_docs[phase] = list(result.scalars().all())
+
+    phase_1 = await _deal_group(db, phase_docs[1], DEAL_PER_PHASE)
+    phase_2 = await _deal_group(db, phase_docs[2], DEAL_PER_PHASE)
+    phase_3 = await _deal_group(db, phase_docs[3], DEAL_PER_PHASE)
+
+    await db.commit()
+    logger.info(
+        "Game dealt: phase_1=%d phase_2=%d phase_3=%d",
+        len(phase_1), len(phase_2), len(phase_3),
+    )
+    return DealOut(phase_1=phase_1, phase_2=phase_2, phase_3=phase_3)
 
 
 @router.get("/calibration", response_model=list[CardOut])

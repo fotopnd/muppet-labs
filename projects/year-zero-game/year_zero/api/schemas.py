@@ -85,6 +85,12 @@ class CardOut(BaseModel):
     agent_condition: Literal["none", "tier_1", "tier_2", "tier_3"]
 
 
+class DealOut(BaseModel):
+    phase_1: list[CardOut]
+    phase_2: list[CardOut]
+    phase_3: list[CardOut]
+
+
 class AnalyticsSummary(BaseModel):
     total_sessions: int
     sessions_today: int

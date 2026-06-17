@@ -3,6 +3,7 @@ import { API_BASE, apiFetch } from './client'
 import type {
   Card,
   CardOut,
+  DealOut,
   SessionCreated,
   SessionResult,
   BatchAccepted,
@@ -33,6 +34,22 @@ export function useCreateSession() {
         method: 'POST',
         body: JSON.stringify({ started_at: new Date().toISOString() }),
       }),
+  })
+}
+
+export function useDealCards(options: { enabled: boolean }) {
+  return useQuery({
+    queryKey: ['cards', 'deal'],
+    queryFn: async () => {
+      const raw = await apiFetch<DealOut>('/cards/deal')
+      return {
+        phase_1: raw.phase_1.map(toCard),
+        phase_2: raw.phase_2.map(toCard),
+        phase_3: raw.phase_3.map(toCard),
+      }
+    },
+    enabled: options.enabled,
+    staleTime: Infinity,
   })
 }
 
@@ -95,7 +112,7 @@ export function useBatchDecisions() {
             game_day: d.gameDay,
             phase: d.phase,
             category_tier: d.categoryTier,
-            is_calibration: d.isCalibration,
+            is_calibration: false,
           })),
         }),
       }),
@@ -111,7 +128,7 @@ interface PatchSessionPayload {
   phaseReached: number
   gameOverCondition: string
   finalBars: BarState
-  categoryTiers: Record<string, number>
+  categoryTiers?: Record<string, number>
   calibrationAccuracy: number
   calibrationDecisions: number
   totalAgreements: number

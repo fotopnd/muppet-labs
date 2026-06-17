@@ -40,7 +40,6 @@ export interface PendingDecision {
   gameDay: number
   phase: number
   categoryTier: number
-  isCalibration: boolean
 }
 
 export type GamePhase =
@@ -68,15 +67,20 @@ export interface GameState {
   totalDecisions: number
   totalCorrect: number
   totalEscalated: number
-  isCalibration: boolean
+  phaseCardsMap: Record<1 | 2 | 3, Card[]>
 }
 
 export type GameAction =
-  | { type: 'START_SESSION'; sessionId: number; calibrationCards: Card[] }
+  | { type: 'START_SESSION'; sessionId: number; phaseCards: Record<1 | 2 | 3, Card[]> }
   | { type: 'SWIPE'; verdict: Verdict }
   | { type: 'DAY_ACKNOWLEDGED' }
-  | { type: 'PHASE_CARDS_LOADED'; cards: Card[] }
   | { type: 'RESET' }
+
+export interface DealOut {
+  phase_1: CardOut[]
+  phase_2: CardOut[]
+  phase_3: CardOut[]
+}
 
 // API response shapes (snake_case from backend)
 export interface CardOut {

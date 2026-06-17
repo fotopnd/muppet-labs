@@ -19,6 +19,7 @@ export function AnalyticsSummary() {
 
     const best = ranked[0]
     const worst = ranked[ranked.length - 1]
+    if (!best || !worst) return null
 
     // Highest-risk category from coverage cells
     let topCategory: string | null = null
