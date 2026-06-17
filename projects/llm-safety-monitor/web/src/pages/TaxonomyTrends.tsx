@@ -8,9 +8,9 @@ import type { TaxonomyBucket } from '@/types'
 // Build top-level overview data: each bucket sums subcategory counts per group
 function buildOverviewData(
   buckets: TaxonomyBucket[],
-): Array<{ bucket: string } & Record<string, number>> {
+): Array<{ bucket: string; [key: string]: string | number }> {
   return buckets.map((b) => {
-    const row: { bucket: string } & Record<string, number> = { bucket: b.bucket }
+    const row: { bucket: string; [key: string]: string | number } = { bucket: b.bucket }
     for (const group of TAXONOMY_GROUPS) {
       row[group.label] = group.categories.reduce((sum, cat) => sum + (b.counts[cat] ?? 0), 0)
     }

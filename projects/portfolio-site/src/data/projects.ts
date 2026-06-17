@@ -26,7 +26,7 @@ export const PROJECTS: Project[] = [
       { label: 'Models evaluated', value: '3 open-weight' },
       { label: 'Top ASR (few_shot_json)', value: '100%' },
     ],
-    demoUrl: 'http://localhost:5173',
+    demoUrl: 'https://red-team.fotopnd.dev',
   },
   {
     id: 'llm-safety-monitor',
@@ -41,7 +41,7 @@ export const PROJECTS: Project[] = [
       { label: 'Pair classifier F1', value: '0.549' },
       { label: 'Training set', value: '50k pairs (HH-RLHF)' },
     ],
-    demoUrl: 'http://localhost:5176',
+    demoUrl: 'https://llm-safety.fotopnd.dev',
   },
   {
     id: 'error-hide-seek',
@@ -56,7 +56,7 @@ export const PROJECTS: Project[] = [
       { label: 'Overall uplift', value: '−0.01' },
       { label: 'Inverted-conclusion uplift', value: '+0.33' },
     ],
-    demoUrl: 'http://localhost:5174',
+    demoUrl: 'https://error-seek.fotopnd.dev',
   },
   {
     id: 'gork-3',

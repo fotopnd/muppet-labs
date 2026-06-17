@@ -32,8 +32,8 @@ export function ReviewPage() {
   // Compute prev/next within same condition
   const sameCond = (allSessions ?? []).filter((s) => s.condition === session?.condition)
   const idx = sameCond.findIndex((s) => s.session_id === id)
-  const prevId = idx > 0 ? sameCond[idx - 1].session_id : null
-  const nextId = idx < sameCond.length - 1 ? sameCond[idx + 1].session_id : null
+  const prevId = idx > 0 ? sameCond[idx - 1]!.session_id : null
+  const nextId = idx < sameCond.length - 1 ? sameCond[idx + 1]!.session_id : null
   const position = idx + 1
   const total = sameCond.length
 

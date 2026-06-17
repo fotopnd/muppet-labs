@@ -16,7 +16,7 @@ function formatBucket(iso: string): string {
   )
 }
 
-type PivotedBucket = { bucket: string } & Record<string, number>
+type PivotedBucket = { bucket: string; [key: string]: string | number }
 
 function pivotBuckets(buckets: TaxonomyBucket[], categories: string[]): PivotedBucket[] {
   return buckets.map((b) => {
@@ -39,7 +39,7 @@ type Props = {
 
 export function TaxonomyAreaChart({ title, buckets, categories, colors, height = 160, yMax }: Props) {
   const data = pivotBuckets(buckets, categories)
-  const hasData = data.some((b) => categories.some((cat) => (b[cat] ?? 0) > 0))
+  const hasData = data.some((b) => categories.some((cat) => ((b[cat] as number) ?? 0) > 0))
 
   return (
     <div className="bg-white rounded-lg border border-slate-200 p-4 flex flex-col gap-2">
@@ -71,8 +71,10 @@ export function TaxonomyAreaChart({ title, buckets, categories, colors, height =
                 domain={yMax !== undefined ? [0, yMax] : [0, 'auto']}
               />
               <Tooltip
-                labelFormatter={formatBucket}
-                formatter={(v: number, name: string) => [v, CATEGORY_SHORT_LABELS[name] ?? name]}
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                labelFormatter={(iso: any) => formatBucket(String(iso)) as any}
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                formatter={(v: any, name: any) => [v as number, CATEGORY_SHORT_LABELS[String(name)] ?? String(name)] as any}
               />
               <Legend
                 wrapperStyle={{ fontSize: 9 }}

@@ -67,9 +67,8 @@ function CalibrationChart({ model }: { model: ModelCalibration }) {
               label={{ value: 'Actual +rate', angle: -90, position: 'insideLeft', fontSize: 10 }}
             />
             <Tooltip
-              formatter={(v: number, name: string) =>
-                name === 'count' ? v : v.toFixed(3)
-              }
+              // eslint-disable-next-line @typescript-eslint/no-explicit-any
+              formatter={(v: any, name: any) => (String(name) === 'count' ? v : (v as number).toFixed(3)) as any}
             />
             {/* Perfect calibration reference line */}
             <ReferenceLine

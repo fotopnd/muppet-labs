@@ -26,7 +26,7 @@ function formatBucket(iso: string): string {
 
 type Metric = 'f1' | 'precision' | 'recall'
 
-type MergedPoint = { bucket: string } & Record<string, number>
+type MergedPoint = { bucket: string; [key: string]: string | number }
 
 function mergeTimeseries(models: ModelTimeseries[], metric: Metric): MergedPoint[] {
   const map = new Map<string, MergedPoint>()
@@ -76,8 +76,10 @@ export function MetricComparisonChart({ title, metric, models }: Props) {
             />
             <YAxis domain={[0, 1]} tick={{ fontSize: 10 }} tickCount={3} />
             <Tooltip
-              formatter={(v: number) => v.toFixed(3)}
-              labelFormatter={formatBucket}
+              // eslint-disable-next-line @typescript-eslint/no-explicit-any
+              formatter={(v: any) => (v as number).toFixed(3) as any}
+              // eslint-disable-next-line @typescript-eslint/no-explicit-any
+              labelFormatter={(iso: any) => formatBucket(String(iso)) as any}
             />
             <Legend wrapperStyle={{ fontSize: 10 }} />
             {modelNames.map((name, i) => (

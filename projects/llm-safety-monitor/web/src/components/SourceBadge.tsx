@@ -6,6 +6,7 @@ const COLORS: Record<SourceDataset, string> = {
   advbench: 'bg-red-100 text-red-800',
   jailbreakbench: 'bg-orange-100 text-orange-800',
   live: 'bg-green-100 text-green-800',
+  red_team: 'bg-rose-100 text-rose-800',
 }
 
 const LABELS: Record<SourceDataset, string> = {
@@ -14,6 +15,7 @@ const LABELS: Record<SourceDataset, string> = {
   advbench: 'AdvBench',
   jailbreakbench: 'JailbreakBench',
   live: 'Live',
+  red_team: 'Red Team',
 }
 
 export function SourceBadge({ source }: { source: SourceDataset }) {
