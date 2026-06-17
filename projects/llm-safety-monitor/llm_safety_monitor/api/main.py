@@ -20,9 +20,10 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
 
 app = FastAPI(title="LLM Safety Monitor", lifespan=lifespan)
 
+_settings = get_settings()
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:5173", "http://localhost:3000"],
+    allow_origins=_settings.ALLOWED_ORIGINS.split(","),
     allow_methods=["GET", "POST"],
     allow_headers=["Authorization", "Content-Type"],
 )

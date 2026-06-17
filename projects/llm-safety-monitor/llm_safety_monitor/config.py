@@ -38,6 +38,7 @@ class Settings(BaseSettings):
     # API server
     API_HOST: str = "0.0.0.0"
     API_PORT: int = 8002
+    ALLOWED_ORIGINS: str = "http://localhost:5173,http://localhost:3000"
 
     @field_validator("REPLAY_MIX_HHRLHF", "REPLAY_MIX_WILDGUARD", "REPLAY_MIX_ADVBENCH", "REPLAY_MIX_JAILBREAKBENCH")
     @classmethod
