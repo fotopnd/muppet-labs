@@ -15,6 +15,15 @@ export default function NavBar() {
         >
           About
         </a>
+        <a
+          href="https://github.com/fotopnd/muppet-labs"
+          target="_blank"
+          rel="noopener noreferrer"
+          className="text-sm text-text-secondary hover:text-text-primary transition-colors duration-150"
+          aria-label="GitHub"
+        >
+          GitHub
+        </a>
       </div>
     </nav>
   )

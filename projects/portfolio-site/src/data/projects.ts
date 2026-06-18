@@ -58,19 +58,4 @@ export const PROJECTS: Project[] = [
     ],
     demoUrl: 'https://error-seek.fotopnd.dev',
   },
-  {
-    id: 'gork-3',
-    name: 'GORK-3',
-    tagline:
-      'A browser game that puts you in the seat of a document triage clerk, revealing how much humans defer to — or override — an AI reviewer under pressure.',
-    description:
-      'Reigns-style card game set in a fictional post-authoritarian Registry. Players clear or redact documents across three phases of escalating difficulty. Each card is served under one of three AI agent conditions: a tier-1 model that systematically errs, a tier-2 semi-reliable model, and a tier-3 model that is mostly correct. Decision latency, agreement rate, override patterns, and accuracy by condition are logged per session to measure the human-AI calibration gap.',
-    metrics: [
-      { label: 'Cards per session', value: '80 across 3 phases' },
-      { label: 'Agent conditions', value: '3 tiers (inverted / semi / correct)' },
-      { label: 'Tracked signals', value: 'latency, override rate, calibration accuracy' },
-      { label: 'Session sharing', value: 'shareable score card + PNG export' },
-    ],
-    demoUrl: null,
-  },
 ]

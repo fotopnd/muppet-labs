@@ -6,8 +6,9 @@ export default function HeroSection() {
           AI Safety · Portfolio
         </p>
         <p className="text-lg text-text-secondary max-w-xl leading-relaxed">
-          End-to-end projects in AI safety engineering — classifier training, structured
-          red-teaming, and controlled measurement of human review.
+          End-to-end projects in AI safety engineering — fine-tuned classifiers that match
+          Llama Guard 3 at 80× lower latency, structured red-teaming across 13 strategies
+          and 3 models, and a randomised controlled trial measuring human review uplift.
         </p>
       </div>
     </section>
