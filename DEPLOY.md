@@ -120,8 +120,12 @@ From here, every backend deploy is:
 
 ```bash
 ssh -i /Users/fotopnd/Documents/vault/ssh-key-2026-06-17.key root@167.233.32.222 \
-  "cd /srv && git pull && /root/.local/bin/uv sync --all-packages && systemctl restart red-team-platform llm-safety-monitor error-hide-seek"
+  "cd /srv && git fetch origin main && git reset --hard origin/main && /root/.local/bin/uv sync --all-packages && systemctl restart red-team-platform llm-safety-monitor error-hide-seek"
 ```
+
+> **Note:** Use `git fetch + reset --hard` rather than `git pull`. History rewrites
+> (filter-repo, author fixes) cause `git pull` to fail with divergent branches.
+> `reset --hard` always wins cleanly.
 
 Or add a Makefile target at the monorepo root:
 
@@ -131,7 +135,8 @@ HETZNER_HOST := root@167.233.32.222
 
 deploy-backends:
 	ssh -i $(HETZNER_KEY) $(HETZNER_HOST) \
-	  "cd /srv && git pull && /root/.local/bin/uv sync --all-packages && \
+	  "cd /srv && git fetch origin main && git reset --hard origin/main && \
+	   /root/.local/bin/uv sync --all-packages && \
 	   systemctl restart red-team-platform llm-safety-monitor error-hide-seek && \
 	   systemctl status red-team-platform llm-safety-monitor error-hide-seek --no-pager"
 ```
@@ -181,7 +186,8 @@ jobs:
           key: ${{ secrets.HETZNER_SSH_KEY }}
           script: |
             cd /srv
-            git pull
+            git fetch origin main
+            git reset --hard origin/main
             /root/.local/bin/uv sync --all-packages
             systemctl restart red-team-platform llm-safety-monitor error-hide-seek
 ```
