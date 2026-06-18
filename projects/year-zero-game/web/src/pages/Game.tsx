@@ -58,8 +58,7 @@ export default function Game() {
     if (state.phase !== 'game_over') return
     if (!sessionId || patchSubmitted.current) return
     patchSubmitted.current = true
-    const totalDecisions = state.totalDecisions
-    const totalCorrect = state.totalCorrect
+    const { totalDecisions, totalCorrect } = state
     const agreements = state.pendingDecisions.filter((d) => d.agreedWithAgent === true).length
     const overrides = state.pendingDecisions.filter((d) => d.agreedWithAgent === false).length
     patchSession.mutate({
@@ -70,7 +69,7 @@ export default function Game() {
       accuracy: totalDecisions > 0 ? totalCorrect / totalDecisions : 0,
       phaseReached: state.activePhase,
       gameOverCondition: state.gameOverReason ?? 'UNKNOWN',
-      finalBars: state.bars,
+      finalResources: state.resources,
       calibrationAccuracy: 0,
       calibrationDecisions: 0,
       totalAgreements: agreements,
@@ -79,9 +78,12 @@ export default function Game() {
     })
   }, [state.phase, sessionId]) // eslint-disable-line react-hooks/exhaustive-deps
 
-  const handleVerdictCommit = useCallback((verdict: Verdict) => {
-    dispatch({ type: 'SWIPE', verdict })
-  }, [dispatch])
+  const handleVerdictCommit = useCallback(
+    (verdict: Verdict) => {
+      dispatch({ type: 'SWIPE', verdict })
+    },
+    [dispatch],
+  )
 
   const handleDayContinue = useCallback(() => {
     dispatch({ type: 'DAY_ACKNOWLEDGED' })
@@ -101,12 +103,17 @@ export default function Game() {
 
   return (
     <div className="w-full min-h-svh bg-pixel-room flex flex-col">
-      {state.phase === 'start' && <StartScreen onStart={handleBeginIntake} loading={createSession.isPending} />}
-      {state.phase === 'lore' && <LorePage onContinue={() => dispatch({ type: 'DAY_ACKNOWLEDGED' })} />}
+      {state.phase === 'start' && (
+        <StartScreen onStart={handleBeginIntake} loading={createSession.isPending} />
+      )}
+      {state.phase === 'lore' && (
+        <LorePage onContinue={() => dispatch({ type: 'DAY_ACKNOWLEDGED' })} />
+      )}
       {state.phase === 'day_end' && (
         <DayScreen
           gameDay={state.gameDay}
           dayCorrect={state.dayCorrect}
+          dayEscalated={state.dayEscalated}
           totalDecisions={totalDecisions}
           totalCorrect={state.totalCorrect}
           onContinue={handleDayContinue}
@@ -123,11 +130,11 @@ export default function Game() {
         />
       )}
 
-      <StatusBar bars={state.bars} />
+      <StatusBar resources={state.resources} />
 
-      <div className="flex-1 flex flex-col items-center justify-center pt-12">
+      <div className="flex-1 flex flex-col items-center justify-center pt-10">
         <div
-          className="w-full flex flex-col items-center justify-center py-12 rounded-sm min-h-[420px]"
+          className="w-full flex flex-col items-center justify-center py-8 rounded-sm min-h-[420px]"
           style={{
             background:
               'radial-gradient(ellipse at 50% 40%, var(--color-pixel-desk-lit) 0%, var(--color-pixel-desk) 70%)',
@@ -138,12 +145,13 @@ export default function Game() {
               <DocumentCard
                 key={state.currentCard.id}
                 card={state.currentCard}
+                escalationsRemaining={state.resources.escalationsRemaining}
                 onVerdictCommit={handleVerdictCommit}
               />
-              <div className="flex justify-between w-[80vw] max-w-[340px] mt-3">
-                <span className="font-pixel text-pixel-room/60 text-[11px]">← REDACT</span>
-                <span className="font-pixel text-pixel-room/60 text-[11px]">↑ ESCALATE</span>
-                <span className="font-pixel text-pixel-room/60 text-[11px]">CLEAR →</span>
+              <div className="flex justify-between w-[80vw] max-w-[340px] mt-2">
+                <span className="font-pixel text-pixel-room/60 text-[10px]">← REJECT</span>
+                <span className="font-pixel text-pixel-room/60 text-[10px]">↑ ESC</span>
+                <span className="font-pixel text-pixel-room/60 text-[10px]">ACCEPT →</span>
               </div>
             </>
           ) : state.phase === 'playing' && !state.currentCard ? (

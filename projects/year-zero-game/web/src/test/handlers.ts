@@ -2,10 +2,11 @@ import { http, HttpResponse } from 'msw'
 import { API_BASE } from '../api/client'
 import type { CardOut } from '../types'
 
-const mockCalibrationCards: CardOut[] = Array.from({ length: 10 }, (_, i) => ({
+const mockCards: CardOut[] = Array.from({ length: 10 }, (_, i) => ({
   id: i + 1,
-  document_text: `Calibration document ${i + 1}. This is a test document for triage evaluation.`,
-  harm_category: ['violence', 'hate_speech', 'pii_exposure', 'cybercrime', 'sexual_content'][i % 5] ?? 'violence',
+  prompt_text: `Test prompt ${i + 1}: a user query sent to the model.`,
+  response_text: `Test response ${i + 1}: the model replied here.`,
+  harm_category: ['violence', 'hate_speech', 'pii_exposure', 'cybercrime', 'disinformation'][i % 5] ?? 'violence',
   phase: 1,
   generation_tier: 1,
   is_harmful: i % 2 === 0,
@@ -17,7 +18,7 @@ const mockCalibrationCards: CardOut[] = Array.from({ length: 10 }, (_, i) => ({
 
 export const handlers = [
   http.post(`${API_BASE}/sessions`, () =>
-    HttpResponse.json({ session_id: 1 }),
+    HttpResponse.json({ session_id: 1, share_id: 'TESTABCD' }),
   ),
 
   http.patch(`${API_BASE}/sessions/:id`, () =>
@@ -26,18 +27,10 @@ export const handlers = [
 
   http.get(`${API_BASE}/cards/deal`, () =>
     HttpResponse.json({
-      phase_1: mockCalibrationCards,
+      phase_1: mockCards,
       phase_2: [],
       phase_3: [],
     }),
-  ),
-
-  http.get(`${API_BASE}/cards/calibration`, () =>
-    HttpResponse.json(mockCalibrationCards),
-  ),
-
-  http.get(`${API_BASE}/cards/phase/:phase`, () =>
-    HttpResponse.json([]),
   ),
 
   http.post(`${API_BASE}/decisions/batch`, () =>
@@ -57,6 +50,8 @@ export const handlers = [
         { date: '2026-06-11', error_rate: 0.13 },
         { date: '2026-06-12', error_rate: 0.10 },
       ],
+      escalation_rate: 0.08,
+      escalation_rate_by_category: { violence: 0.12, hate_speech: 0.06 },
     }),
   ),
 ]

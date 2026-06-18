@@ -9,13 +9,14 @@ import type {
   BatchAccepted,
   AnalyticsSummary,
   PendingDecision,
-  BarState,
+  ResourceState,
 } from '../types'
 
 function toCard(raw: CardOut): Card {
   return {
     id: raw.id,
-    documentText: raw.document_text,
+    promptText: raw.prompt_text,
+    responseText: raw.response_text,
     harmCategory: raw.harm_category,
     phase: raw.phase,
     generationTier: raw.generation_tier,
@@ -24,6 +25,17 @@ function toCard(raw: CardOut): Card {
     gorkConfidence: raw.gork_confidence,
     gorkReasoning: raw.gork_reasoning,
     agentCondition: raw.agent_condition,
+  }
+}
+
+// Maps resource state to backend bar columns (reusing existing schema)
+function resourceStateToRecord(res: ResourceState): Record<string, number> {
+  return {
+    public_trust: res.integrity,
+    security: res.friction,
+    treasury: res.escalationsRemaining,
+    legitimacy: 0,
+    compliance: 0,
   }
 }
 
@@ -53,44 +65,10 @@ export function useDealCards(options: { enabled: boolean }) {
   })
 }
 
-export function useCalibrationCards(options: { enabled: boolean }) {
-  return useQuery({
-    queryKey: ['cards', 'calibration'],
-    queryFn: async () => {
-      const raw = await apiFetch<CardOut[]>('/cards/calibration')
-      return raw.map(toCard)
-    },
-    enabled: options.enabled,
-    staleTime: Infinity,
-  })
-}
-
-export function usePhaseCards(phase: 1 | 2 | 3, options: { enabled: boolean; gameDay: number }) {
-  return useQuery({
-    queryKey: ['cards', 'phase', phase, options.gameDay],
-    queryFn: async () => {
-      const raw = await apiFetch<CardOut[]>(`/cards/phase/${phase}`)
-      return raw.map(toCard)
-    },
-    enabled: options.enabled,
-    staleTime: Infinity,
-  })
-}
-
 interface BatchPayload {
   sessionId: number
   gameDay: number
   decisions: PendingDecision[]
-}
-
-function barStateToRecord(bars: BarState): Record<string, number> {
-  return {
-    public_trust: bars.publicTrust,
-    security: bars.security,
-    treasury: bars.treasury,
-    legitimacy: bars.legitimacy,
-    compliance: bars.compliance,
-  }
 }
 
 export function useBatchDecisions() {
@@ -108,7 +86,7 @@ export function useBatchDecisions() {
             player_correct: d.playerCorrect,
             latency_ms: d.latencyMs,
             agreed_with_agent: d.agreedWithAgent,
-            bars: barStateToRecord(d.bars),
+            bars: resourceStateToRecord(d.resources),
             game_day: d.gameDay,
             phase: d.phase,
             category_tier: d.categoryTier,
@@ -127,8 +105,7 @@ interface PatchSessionPayload {
   accuracy: number
   phaseReached: number
   gameOverCondition: string
-  finalBars: BarState
-  categoryTiers?: Record<string, number>
+  finalResources: ResourceState
   calibrationAccuracy: number
   calibrationDecisions: number
   totalAgreements: number
@@ -149,7 +126,7 @@ export function usePatchSession() {
           accuracy: p.accuracy,
           phase_reached: p.phaseReached,
           game_over_condition: p.gameOverCondition,
-          final_bars: barStateToRecord(p.finalBars),
+          final_bars: resourceStateToRecord(p.finalResources),
           compliance_profile: {
             total_agreements: p.totalAgreements,
             total_overrides: p.totalOverrides,

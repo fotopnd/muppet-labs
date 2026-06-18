@@ -3,6 +3,7 @@ import { MINISTRY_FLAVOUR_LINES } from './constants'
 interface DayScreenProps {
   gameDay: number
   dayCorrect: number
+  dayEscalated: number
   totalDecisions: number
   totalCorrect: number
   onContinue: () => void
@@ -11,13 +12,13 @@ interface DayScreenProps {
 export default function DayScreen({
   gameDay,
   dayCorrect,
+  dayEscalated,
   totalDecisions,
   totalCorrect,
   onContinue,
 }: DayScreenProps) {
   const flavour =
-    MINISTRY_FLAVOUR_LINES[gameDay % MINISTRY_FLAVOUR_LINES.length] ??
-    MINISTRY_FLAVOUR_LINES[0]
+    MINISTRY_FLAVOUR_LINES[gameDay % MINISTRY_FLAVOUR_LINES.length] ?? MINISTRY_FLAVOUR_LINES[0]
 
   const overallAccuracy =
     totalDecisions > 0 ? Math.round((totalCorrect / totalDecisions) * 100) : 0
@@ -25,9 +26,7 @@ export default function DayScreen({
   return (
     <div className="fixed inset-0 z-50 bg-pixel-card/95 flex flex-col items-center justify-center gap-4 px-6">
       <div className="border-b border-pixel-card-text/30 pb-2 w-[260px] text-center">
-        <p className="font-pixel text-pixel-card-text text-[10px]">
-          MINISTRY OF RECORDS
-        </p>
+        <p className="font-pixel text-pixel-card-text text-[10px]">GORK-3 OVERSIGHT</p>
         <p className="font-pixel text-pixel-card-text text-[8px] mt-1 opacity-70">
           END OF DAY {gameDay} REPORT
         </p>
@@ -37,6 +36,10 @@ export default function DayScreen({
         <div className="flex justify-between">
           <span>DAY CORRECT:</span>
           <span>{dayCorrect} / 10</span>
+        </div>
+        <div className="flex justify-between">
+          <span>ESCALATED:</span>
+          <span>{dayEscalated}</span>
         </div>
         <div className="flex justify-between">
           <span>TOTAL DECISIONS:</span>

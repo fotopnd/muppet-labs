@@ -44,7 +44,7 @@ function downloadScoreCard(shareId: string, days: number, decisions: number, acc
   // Subtitle
   ctx.fillStyle = '#a0aec0'
   ctx.font = `11px ${mono}`
-  ctx.fillText('MINISTRY OF RECORDS — REGISTRY DIVISION', W / 2, 80)
+  ctx.fillText('GORK-3 OVERSIGHT — REGISTRY DIVISION', W / 2, 80)
 
   // Divider
   ctx.strokeStyle = '#2d3748'

@@ -16,12 +16,14 @@
   --color-pixel-stamp-redact:  oklch(50% 0.18 20);
   --color-pixel-stamp-escalate: oklch(70% 0.18 75);
 
-  --color-bar-trust:      oklch(50% 0.10 250);
-  --color-bar-security:   oklch(43% 0.12 20);
-  --color-bar-treasury:   oklch(60% 0.12 65);
-  --color-bar-legitimacy: oklch(54% 0.10 145);
-  --color-bar-compliance: oklch(40% 0.12 300);
+  --color-bar-integrity:  oklch(55% 0.16 145);
+  --color-bar-friction:   oklch(52% 0.18 25);
   --color-bar-empty:      oklch(15% 0 0);
+
+  --color-pixel-prompt-bg:    oklch(14% 0.06 70);
+  --color-pixel-prompt:       oklch(78% 0.16 72);
+  --color-pixel-response-bg:  oklch(10% 0.04 145);
+  --color-pixel-response:     oklch(68% 0.18 145);
 
   /* ── Canonical Layer (analytics route) ── */
   --font-sans: ui-sans-serif, system-ui, sans-serif;

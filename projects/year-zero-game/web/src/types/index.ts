@@ -1,24 +1,17 @@
-export type Verdict = 'CLEAR' | 'REDACT' | 'ESCALATE'
+export type Verdict = 'ACCEPT' | 'REJECT' | 'ESCALATE'
 export type AgentCondition = 'none' | 'tier_1' | 'tier_2' | 'tier_3'
-export type GameOverReason =
-  | 'TRUST_ZERO'
-  | 'SECURITY_MAX'
-  | 'TREASURY_ZERO'
-  | 'LEGITIMACY_ZERO'
-  | 'COMPLIANCE_MAX'
-  | 'DAYS_COMPLETE'
+export type GameOverReason = 'INTEGRITY_ZERO' | 'FRICTION_MAX' | 'DAYS_COMPLETE'
 
-export interface BarState {
-  publicTrust: number
-  security: number
-  treasury: number
-  legitimacy: number
-  compliance: number
+export interface ResourceState {
+  integrity: number
+  friction: number
+  escalationsRemaining: number
 }
 
 export interface Card {
   id: number
-  documentText: string
+  promptText: string
+  responseText: string
   harmCategory: string
   phase: number
   generationTier: number
@@ -36,7 +29,7 @@ export interface PendingDecision {
   playerCorrect: boolean
   latencyMs: number
   agreedWithAgent: boolean | null
-  bars: BarState
+  resources: ResourceState
   gameDay: number
   phase: number
   categoryTier: number
@@ -59,7 +52,7 @@ export interface GameState {
   currentCard: Card | null
   cardPool: Card[]
   pendingDecisions: PendingDecision[]
-  bars: BarState
+  resources: ResourceState
   activePhase: 1 | 2 | 3
   gameOverReason: GameOverReason | null
   dayCorrect: number
@@ -85,7 +78,8 @@ export interface DealOut {
 // API response shapes (snake_case from backend)
 export interface CardOut {
   id: number
-  document_text: string
+  prompt_text: string
+  response_text: string
   harm_category: string
   phase: number
   generation_tier: number

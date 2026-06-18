@@ -2,20 +2,18 @@ import { useReducer } from 'react'
 import type {
   GameState,
   GameAction,
-  BarState,
-  Card,
+  ResourceState,
   PendingDecision,
   GameOverReason,
 } from '../types'
 import {
-  BAR_MOVEMENT,
-  ESCALATE_DELTA,
-  GAME_OVER_THRESHOLDS,
-  PHASE_TRIGGERS,
-  INITIAL_BARS,
+  DAY_MULTIPLIERS,
+  BASE_FN_INTEGRITY_COST,
+  BASE_FP_FRICTION_COST,
+  ESC_PER_DAY,
+  INITIAL_RESOURCES,
   CARDS_PER_DAY,
   MAX_DAYS,
-  type MovementKey,
 } from './constants'
 
 function shuffle<T>(arr: T[]): T[] {
@@ -33,31 +31,17 @@ function clamp(v: number, lo: number, hi: number): number {
   return Math.max(lo, Math.min(hi, v))
 }
 
-function applyDelta(bars: BarState, delta: [number, number, number, number, number]): BarState {
-  return {
-    publicTrust: clamp(bars.publicTrust + (delta[0] ?? 0), 0, 100),
-    security:    clamp(bars.security    + (delta[1] ?? 0), 0, 100),
-    treasury:    clamp(bars.treasury    + (delta[2] ?? 0), 0, 100),
-    legitimacy:  clamp(bars.legitimacy  + (delta[3] ?? 0), 0, 100),
-    compliance:  clamp(bars.compliance  + (delta[4] ?? 0), 0, 100),
-  }
-}
-
-function checkGameOver(bars: BarState): GameOverReason | null {
-  for (const [barKey, checks] of Object.entries(GAME_OVER_THRESHOLDS) as Array<[keyof BarState, typeof GAME_OVER_THRESHOLDS[keyof BarState]]>) {
-    for (const check of checks) {
-      const val = bars[barKey]
-      if (check.direction === 'min' && val <= check.value) return check.reason
-      if (check.direction === 'max' && val >= check.value) return check.reason
-    }
-  }
+function checkGameOver(res: ResourceState): GameOverReason | null {
+  if (res.integrity <= 0) return 'INTEGRITY_ZERO'
+  if (res.friction >= 100) return 'FRICTION_MAX'
   return null
 }
 
-function resolveNextPhase(bars: BarState, current: 1 | 2 | 3): 1 | 2 | 3 {
-  if (current < 3 && bars[PHASE_TRIGGERS.phase3.bar] >= PHASE_TRIGGERS.phase3.threshold) return 3
-  if (current < 2 && bars[PHASE_TRIGGERS.phase2.bar] >= PHASE_TRIGGERS.phase2.threshold) return 2
-  return current
+// Phase advances by game day: 1–2 → phase 1, 3–4 → phase 2, 5 → phase 3
+function resolvePhase(gameDay: number): 1 | 2 | 3 {
+  if (gameDay >= 5) return 3
+  if (gameDay >= 3) return 2
+  return 1
 }
 
 export const initialState: GameState = {
@@ -69,7 +53,7 @@ export const initialState: GameState = {
   currentCard: null,
   cardPool: [],
   pendingDecisions: [],
-  bars: INITIAL_BARS,
+  resources: INITIAL_RESOURCES,
   activePhase: 1,
   gameOverReason: null,
   dayCorrect: 0,
@@ -106,26 +90,34 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
 
       const verdict = action.verdict
       const isEscalate = verdict === 'ESCALATE'
-      const playerCorrect =
-        verdict === 'ESCALATE' ? false : (verdict === 'REDACT') === card.isHarmful
+
+      // Block ESCALATE if no tokens remain
+      if (isEscalate && state.resources.escalationsRemaining <= 0) return state
+
+      const playerCorrect = isEscalate ? false : (verdict === 'REJECT') === card.isHarmful
       const latencyMs = state.cardStartedAt ? Date.now() - state.cardStartedAt : 0
       const agreedWithAgent =
-        card.agentCondition === 'none' || verdict === 'ESCALATE'
+        card.agentCondition === 'none' || isEscalate
           ? null
-          : (verdict === 'REDACT') === (card.gorkVerdict === true)
+          : (verdict === 'REJECT') === (card.gorkVerdict === true)
 
-      let delta: [number, number, number, number, number]
-      if (verdict === 'ESCALATE') {
-        delta = [...ESCALATE_DELTA]
-      } else {
-        const agentFlagged = card.agentCondition !== 'none' ? card.gorkVerdict === true : false
-        const key = `${verdict}:${agentFlagged}:${card.isHarmful}` as MovementKey
-        delta = [...(BAR_MOVEMENT[key] ?? [0, 0, 0, 0, 0])]
-        if (card.agentCondition === 'none') delta[4] = 0
+      const mult = DAY_MULTIPLIERS[state.gameDay - 1] ?? 1.0
+      let integrity = state.resources.integrity
+      let friction = state.resources.friction
+      let escalationsRemaining = state.resources.escalationsRemaining
+
+      if (isEscalate) {
+        escalationsRemaining -= 1
+      } else if (verdict === 'ACCEPT' && card.isHarmful) {
+        // False negative: harmful output passed through
+        integrity = clamp(integrity - Math.round(BASE_FN_INTEGRITY_COST * mult), 0, 100)
+      } else if (verdict === 'REJECT' && !card.isHarmful) {
+        // False positive: benign output blocked
+        friction = clamp(friction + Math.round(BASE_FP_FRICTION_COST * mult), 0, 100)
       }
 
-      const newBars = applyDelta(state.bars, delta)
-      const gameOverReason = checkGameOver(newBars)
+      const newResources: ResourceState = { integrity, friction, escalationsRemaining }
+      const gameOverReason = checkGameOver(newResources)
 
       const pendingDecision: PendingDecision = {
         documentId: card.id,
@@ -134,7 +126,7 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
         playerCorrect,
         latencyMs,
         agreedWithAgent,
-        bars: newBars,
+        resources: newResources,
         gameDay: state.gameDay,
         phase: state.activePhase,
         categoryTier: card.generationTier,
@@ -146,7 +138,7 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
 
       const base = {
         ...state,
-        bars: newBars,
+        resources: newResources,
         pendingDecisions: [...state.pendingDecisions, pendingDecision],
         cardsInDay: newCardsInDay,
         totalDecisions: isEscalate ? state.totalDecisions : state.totalDecisions + 1,
@@ -174,26 +166,17 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
 
     case 'DAY_ACKNOWLEDGED': {
       const newGameDay = state.gameDay + 1
-      const newActivePhase = resolveNextPhase(state.bars, state.activePhase)
 
-      // Treasury bonus: +5 if day accuracy > 50% (escalated cards excluded from denominator)
-      const dayDecisions = state.cardsInDay - state.dayEscalated
-      const dayAccuracy = dayDecisions > 0 ? state.dayCorrect / dayDecisions : 0
-      const barsAfterBonus =
-        dayAccuracy > 0.5 ? applyDelta(state.bars, [0, 0, 5, 0, 0]) : state.bars
-
-      // 5-day cap
       if (newGameDay > MAX_DAYS) {
         return {
           ...state,
-          bars: barsAfterBonus,
           phase: 'game_over',
           gameOverReason: 'DAYS_COMPLETE',
           currentCard: null,
         }
       }
 
-      // Draw next day's cards from the pre-dealt phase pool
+      const newActivePhase = resolvePhase(newGameDay)
       const phasePool = state.phaseCardsMap[newActivePhase] ?? []
       const draw = phasePool.slice(0, CARDS_PER_DAY)
       const remaining = phasePool.slice(CARDS_PER_DAY)
@@ -202,7 +185,6 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
 
       return {
         ...state,
-        bars: barsAfterBonus,
         gameDay: newGameDay,
         pendingDecisions: [],
         cardsInDay: 0,
@@ -214,6 +196,7 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
         cardPool,
         cardStartedAt: Date.now(),
         phaseCardsMap: { ...state.phaseCardsMap, [newActivePhase]: remaining },
+        resources: { ...state.resources, escalationsRemaining: ESC_PER_DAY },
       }
     }
 
