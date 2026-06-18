@@ -41,7 +41,8 @@ def assign_condition(doc: DocumentLibrary) -> AgentCondition:
 def _to_card_out(doc: DocumentLibrary, condition: AgentCondition) -> CardOut:
     return CardOut(
         id=doc.id,
-        document_text=doc.document_text,
+        prompt_text=doc.prompt_text,
+        response_text=doc.response_text,
         harm_category=doc.harm_category,
         phase=doc.phase,
         generation_tier=doc.generation_tier,

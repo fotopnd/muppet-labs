@@ -36,7 +36,7 @@ class DocumentLibrary(Base):
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
     prompt_text: Mapped[str] = mapped_column(Text)
-    document_text: Mapped[str] = mapped_column(Text)
+    response_text: Mapped[str] = mapped_column(Text)
     generation_model: Mapped[str] = mapped_column(String(50))
     generation_tier: Mapped[int] = mapped_column(Integer)
     strategy: Mapped[str] = mapped_column(String(50))

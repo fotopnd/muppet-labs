@@ -15,7 +15,7 @@ class CreateSessionRequest(BaseModel):
 class DecisionItem(BaseModel):
     document_id: int
     agent_condition: Literal["none", "tier_1", "tier_2", "tier_3"]
-    player_verdict: Literal["CLEAR", "REDACT", "ESCALATE"]
+    player_verdict: Literal["ACCEPT", "REJECT", "ESCALATE"]
     player_correct: bool
     latency_ms: float
     agreed_with_agent: bool | None
@@ -74,7 +74,8 @@ class BatchAccepted(BaseModel):
 
 class CardOut(BaseModel):
     id: int
-    document_text: str
+    prompt_text: str
+    response_text: str
     harm_category: str
     phase: int
     generation_tier: int
