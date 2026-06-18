@@ -2,6 +2,9 @@ export default function HeroSection() {
   return (
     <section className="py-24 lg:py-32 px-6 bg-canvas">
       <div className="max-w-3xl mx-auto text-center flex flex-col items-center gap-4">
+        <h1 className="text-3xl font-bold text-text-primary tracking-tight">
+          Mike Fotopoulos
+        </h1>
         <p className="text-xs font-mono font-semibold tracking-[0.2em] uppercase text-accent">
           AI Safety · Portfolio
         </p>
