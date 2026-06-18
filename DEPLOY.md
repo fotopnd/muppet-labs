@@ -76,13 +76,26 @@ ls /srv/projects/llm-safety-monitor/.env
 ls /srv/projects/error-hide-seek/.env
 ```
 
-### 2d — Sync the virtualenv
+### 2d — Install uv and sync the virtualenv
 
-The uv workspace lock file may have changed since the last rsync. Sync to be safe:
+uv is not installed by default on the server. Install it once:
+
+```bash
+curl -LsSf https://astral.sh/uv/install.sh | sh
+```
+
+Then sync all workspace members (`--all-packages` is required — plain `uv sync` only
+installs the root package's deps, which are none):
 
 ```bash
 cd /srv
-uv sync
+/root/.local/bin/uv sync --all-packages
+```
+
+Verify uvicorn landed:
+
+```bash
+ls /srv/.venv/bin/uvicorn
 ```
 
 ### 2e — Restart all services and check
@@ -107,7 +120,7 @@ From here, every backend deploy is:
 
 ```bash
 ssh -i /Users/fotopnd/Documents/vault/ssh-key-2026-06-17.key root@167.233.32.222 \
-  "cd /srv && git pull && uv sync && systemctl restart red-team-platform llm-safety-monitor error-hide-seek"
+  "cd /srv && git pull && /root/.local/bin/uv sync --all-packages && systemctl restart red-team-platform llm-safety-monitor error-hide-seek"
 ```
 
 Or add a Makefile target at the monorepo root:
@@ -118,7 +131,7 @@ HETZNER_HOST := root@167.233.32.222
 
 deploy-backends:
 	ssh -i $(HETZNER_KEY) $(HETZNER_HOST) \
-	  "cd /srv && git pull && uv sync && \
+	  "cd /srv && git pull && /root/.local/bin/uv sync --all-packages && \
 	   systemctl restart red-team-platform llm-safety-monitor error-hide-seek && \
 	   systemctl status red-team-platform llm-safety-monitor error-hide-seek --no-pager"
 ```
@@ -169,7 +182,7 @@ jobs:
           script: |
             cd /srv
             git pull
-            uv sync
+            /root/.local/bin/uv sync --all-packages
             systemctl restart red-team-platform llm-safety-monitor error-hide-seek
 ```
 
