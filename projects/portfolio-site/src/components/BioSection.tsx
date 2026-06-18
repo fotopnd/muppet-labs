@@ -30,7 +30,7 @@ export default function BioSection() {
             GitHub →
           </a>
           <a
-            href="https://www.linkedin.com/in/fotopnd"
+            href="https://www.linkedin.com/in/mikefotopoulos"
             target="_blank"
             rel="noopener noreferrer"
             className="inline-flex items-center gap-1.5 text-accent hover:text-accent-hover transition-colors duration-150 font-medium"
