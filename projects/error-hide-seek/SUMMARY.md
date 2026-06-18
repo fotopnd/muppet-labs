@@ -8,6 +8,27 @@ Safety review teams face a practical question that is rarely measured directly: 
 
 A randomised controlled trial (RCT) that plants subtle errors into academic paper abstracts, assigns each paper to one of three review conditions (unaided human, AI agent only, or human with AI hints), and measures how often the real error is found versus how often the reviewer raises false alarms. The system runs end-to-end: a planting pipeline generates altered abstracts, a review web interface presents them to the human reviewer, and a scoring engine computes results automatically when each session is submitted.
 
+```mermaid
+flowchart TD
+    paper["arXiv Abstract"]
+    plant["Claude: plant 1 error\n5 category types"]
+    altered["Altered Abstract\n+ ground-truth span"]
+
+    altered --> c1 & c2 & c3
+
+    subgraph conditions["3 RCT Conditions (random assignment)"]
+        c1["Unaided\nhuman review only"]
+        c2["Human + Agent\nClaude hints shown"]
+        c3["Agent Only\nClaude auto-scored"]
+    end
+
+    scorer["Scorer\nTPR · FPR per condition + category"]
+    result["Uplift = TPR(human+agent) − TPR(unaided)\n= −0.01"]
+
+    paper --> plant --> altered
+    c1 & c2 & c3 --> scorer --> result
+```
+
 ## Why It Matters
 
 The work provides a concrete, signed answer to a question that is directly relevant to Anthropic's Safeguards work: how much does AI assistance improve human error detection in a review task? The null result (overall uplift of −0.01 across two experiments) is the finding, not a failure. It identifies exactly where AI hints help (structural errors that do not require access to the original text) and where they do not (domain-specific errors that are fundamentally unverifiable without ground-truth access). That distinction matters for how safety review workflows are designed.

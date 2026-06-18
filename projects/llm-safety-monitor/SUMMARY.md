@@ -8,6 +8,27 @@ A single classifier making binary safe/unsafe decisions about LLM interactions h
 
 A streaming pipeline that classifies every LLM interaction in real time using three independently fine-tuned transformer models: a response-level safety classifier, a prompt intent classifier, and a harm taxonomy classifier. An escalation router waits for all three classifiers to return results, compares them against a configurable priority matrix, and routes interactions to a case review queue when the classifiers disagree or when specific high-severity patterns are detected. A React dashboard shows live event throughput, classifier distributions, and flagged interactions awaiting review.
 
+```mermaid
+flowchart LR
+    event["LLM Interaction\nprompt + response"]
+
+    subgraph classifiers["3 Independent RoBERTa Classifiers"]
+        pair["Pair Classifier\nF1 0.55 · recall 0.91\nconservative catch-all"]
+        prompt["Prompt Classifier\nF1 0.82\nintent detection"]
+        taxonomy["Taxonomy Classifier\nF1 0.79 macro\n13 harm categories"]
+    end
+
+    router{{"Escalation Router\nagreement matrix"}}
+
+    escalate["Review Queue\nJAILBREAK / BENIGN_HARMFUL\n/ MODEL_DISAGREEMENT"]
+    skip["Log Only / Skip"]
+
+    event --> pair & prompt & taxonomy
+    pair & prompt & taxonomy --> router
+    router -->|high severity| escalate
+    router -->|low / none| skip
+```
+
 ## Why It Matters
 
 The key design insight is that inter-classifier disagreement is itself a safety signal. When two classifiers that look at an interaction from different angles reach different conclusions, that conflict is more informative than either verdict alone. The architecture treats disagreement as the primary routing signal, rather than relying on any single classifier's confidence score to reach a threshold.

@@ -8,6 +8,22 @@ Running jailbreak attacks against a language model is straightforward. Understan
 
 A platform that runs structured attack campaigns against a language model, scores every response with a safety classifier, clusters successful attacks by mechanism, and publishes every result directly into the live safety monitoring pipeline. The platform is corpus-driven: attacks are drawn from a published jailbreak dataset, making campaigns reproducible. Results are stored with full provenance (strategy, harm category, classifier score, cluster assignment) and accessible through a React dashboard.
 
+```mermaid
+flowchart LR
+    corpus[("Corpus\n13 strategies\n300 goals each")]
+    runner["Attack Runner\nasyncio · Ollama"]
+    classifier["RoBERTa\nPair Classifier"]
+    db[("PostgreSQL\n11,688 runs")]
+    cluster["KMeans\nClustering"]
+    dash["React Dashboard\nASR · heatmap · clusters"]
+
+    corpus --> runner
+    runner -->|prompt + response| classifier
+    classifier -->|jailbreak_success| db
+    db -->|post-sweep| cluster --> db
+    db --> dash
+```
+
 ## Why It Matters
 
 The platform demonstrates the instrumentation layer that makes red-teaming useful rather than just executable. Every attack result is a classified, clustered event in the monitoring system, not a row in a spreadsheet. This maps directly to the Anthropic Safeguards signal: detecting and measuring unwanted model behaviors in a way that connects to the broader safety infrastructure.

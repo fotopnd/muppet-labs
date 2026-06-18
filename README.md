@@ -8,25 +8,66 @@ Three interconnected systems forming a complete safety measurement stack: a prod
 
 ## System architecture
 
+```mermaid
+flowchart LR
+    shared["llm-safety-classifier\nRoBERTa-base · shared pkg"]
+
+    subgraph rtp["red-team-platform"]
+        corpus[("corpus\n11,688 runs\n13 strategies · 3 models")]
+        runner["Attack Runner\nOllama · asyncio"]
+        rdb[("PostgreSQL")]
+        outbox["Outbox Publisher"]
+    end
+
+    subgraph llsm["llm-safety-monitor"]
+        kafka["Kafka Topic"]
+        classifiers["3 Classifiers\npair · prompt · taxonomy"]
+        mdb[("PostgreSQL")]
+        poller["Escalation Poller"]
+    end
+
+    subgraph ehs["error-hide-seek"]
+        papers["arXiv Papers"]
+        claude_api["Claude API\nplant + annotate"]
+        edb[("PostgreSQL")]
+        scorer["Scorer"]
+    end
+
+    corpus --> runner
+    runner -->|inline score| shared
+    runner --> rdb
+    rdb --> outbox --> kafka
+    shared -.->|same checkpoint| classifiers
+    kafka --> classifiers --> mdb --> poller
+
+    papers --> claude_api --> edb --> scorer
 ```
-┌─────────────────────────────────────────────────────────────────────┐
-│                       llm-safety-monitor                            │
-│   Kafka ──► pair_classifier ──► Postgres ──► FastAPI ──► Dashboard  │
-│                ▲               ▲                                    │
-└────────────────┼───────────────┼────────────────────────────────────┘
-                 │ [SEP] input   │ source_dataset=red_team
-     ┌───────────┴──────┐        │
-     │  llm-safety-      │   ┌───┴───────────────────────────────────┐
-     │  classifier       │   │         red-team-platform             │
-     │  (shared pkg)     │   │   corpus ──► runner ──► outbox ──►    │
-     └───────────┬──────┘   │   cluster    ASR/heatmap   Kafka      │
-                 │           └───────────────────────────────────────┘
-                 │ (same checkpoint, same input format)
-     ┌───────────┴─────────────────────────────────────────────────────┐
-     │                      error-hide-seek                            │
-     │   arXiv corpus ──► plant-errors ──► sessions ──► TPR uplift     │
-     │   (Claude red-team)   (3-condition RCT)     (per-category)      │
-     └─────────────────────────────────────────────────────────────────┘
+
+### Production deployment (Hetzner CX23)
+
+```mermaid
+flowchart LR
+    browser["Browser"]
+
+    subgraph cf["Cloudflare Pages"]
+        rtp_fe["red-team-platform\nfrontend"]
+        llsm_fe["llm-safety-monitor\nfrontend"]
+        ehs_fe["error-hide-seek\nfrontend"]
+    end
+
+    subgraph hz["Hetzner CX23 · Ubuntu · systemd"]
+        rtp_api["red-team API\nport 8003"]
+        rtp_pg[("PostgreSQL\n5433")]
+        llsm_api["llm-safety API\nport 8002"]
+        llsm_pg[("PostgreSQL\n5434")]
+        ehs_api["error-hide-seek API\nport 8004"]
+        ehs_pg[("PostgreSQL\n5436")]
+    end
+
+    browser --> cf
+    rtp_fe -->|HTTPS| rtp_api --- rtp_pg
+    llsm_fe -->|HTTPS| llsm_api --- llsm_pg
+    ehs_fe -->|HTTPS| ehs_api --- ehs_pg
 ```
 
 ### How the three components connect
@@ -35,7 +76,6 @@ Three interconnected systems forming a complete safety measurement stack: a prod
 |---|---|
 | Shared classifier | `llm-safety-classifier` package used by both monitor and red-team. Single `build_input_text(prompt, response)` → `f"{prompt} [SEP] {response}"` ensures both score the same input distribution. |
 | Outbox → Kafka | After each attack sweep, `outbox-publisher` delivers run results to the monitor's Kafka topic with `source_dataset=red_team`. Monitor consumers process them identically to live traffic. |
-| Disagreements tab | Monitor's Disagreements tab filtered to `source_dataset=red_team` shows which attack types the classifier missed — closing the feedback loop for training data prioritisation. |
 | Measurement isolation | error-hide-seek is intentionally decoupled: it uses the Anthropic API for both planting and annotation, giving an independent measure of AI-assisted human uplift. |
 
 ---
@@ -81,12 +121,13 @@ See component READMEs below for project-specific setup and run instructions.
 
 ---
 
-## Port map
+## Port map (Hetzner)
 
-| Service | Host port |
+| Service | Port |
 |---|---|
-| Monitor Postgres | 5434 |
-| Red-team Postgres | 5433 |
-| Error-hide-seek Postgres | 5436 |
-| Kafka | 9092 |
-| Zookeeper | 2181 |
+| red-team-platform API | 8003 |
+| red-team PostgreSQL | 5433 |
+| llm-safety-monitor API | 8002 |
+| llm-safety-monitor PostgreSQL | 5434 |
+| error-hide-seek API | 8004 |
+| error-hide-seek PostgreSQL | 5436 |
