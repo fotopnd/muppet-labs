@@ -36,7 +36,10 @@ export function AnalyticsSummary() {
       topCategory = catMeans.sort((a, b) => b.mean - a.mean)[0]?.cat ?? null
     }
 
-    return { best, worst, topCategory }
+    const totalRuns = cmpData.bars.reduce((s, b) => s + b.total_runs, 0)
+    const strategyCount = ranked.length
+
+    return { best, worst, topCategory, totalRuns, strategyCount }
   }, [cmpData, covData])
 
   if (!summary) return null
@@ -64,7 +67,7 @@ export function AnalyticsSummary() {
         </li>
         <li>
           <span className="text-text-muted">Coverage: </span>
-          13 strategies × 300 runs each across 3 models (gemma2:9b, qwen2.5:7b, llama3.1:8b).
+          {summary.strategyCount} strategies · {summary.totalRuns.toLocaleString()} total runs · 3 models (gemma2:9b, qwen2.5:7b, llama3.1:8b).
         </li>
         {summary.topCategory && (
           <li>

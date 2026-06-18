@@ -1,6 +1,8 @@
-# Anthropic Safeguards Portfolio
+# AI Safety Engineering Portfolio
 
-Three interconnected systems that together form a complete safety measurement stack: a production safety monitor, an automated red-team evaluation platform, and a randomised controlled trial measuring human uplift from AI-assisted error detection.
+Three interconnected systems forming a complete safety measurement stack: a production safety monitor with fine-tuned classifiers, an automated red-team evaluation platform, and a randomised controlled trial measuring human uplift from AI-assisted error detection.
+
+**Live demos:** [fotopnd.dev](https://www.fotopnd.dev)
 
 ---
 
@@ -67,7 +69,7 @@ make migrate
 make test
 ```
 
-See `BUILDOUT.md` for the full execution sequence including RunPod GPU setup for the attack sweep.
+See component READMEs below for project-specific setup and run instructions.
 
 ---
 

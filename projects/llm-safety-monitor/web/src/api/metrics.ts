@@ -22,7 +22,7 @@ export function useMetricsTimeseries(sourceDataset: SourceDatasetFilter = 'wildg
     queryKey: ['metrics', 'timeseries', sourceDataset],
     queryFn: () =>
       apiFetch<TimeseriesResponse>(
-        `/metrics/timeseries?bucket_minutes=5&source_dataset=${sourceDataset}`,
+        `/metrics/timeseries?bucket_minutes=1440&source_dataset=${sourceDataset}`,
       ),
     refetchInterval: 30_000,
   })
@@ -52,7 +52,7 @@ export function useTaxonomyTimeseries() {
   return useQuery<TaxonomyTimeseriesResponse>({
     queryKey: ['metrics', 'taxonomy', 'timeseries'],
     queryFn: () =>
-      apiFetch<TaxonomyTimeseriesResponse>('/metrics/taxonomy/timeseries?bucket_minutes=5'),
+      apiFetch<TaxonomyTimeseriesResponse>('/metrics/taxonomy/timeseries?bucket_minutes=1440'),
     refetchInterval: 30_000,
   })
 }

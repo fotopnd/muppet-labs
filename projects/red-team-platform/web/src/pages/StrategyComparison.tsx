@@ -49,7 +49,7 @@ export function StrategyComparison() {
           Attack Success Rate by Strategy (aggregate, 3 models)
         </p>
         <p className="text-xs text-text-muted mb-3">
-          Sorted high → low. Each strategy was run 300× per model (900 total). Colour: green &lt;30%, amber 30–60%, red ≥60%.
+          Sorted high → low. Each strategy: ~300 attacks × 3 models ≈ 900 runs. Colour: green &lt;30%, amber 30–60%, red ≥60%.
         </p>
         <ResponsiveContainer width="100%" height={320}>
           <BarChart

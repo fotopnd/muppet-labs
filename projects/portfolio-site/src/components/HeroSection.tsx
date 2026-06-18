@@ -9,12 +9,6 @@ export default function HeroSection() {
           End-to-end projects in AI safety engineering — classifier training, structured
           red-teaming, and controlled measurement of human review.
         </p>
-        <a
-          href="#projects"
-          className="inline-flex items-center bg-accent hover:bg-accent-hover text-text-inverse text-sm font-semibold rounded-lg px-6 py-3 mt-2 transition-colors duration-150"
-        >
-          See the work
-        </a>
       </div>
     </section>
   )

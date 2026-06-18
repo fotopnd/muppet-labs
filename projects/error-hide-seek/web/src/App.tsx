@@ -1,33 +1,29 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
-import { BrowserRouter, Navigate, Route, Routes, useLocation } from 'react-router-dom'
+import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom'
 
-import { ResultsPage } from '@/pages/ResultsPage'
+import { HomePage } from '@/pages/HomePage'
 import { ReviewPage } from '@/pages/ReviewPage'
 
 const queryClient = new QueryClient()
-
-function Breadcrumb() {
-  const { pathname } = useLocation()
-  if (pathname.startsWith('/review/')) return <span>Review Session</span>
-  if (pathname.startsWith('/results/')) return <span>Experiment Results</span>
-  return null
-}
 
 function Shell() {
   return (
     <div className="min-h-screen bg-background font-interface">
       <header className="h-14 bg-surface border-b border-border flex items-center justify-between px-6">
         <span className="font-interface text-sm font-semibold text-text-intense">
-          Error-Hide-Seek
+          Error-Hide-Seek Testbed
         </span>
-        <span className="font-interface text-xs text-text-muted">
-          <Breadcrumb />
-        </span>
+        <a
+          href="https://www.fotopnd.dev"
+          className="font-interface text-xs text-text-muted hover:text-text-intense transition-colors"
+        >
+          ← Portfolio
+        </a>
       </header>
       <Routes>
+        <Route path="/" element={<HomePage />} />
         <Route path="/review/:sessionId" element={<ReviewPage />} />
-        <Route path="/results/:experimentId" element={<ResultsPage />} />
-        <Route path="*" element={<Navigate to="/review/1" replace />} />
+        <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
     </div>
   )

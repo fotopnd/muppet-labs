@@ -21,13 +21,21 @@ function Dashboard() {
 
   return (
     <div className="min-h-screen bg-canvas font-sans">
-      <header className="bg-surface border-b border-border px-4 py-3">
-        <h1 className="text-sm font-semibold text-text-primary tracking-wide">
-          LLM Safety Portfolio
-        </h1>
-        <p className="text-xs text-text-muted mt-0.5">
-          11,688 runs · 13 strategies · 3 open-weight models · automated LLM judge
-        </p>
+      <header className="bg-surface border-b border-border px-4 py-3 flex items-start justify-between">
+        <div>
+          <h1 className="text-sm font-semibold text-text-primary tracking-wide">
+            LLM Safety Portfolio
+          </h1>
+          <p className="text-xs text-text-muted mt-0.5">
+            11,688 runs · 13 strategies · 3 open-weight models · automated LLM judge
+          </p>
+        </div>
+        <a
+          href="https://www.fotopnd.dev"
+          className="text-xs text-text-muted hover:text-text-primary transition-colors mt-0.5 shrink-0"
+        >
+          ← Portfolio
+        </a>
       </header>
       <nav className="flex border-b-2 border-border bg-surface overflow-x-auto">
         {TABS.map((tab) => (

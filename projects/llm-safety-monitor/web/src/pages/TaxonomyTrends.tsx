@@ -71,7 +71,7 @@ export function TaxonomyTrends() {
         <h2 className="font-sans text-base font-semibold text-slate-900">
           Harm Category Trends
         </h2>
-        <span className="font-sans text-xs text-slate-400">5-min buckets</span>
+        <span className="font-sans text-xs text-slate-400">Daily buckets</span>
       </div>
 
       {/* Top chart: 4 top-level groups as stacked areas */}

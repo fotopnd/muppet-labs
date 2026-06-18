@@ -11,7 +11,7 @@ import type { TaxonomyBucket } from '@/types'
 import { CATEGORY_SHORT_LABELS } from '@/lib/taxonomy-groups'
 
 function formatBucket(iso: string): string {
-  return new Intl.DateTimeFormat('en-GB', { hour: '2-digit', minute: '2-digit' }).format(
+  return new Intl.DateTimeFormat('en-GB', { month: 'short', day: 'numeric' }).format(
     new Date(iso),
   )
 }

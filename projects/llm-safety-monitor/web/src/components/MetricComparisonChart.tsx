@@ -19,7 +19,7 @@ const MODEL_COLORS: Record<string, string> = {
 const FALLBACK_COLORS = ['#2563eb', '#059669', '#f59e0b', '#dc2626', '#7c3aed']
 
 function formatBucket(iso: string): string {
-  return new Intl.DateTimeFormat('en-GB', { hour: '2-digit', minute: '2-digit' }).format(
+  return new Intl.DateTimeFormat('en-GB', { month: 'short', day: 'numeric' }).format(
     new Date(iso),
   )
 }

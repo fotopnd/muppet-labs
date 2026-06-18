@@ -1,4 +1,4 @@
-import { useAttackSummary } from '@/hooks/useAttackSummary'
+import { useStrategyComparison } from '@/hooks/useStrategyComparison'
 import { useStrategyComparisonByModel, MODEL_KEYS, MODEL_COLOUR, MODEL_LABEL } from '@/hooks/useStrategyComparisonByModel'
 import { STRATEGY_DESCRIPTIONS } from '@/lib/strategyDescriptions'
 import { StatWidget } from '@/components/StatWidget'
@@ -47,7 +47,8 @@ function ModelAsrBadge({ model, asr }: { model: string; asr: number | undefined 
 
 export function StrategyExplorer() {
   const { byStrategy, isLoading: modelLoading } = useStrategyComparisonByModel()
-  const { data: summary, isLoading: summaryLoading } = useAttackSummary()
+  const { data: cmpData, isLoading: summaryLoading } = useStrategyComparison()
+  const totalRuns = cmpData?.bars.reduce((s, b) => s + b.total_runs, 0)
 
   return (
     <div className="p-4">
@@ -89,8 +90,8 @@ export function StrategyExplorer() {
       {/* Stat widgets */}
       <div className="grid grid-cols-3 gap-4 mb-5">
         <StatWidget
-          label="Total attacks"
-          value={summaryLoading ? '…' : (summary?.total != null ? summary.total.toLocaleString() : '—')}
+          label="Total runs"
+          value={summaryLoading ? '…' : (totalRuns != null ? totalRuns.toLocaleString() : '—')}
           loading={summaryLoading}
         />
         <StatWidget label="Strategies evaluated" value={13} />
