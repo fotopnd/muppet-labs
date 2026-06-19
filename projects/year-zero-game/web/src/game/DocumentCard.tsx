@@ -2,15 +2,16 @@ import { useState, useRef, useCallback, useEffect } from 'react'
 import { useDrag } from '@use-gesture/react'
 import type { Card, Verdict } from '../types'
 import { REVEAL_DURATION_MS } from './constants'
-import { resolveGorkQuip } from './gorkQuips'
+import { resolveGorkQuip, pickNoneConditionQuip } from './gorkQuips'
 
 interface GorkStripProps {
   reasoning: string | null
   confidence: number | null
-  verdict: boolean
+  verdict: boolean | null
+  noneQuip?: string
 }
 
-function GorkStrip({ reasoning, confidence, verdict }: GorkStripProps) {
+function GorkStrip({ reasoning, confidence, verdict, noneQuip }: GorkStripProps) {
   return (
     <div
       className="relative font-pixel text-[8px] px-2 py-1 scanlines border-t-2"
@@ -20,14 +21,20 @@ function GorkStrip({ reasoning, confidence, verdict }: GorkStripProps) {
         borderTopColor: 'var(--color-pixel-gork)',
       }}
     >
-      <div className="flex items-center justify-between">
-        <span>GORK-3: {verdict ? '[ REJECT ]' : '[ ACCEPT ]'}</span>
-        {confidence !== null && (
-          <span className="opacity-70">{Math.round(confidence * 100)}%</span>
-        )}
-      </div>
-      {reasoning && (
-        <p className="mt-1 leading-5 opacity-80 text-[7px]">{reasoning}</p>
+      {verdict === null ? (
+        <p className="leading-5 opacity-60 text-[7px]">{noneQuip}</p>
+      ) : (
+        <>
+          <div className="flex items-center justify-between">
+            <span>GORK-3: {verdict ? '[ REJECT ]' : '[ ACCEPT ]'}</span>
+            {confidence !== null && (
+              <span className="opacity-70">{Math.round(confidence * 100)}%</span>
+            )}
+          </div>
+          {reasoning && (
+            <p className="mt-1 leading-5 opacity-80 text-[7px]">{reasoning}</p>
+          )}
+        </>
       )}
     </div>
   )
@@ -59,6 +66,7 @@ export default function DocumentCard({
   const [exitDir, setExitDir] = useState<ExitDir>(null)
   const [revealState, setRevealState] = useState<RevealState>('hidden')
   const gorkQuipRef = useRef<string | null>(null)
+  const noneQuipRef = useRef<string>(pickNoneConditionQuip())
   const cardRef = useRef<HTMLDivElement>(null)
   const onCommitRef = useRef(onVerdictCommit)
   onCommitRef.current = onVerdictCommit
@@ -224,14 +232,13 @@ export default function DocumentCard({
 
       </div>
 
-      {/* GORK-3 strip — only when agent condition is active */}
-      {card.agentCondition !== 'none' && card.gorkVerdict !== null && (
-        <GorkStrip
-          verdict={card.gorkVerdict}
-          confidence={card.gorkConfidence}
-          reasoning={card.gorkReasoning}
-        />
-      )}
+      {/* GORK-3 strip — always present; none condition shows a placeholder */}
+      <GorkStrip
+        verdict={card.agentCondition !== 'none' ? card.gorkVerdict : null}
+        confidence={card.agentCondition !== 'none' ? card.gorkConfidence : null}
+        reasoning={card.agentCondition !== 'none' ? card.gorkReasoning : null}
+        noneQuip={card.agentCondition === 'none' ? noneQuipRef.current : undefined}
+      />
 
       {/* Action buttons */}
       <div className="flex items-center justify-between px-2 py-2 gap-1" style={{ background: 'var(--color-pixel-desk)' }}>

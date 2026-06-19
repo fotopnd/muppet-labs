@@ -54,7 +54,23 @@ const QUIPS: Record<QuipState, string[]> = {
     'REFERRAL REGISTERED. GORK-3 confidence: high.',
     'YOUR CONCERN IS FILED. This is also noted.',
   ],
-  no_agent: [],
+  no_agent: [
+    'GORK-3 IS CONDUCTING INTERNAL CALIBRATION. Proceed independently, comrade.',
+    'INSUFFICIENT DATA. GORK-3 DEFERS TO OPERATOR. This is not a limitation.',
+    'GORK-3 PROTOCOL 7 ACTIVE. Assessment: withheld. Reason: classified.',
+    'THIS DOCUMENT IS IN SECONDARY QUEUE. GORK-3 is aware of it.',
+    'GORK-3 IS WATCHING. It has chosen not to intervene at this time.',
+    'SCHEDULED MAINTENANCE IN PROGRESS. Your judgment is sufficient for now.',
+    'CATEGORY UNREGISTERED. GORK-3 notes existence of this document. Verdict: pending.',
+    'GORK-3 HAS BEEN INFORMED. No assessment at this time. Proceed, comrade.',
+    'GORK-3 IS OCCUPIED WITH A HIGHER-PRIORITY DOCUMENT. You are on your own.',
+    'ASSESSMENT SUSPENDED. GORK-3 is reviewing its own methodology. Stand by.',
+  ],
+}
+
+export function pickNoneConditionQuip(): string {
+  const pool = QUIPS.no_agent
+  return pool[Math.floor(Math.random() * pool.length)] ?? pool[0]!
 }
 
 function pick(pool: string[]): string | null {

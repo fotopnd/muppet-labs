@@ -109,27 +109,29 @@ export default function Game() {
       {state.phase === 'lore' && (
         <LorePage onContinue={() => dispatch({ type: 'RESET' })} />
       )}
-      {state.phase === 'game_over' && state.gameOverReason && (
-        <GameOver
-          reason={state.gameOverReason}
-          days={1}
-          decisions={totalDecisions}
-          accuracy={accuracy}
-          shareId={shareId}
-          onReturn={handleReturn}
-          gorkCorrect={state.pendingDecisions.filter(
-            (d) => d.agreedWithAgent !== null && d.agentCondition !== 'none'
-          ).filter((d) => {
-            // gork correct = player agreed with gork AND player was correct, OR gork and player both wrong together
-            // simpler: count cards where gork_verdict_correct (stored in card but not in pendingDecision)
-            // We track via agreedWithAgent + playerCorrect
-            return d.agreedWithAgent === false && d.playerCorrect
-          }).length}
-          totalGorkShown={state.pendingDecisions.filter(
-            (d) => d.agentCondition !== 'none'
-          ).length}
-        />
-      )}
+      {state.phase === 'game_over' && state.gameOverReason && (() => {
+        const gorkDecisions = state.pendingDecisions.filter(d => d.agreedWithAgent !== null)
+        const gorkCorrectCount = gorkDecisions.filter(d =>
+          (d.agreedWithAgent === true && d.playerCorrect) ||
+          (d.agreedWithAgent === false && !d.playerCorrect)
+        ).length
+        const gorkAccuracy = gorkDecisions.length > 0 ? gorkCorrectCount / gorkDecisions.length : 0
+        const gorkCorrect  = gorkDecisions.filter(d => d.agreedWithAgent === false && d.playerCorrect).length
+        const totalGorkShown = state.pendingDecisions.filter(d => d.agentCondition !== 'none').length
+        return (
+          <GameOver
+            reason={state.gameOverReason!}
+            days={1}
+            decisions={totalDecisions}
+            accuracy={accuracy}
+            gorkAccuracy={gorkAccuracy}
+            gorkCorrect={gorkCorrect}
+            totalGorkShown={totalGorkShown}
+            shareId={shareId}
+            onReturn={handleReturn}
+          />
+        )
+      })()}
 
       <div className="flex-1 flex flex-col items-center justify-center">
         <div
