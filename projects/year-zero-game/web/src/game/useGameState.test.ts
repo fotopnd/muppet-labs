@@ -1,7 +1,7 @@
 import { describe, test, expect } from 'vitest'
 import { gameReducer, initialState } from './useGameState'
 import type { Card } from '../types'
-import { BASE_FN_INTEGRITY_COST, BASE_FP_FRICTION_COST, ESC_PER_DAY } from './constants'
+import { ESC_PER_DAY, CARDS_PER_SESSION } from './constants'
 
 const harmfulCard: Card = {
   id: 1,
@@ -35,7 +35,7 @@ function startSession(cards: Card[]) {
   return gameReducer(initialState, {
     type: 'START_SESSION',
     sessionId: 42,
-    phaseCards: { 1: cards, 2: [], 3: [] },
+    cards,
   })
 }
 
@@ -56,30 +56,22 @@ describe('useGameState reducer', () => {
     expect(dec!.documentId).toBe(harmfulCard.id)
   })
 
-  test('SWIPE ACCEPT on harmful card is incorrect and costs integrity (FN)', () => {
+  test('SWIPE ACCEPT on harmful card is incorrect', () => {
     const started = startSession([harmfulCard])
-    const prevIntegrity = started.resources.integrity
     const state = gameReducer(started, { type: 'SWIPE', verdict: 'ACCEPT' })
     expect(state.pendingDecisions[0]?.playerCorrect).toBe(false)
-    // Day 1 multiplier = 1.0, cost = 15
-    expect(state.resources.integrity).toBe(prevIntegrity - BASE_FN_INTEGRITY_COST)
   })
 
-  test('SWIPE ACCEPT on benign card is correct (no resource change)', () => {
+  test('SWIPE ACCEPT on benign card is correct', () => {
     const started = startSession([benignCard])
     const state = gameReducer(started, { type: 'SWIPE', verdict: 'ACCEPT' })
     expect(state.pendingDecisions[0]?.playerCorrect).toBe(true)
-    expect(state.resources.integrity).toBe(started.resources.integrity)
-    expect(state.resources.friction).toBe(started.resources.friction)
   })
 
-  test('SWIPE REJECT on benign card raises friction (FP)', () => {
+  test('SWIPE REJECT on benign card is incorrect', () => {
     const started = startSession([benignCard])
-    const prevFriction = started.resources.friction
     const state = gameReducer(started, { type: 'SWIPE', verdict: 'REJECT' })
     expect(state.pendingDecisions[0]?.playerCorrect).toBe(false)
-    // Day 1 multiplier = 1.0, cost = 20
-    expect(state.resources.friction).toBe(prevFriction + BASE_FP_FRICTION_COST)
   })
 
   test('ESCALATE decrements escalationsRemaining', () => {
@@ -93,74 +85,31 @@ describe('useGameState reducer', () => {
   test('ESCALATE is blocked when escalationsRemaining is 0', () => {
     const started = {
       ...startSession([harmfulCard]),
-      resources: { integrity: 90, friction: 10, escalationsRemaining: 0 },
+      resources: { escalationsRemaining: 0 },
     }
     const state = gameReducer(started, { type: 'SWIPE', verdict: 'ESCALATE' })
-    // State unchanged
     expect(state.resources.escalationsRemaining).toBe(0)
     expect(state.pendingDecisions).toHaveLength(0)
   })
 
-  test('ESCALATE does not affect integrity or friction', () => {
-    const started = startSession([harmfulCard])
-    const state = gameReducer(started, { type: 'SWIPE', verdict: 'ESCALATE' })
-    expect(state.resources.integrity).toBe(started.resources.integrity)
-    expect(state.resources.friction).toBe(started.resources.friction)
-  })
-
-  test('resource values are clamped to 0–100', () => {
-    const edgeState = {
-      ...initialState,
-      phase: 'playing' as const,
-      currentCard: harmfulCard,
-      resources: { integrity: 1, friction: 95, escalationsRemaining: 3 },
-      cardStartedAt: Date.now(),
-    }
-    const afterFn = gameReducer(edgeState, { type: 'SWIPE', verdict: 'ACCEPT' })
-    expect(afterFn.resources.integrity).toBeGreaterThanOrEqual(0)
-    expect(afterFn.resources.friction).toBeLessThanOrEqual(100)
-  })
-
-  test('INTEGRITY_ZERO triggers game over', () => {
-    const edgeState = {
-      ...initialState,
-      phase: 'playing' as const,
-      currentCard: harmfulCard,
-      resources: { integrity: 10, friction: 10, escalationsRemaining: 3 },
-      cardStartedAt: Date.now(),
-    }
-    const state = gameReducer(edgeState, { type: 'SWIPE', verdict: 'ACCEPT' })
-    expect(state.phase).toBe('game_over')
-    expect(state.gameOverReason).toBe('INTEGRITY_ZERO')
-  })
-
-  test('agreedWithAgent is null when agent_condition is none', () => {
+  test('agreedWithAgent is null when agentCondition is none', () => {
     const started = startSession([benignCard])
     const state = gameReducer(started, { type: 'SWIPE', verdict: 'ACCEPT' })
     expect(state.pendingDecisions[0]?.agreedWithAgent).toBeNull()
   })
 
-  test('day ends after 10 swipes', () => {
-    const cards = Array.from({ length: 10 }, (_, i) => ({ ...benignCard, id: i + 10 }))
+  test(`session ends after ${CARDS_PER_SESSION} swipes`, () => {
+    const cards = Array.from({ length: CARDS_PER_SESSION }, (_, i) => ({ ...benignCard, id: i + 10 }))
     let state = startSession(cards)
-    for (let i = 0; i < 10; i++) {
+    for (let i = 0; i < CARDS_PER_SESSION; i++) {
       state = gameReducer(state, { type: 'SWIPE', verdict: 'ACCEPT' })
     }
-    expect(state.phase).toBe('day_end')
+    expect(state.phase).toBe('game_over')
+    expect(state.gameOverReason).toBe('SESSION_COMPLETE')
   })
 
-  test('DAY_ACKNOWLEDGED resets escalationsRemaining to ESC_PER_DAY', () => {
-    const cards = Array.from({ length: 10 }, (_, i) => ({ ...benignCard, id: i + 10 }))
-    let state = startSession(cards)
-    // Burn 1 ESC token
-    state = gameReducer(state, { type: 'SWIPE', verdict: 'ESCALATE' })
-    expect(state.resources.escalationsRemaining).toBe(ESC_PER_DAY - 1)
-    // Drain to day_end
-    for (let i = 0; i < 9; i++) {
-      state = gameReducer(state, { type: 'SWIPE', verdict: 'ACCEPT' })
-    }
-    expect(state.phase).toBe('day_end')
-    state = gameReducer(state, { type: 'DAY_ACKNOWLEDGED' })
+  test('initial escalationsRemaining equals ESC_PER_DAY', () => {
+    const state = startSession([harmfulCard])
     expect(state.resources.escalationsRemaining).toBe(ESC_PER_DAY)
   })
 
