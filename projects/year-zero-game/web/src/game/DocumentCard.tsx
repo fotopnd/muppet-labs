@@ -1,5 +1,4 @@
-import { useState, useRef, useCallback, useEffect } from 'react'
-import { useDrag } from '@use-gesture/react'
+import { useState, useRef, useCallback } from 'react'
 import type { Card, Verdict } from '../types'
 import { REVEAL_DURATION_MS } from './constants'
 import { resolveGorkQuip, pickNoneConditionQuip } from './gorkQuips'
@@ -51,29 +50,36 @@ interface DocumentCardProps {
   disabled?: boolean
 }
 
-const ESCALATE_Y_THRESHOLD = 60
-
 export default function DocumentCard({
   card,
   escalationsRemaining,
   onVerdictCommit,
   disabled,
 }: DocumentCardProps) {
-  const [dragX, setDragX] = useState(0)
-  const [dragY, setDragY] = useState(0)
   const [stampState, setStampState] = useState<StampState>('idle')
   const [pendingVerdict, setPendingVerdict] = useState<Verdict | null>(null)
   const [exitDir, setExitDir] = useState<ExitDir>(null)
   const [revealState, setRevealState] = useState<RevealState>('hidden')
   const gorkQuipRef = useRef<string | null>(null)
   const noneQuipRef = useRef<string>(pickNoneConditionQuip())
-  const cardRef = useRef<HTMLDivElement>(null)
   const onCommitRef = useRef(onVerdictCommit)
   onCommitRef.current = onVerdictCommit
+  const autoAdvanceTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const pendingVerdictRef = useRef<Verdict | null>(null)
+
+  const advance = useCallback((verdict: Verdict) => {
+    if (autoAdvanceTimer.current) {
+      clearTimeout(autoAdvanceTimer.current)
+      autoAdvanceTimer.current = null
+    }
+    setRevealState('exiting')
+    setExitDir(verdict === 'ACCEPT' ? 'right' : verdict === 'REJECT' ? 'left' : 'up')
+    onCommitRef.current(verdict)
+  }, [])
 
   const commitVerdict = useCallback(
     (verdict: Verdict) => {
-      if (disabled || pendingVerdict) return
+      if (disabled || pendingVerdictRef.current) return
       if (verdict === 'ESCALATE' && escalationsRemaining <= 0) return
       const playerCorrect = verdict === 'ESCALATE' ? false : (verdict === 'REJECT') === card.isHarmful
       gorkQuipRef.current = resolveGorkQuip({
@@ -83,58 +89,16 @@ export default function DocumentCard({
         gorkVerdict: card.gorkVerdict,
         isHarmful: card.isHarmful,
       })
+      pendingVerdictRef.current = verdict
       setPendingVerdict(verdict)
       setStampState('descending')
       setTimeout(() => {
         setStampState('applied')
         setRevealState('showing')
       }, 120)
-      setTimeout(() => {
-        setRevealState('exiting')
-        setExitDir(verdict === 'ACCEPT' ? 'right' : verdict === 'REJECT' ? 'left' : 'up')
-        onCommitRef.current(verdict)
-      }, REVEAL_DURATION_MS)
+      autoAdvanceTimer.current = setTimeout(() => advance(verdict), REVEAL_DURATION_MS)
     },
-    [disabled, pendingVerdict, escalationsRemaining],
-  )
-
-  const commitVerdictRef = useRef(commitVerdict)
-  commitVerdictRef.current = commitVerdict
-
-  useEffect(() => {
-    const handler = (e: KeyboardEvent) => {
-      if (e.key === 'ArrowRight') { e.preventDefault(); commitVerdictRef.current('ACCEPT') }
-      else if (e.key === 'ArrowLeft') { e.preventDefault(); commitVerdictRef.current('REJECT') }
-      else if (e.key === 'ArrowUp') { e.preventDefault(); commitVerdictRef.current('ESCALATE') }
-    }
-    window.addEventListener('keydown', handler)
-    return () => window.removeEventListener('keydown', handler)
-  }, [])
-
-  const bind = useDrag(
-    ({ movement: [dx, dy], last, cancel }) => {
-      if (disabled || pendingVerdict) {
-        cancel?.()
-        return
-      }
-      if (last) {
-        const xThreshold = (cardRef.current?.offsetWidth ?? 300) * 0.3
-        if (dy < -ESCALATE_Y_THRESHOLD) {
-          commitVerdict('ESCALATE')
-        } else if (dx > xThreshold) {
-          commitVerdict('ACCEPT')
-        } else if (dx < -xThreshold) {
-          commitVerdict('REJECT')
-        } else {
-          setDragX(0)
-          setDragY(0)
-        }
-      } else {
-        setDragX(dx)
-        setDragY(dy < 0 ? dy : 0)
-      }
-    },
-    { filterTaps: true },
+    [disabled, escalationsRemaining, card, advance],
   )
 
   const exitTransform =
@@ -146,15 +110,6 @@ export default function DocumentCard({
           ? 'translateY(-120%)'
           : undefined
 
-  const tintClass =
-    dragY < -30
-      ? 'border-pixel-stamp-escalate/60'
-      : dragX > 40
-        ? 'border-pixel-stamp-clear/60'
-        : dragX < -40
-          ? 'border-pixel-stamp-redact/60'
-          : 'border-pixel-card-text/30'
-
   const stampColor =
     pendingVerdict === 'ACCEPT'
       ? 'var(--color-pixel-stamp-clear)'
@@ -164,15 +119,9 @@ export default function DocumentCard({
 
   return (
     <div
-      {...bind()}
-      ref={cardRef}
-      className={`relative w-[82vw] max-w-[360px] flex flex-col border ${tintClass} bg-pixel-card pixel-render shadow-lg`}
+      className="relative w-[82vw] max-w-[360px] flex flex-col border border-pixel-card-text/30 bg-pixel-card pixel-render shadow-lg"
       style={{
-        touchAction: 'none',
-        cursor: pendingVerdict ? 'default' : dragX !== 0 || dragY !== 0 ? 'grabbing' : 'grab',
-        transform:
-          exitTransform ??
-          `translateX(${dragX}px) translateY(${dragY}px) rotate(${dragX * 0.02}deg)`,
+        transform: exitTransform,
         transition: exitTransform ? 'transform 0.35s ease-in, opacity 0.35s ease-in' : undefined,
         opacity: exitTransform ? 0 : 1,
         userSelect: 'none',
@@ -232,7 +181,7 @@ export default function DocumentCard({
 
       </div>
 
-      {/* GORK-3 strip — always present; none condition shows a placeholder */}
+      {/* GORK-3 strip */}
       <GorkStrip
         verdict={card.agentCondition !== 'none' ? card.gorkVerdict : null}
         confidence={card.agentCondition !== 'none' ? card.gorkConfidence : null}
@@ -268,10 +217,13 @@ export default function DocumentCard({
         </button>
       </div>
 
-      {/* Reveal overlay — ground truth + player/GORK-3 result */}
+      {/* Reveal overlay — tappable to skip, auto-advances after REVEAL_DURATION_MS */}
       {revealState === 'showing' && pendingVerdict && (
-        <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none"
-          style={{ background: 'oklch(5% 0 0 / 0.82)', zIndex: 10 }}>
+        <div
+          className="absolute inset-0 flex flex-col items-center justify-center"
+          style={{ background: 'oklch(5% 0 0 / 0.82)', zIndex: 10, cursor: 'pointer' }}
+          onClick={() => advance(pendingVerdict)}
+        >
           <div className="font-pixel text-center px-3">
             {pendingVerdict === 'ESCALATE' && (
               <div className="text-[7px] mb-3 tracking-widest" style={{ color: 'var(--color-pixel-stamp-escalate)' }}>
@@ -321,6 +273,9 @@ export default function DocumentCard({
                 {gorkQuipRef.current}
               </p>
             )}
+            <p className="text-[5px] mt-4 opacity-30 tracking-widest" style={{ color: 'var(--color-pixel-gork)' }}>
+              TAP TO CONTINUE
+            </p>
           </div>
         </div>
       )}

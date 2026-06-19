@@ -142,19 +142,12 @@ export default function Game() {
           }}
         >
           {state.phase === 'playing' && state.currentCard ? (
-            <>
-              <DocumentCard
-                key={state.currentCard.id}
-                card={state.currentCard}
-                escalationsRemaining={state.resources.escalationsRemaining}
-                onVerdictCommit={handleVerdictCommit}
-              />
-              <div className="flex justify-between w-[82vw] max-w-[360px] mt-3">
-                <span className="font-pixel text-pixel-room/60 text-[13px]">&lt;- REJECT</span>
-                <span className="font-pixel text-pixel-room/60 text-[13px]">^ ESCALATE</span>
-                <span className="font-pixel text-pixel-room/60 text-[13px]">ACCEPT -&gt;</span>
-              </div>
-            </>
+            <DocumentCard
+              key={state.currentCard.id}
+              card={state.currentCard}
+              escalationsRemaining={state.resources.escalationsRemaining}
+              onVerdictCommit={handleVerdictCommit}
+            />
           ) : state.phase === 'playing' && !state.currentCard ? (
             <p className="font-pixel text-pixel-terminal text-[8px]">LOADING...</p>
           ) : null}
