@@ -51,7 +51,7 @@ function buildShareText(
     gorkCorrect > 0 ? `⚡ Caught GORK-3 wrong: ${gorkCorrect}×` : null,
     '',
     'Can you beat the machine?',
-    'bit.ly/4xG3GLn',
+    'bit.ly/GORK-3',
   ].filter(l => l !== null).join('\n')
 }
 

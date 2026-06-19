@@ -8,7 +8,7 @@ interface GorkStripProps {
   reasoning: string | null
   confidence: number | null
   verdict: boolean | null
-  noneQuip?: string
+  noneQuip?: string | undefined
 }
 
 function GorkStrip({ reasoning, confidence, verdict, noneQuip }: GorkStripProps) {
