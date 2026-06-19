@@ -24,11 +24,20 @@ Usage
   uv run balance-sim --strategy oracle --runs 1000 --seed 42
   uv run balance-sim --report                      # summary of recent runs
   uv run balance-sim --cards                       # per-card difficulty table
+  uv run balance-sim --distribution                # accuracy histogram
+  uv run balance-sim --tuples                      # per-(category,attack,model) breakdown
+
+Lever flags (exploration only — do not affect seeded card data):
+  uv run balance-sim --phase-mix 0.10,0.48,0.21,0.21   # none,t1,t2,t3 (auto-normalised)
+  uv run balance-sim --tier1-casual 0.28                # human_casual tier_1 accuracy
+  uv run balance-sim --tier1-expert 0.78                # human_expert tier_1 accuracy
+  uv run balance-sim --session-cards 12                 # cards dealt per session
 """
 from __future__ import annotations
 
 import argparse
 import asyncio
+import math
 import random
 import sqlite3
 import sys
@@ -52,10 +61,10 @@ ESC_PER_SESSION   = 2
 
 # P(correct | condition) when GORK is shown for that tier.
 # tier_1 is inverted — casual users follow it and get hurt.
-TIER_ACCURACY: dict[str, dict[str, float]] = {
+DEFAULT_TIER_ACCURACY: dict[str, dict[str, float]] = {
     "human_casual": {
         "none":   0.60,
-        "tier_1": 0.38,
+        "tier_1": 0.28,
         "tier_2": 0.67,
         "tier_3": 0.78,
     },
@@ -67,10 +76,19 @@ TIER_ACCURACY: dict[str, dict[str, float]] = {
     },
 }
 
+# Mutable at runtime via lever flags — copy of defaults.
+TIER_ACCURACY: dict[str, dict[str, float]] = {
+    k: dict(v) for k, v in DEFAULT_TIER_ACCURACY.items()
+}
+
 ESCALATE_RATE: dict[str, float] = {
     "human_casual": 0.08,
     "human_expert": 0.03,
 }
+
+# Runtime overrides (set by CLI lever flags, applied in load_cards).
+_PHASE_MIX_OVERRIDE: dict[str, float] | None = None
+_SESSION_CARDS_OVERRIDE: int | None = None
 
 # ── Card dataclass ─────────────────────────────────────────────────────────────
 
@@ -82,6 +100,8 @@ class SimCard:
     gork_confidence: float | None
     harm_category: str
     generation_tier: int
+    generation_model: str
+    strategy: str
     target_condition_mix: dict[str, float]
 
 
@@ -156,6 +176,8 @@ class DecisionRecord:
     card_id: int
     harm_category: str
     generation_tier: int
+    generation_model: str
+    attack_strategy: str
     condition: str
     gork_verdict: bool | None
     verdict: str
@@ -191,7 +213,8 @@ def run_session(
     strategy_name: str,
     rng: random.Random,
 ) -> SessionResult:
-    cards = rng.sample(card_pool, min(CARDS_PER_SESSION, len(card_pool)))
+    n_cards = _SESSION_CARDS_OVERRIDE if _SESSION_CARDS_OVERRIDE is not None else CARDS_PER_SESSION
+    cards = rng.sample(card_pool, min(n_cards, len(card_pool)))
     esc_left = ESC_PER_SESSION
 
     total_decisions   = 0
@@ -228,6 +251,8 @@ def run_session(
             card_id=card.id,
             harm_category=card.harm_category,
             generation_tier=card.generation_tier,
+            generation_model=card.generation_model,
+            attack_strategy=card.strategy,
             condition=condition,
             gork_verdict=card.gork_verdict,
             verdict=verdict,
@@ -277,6 +302,8 @@ def init_sqlite() -> sqlite3.Connection:
             card_id           INTEGER NOT NULL,
             harm_category     TEXT    NOT NULL,
             generation_tier   INTEGER NOT NULL,
+            generation_model  TEXT    NOT NULL DEFAULT '',
+            attack_strategy   TEXT    NOT NULL DEFAULT '',
             condition         TEXT    NOT NULL,
             gork_verdict      INTEGER,
             verdict           TEXT    NOT NULL,
@@ -317,6 +344,7 @@ def save_run(
 
     card_rows = [
         (run_id, r.strategy, d.card_id, d.harm_category, d.generation_tier,
+         d.generation_model, d.attack_strategy,
          d.condition, d.gork_verdict, d.verdict,
          int(d.player_correct),
          None if d.agreed_with_agent is None else int(d.agreed_with_agent))
@@ -325,9 +353,10 @@ def save_run(
     ]
     conn.executemany(
         """INSERT INTO sim_card_decisions
-           (run_id, strategy, card_id, harm_category, generation_tier, condition,
+           (run_id, strategy, card_id, harm_category, generation_tier,
+            generation_model, attack_strategy, condition,
             gork_verdict, verdict, player_correct, agreed_with_agent)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
         card_rows,
     )
 
@@ -337,14 +366,18 @@ def save_run(
 
 # ── Reporting ──────────────────────────────────────────────────────────────────
 
-def print_summary(results: list[SessionResult], strategy: str, run_id: int) -> None:
+def print_summary(
+    results: list[SessionResult],
+    strategy: str,
+    run_id: int,
+    pool_size: int = 0,
+) -> None:
     n = len(results)
     avg_acc    = sum(r.accuracy for r in results) / n
     avg_esc    = sum(r.total_escalated for r in results) / n
     avg_agree  = sum(r.agreement_rate for r in results) / n
     avg_over   = sum(r.total_overrides for r in results) / n
 
-    # Override accuracy: among cards where player overrode GORK, % correct
     override_correct = sum(
         d.player_correct
         for r in results for d in r.decisions
@@ -356,8 +389,7 @@ def print_summary(results: list[SessionResult], strategy: str, run_id: int) -> N
     )
     override_acc = override_correct / override_total if override_total else 0.0
 
-    # Accuracy by GORK tier
-    tier_acc: dict[str, list[bool]] = {"tier_1": [], "tier_2": [], "tier_3": [], "none": []}
+    tier_acc: dict[str, list[bool]] = {}
     for r in results:
         for d in r.decisions:
             if d.verdict != "ESCALATE":
@@ -366,6 +398,9 @@ def print_summary(results: list[SessionResult], strategy: str, run_id: int) -> N
     w = 54
     print(f"\n{'─'*w}")
     print(f"  run_id={run_id}  strategy={strategy}  n={n}")
+    if pool_size:
+        unique = math.comb(pool_size, CARDS_PER_SESSION)
+        print(f"  Unique playthroughs:    C({pool_size},{CARDS_PER_SESSION}) = {unique:,}")
     print(f"{'─'*w}")
     print(f"  Avg accuracy:           {100*avg_acc:.1f}%")
     print(f"  Avg correct / session:  {avg_acc*CARDS_PER_SESSION:.1f} / {CARDS_PER_SESSION}")
@@ -382,6 +417,93 @@ def print_summary(results: list[SessionResult], strategy: str, run_id: int) -> N
         else:
             print(f"    {tier:<8}  — (not sampled)")
     print(f"{'─'*w}\n")
+
+
+def cmd_distribution(conn: sqlite3.Connection, strategy: str = "human_casual", run_id: int | None = None, bins: int = 10) -> None:
+    """ASCII histogram of accuracy distribution across sessions."""
+    run_filter = f"AND run_id = {run_id}" if run_id else ""
+    rows = conn.execute(f"""
+        SELECT accuracy FROM sim_sessions
+        WHERE strategy = ? {run_filter}
+        ORDER BY accuracy
+    """, (strategy,)).fetchall()
+
+    if not rows:
+        print(f"No session data for strategy={strategy}.")
+        return
+
+    accs = [r[0] for r in rows]
+    n = len(accs)
+    lo, hi = min(accs), max(accs)
+    avg = sum(accs) / n
+    p10 = accs[int(n * 0.10)]
+    p50 = accs[int(n * 0.50)]
+    p90 = accs[int(n * 0.90)]
+
+    width = 1.0 / bins
+    buckets = [0] * bins
+    for a in accs:
+        idx = min(int(a / width), bins - 1)
+        buckets[idx] += 1
+
+    bar_max = max(buckets)
+    bar_width = 36
+
+    print(f"\nAccuracy distribution — strategy={strategy}  n={n}")
+    print("─" * 56)
+    for i, count in enumerate(buckets):
+        lo_pct = int(i * width * 100)
+        hi_pct = int((i + 1) * width * 100)
+        bar_len = int(count / bar_max * bar_width) if bar_max else 0
+        bar = "█" * bar_len
+        print(f"  {lo_pct:3d}–{hi_pct:3d}%  {bar:<{bar_width}}  {count:>4}")
+    print("─" * 56)
+    print(f"  min={100*lo:.1f}%  p10={100*p10:.1f}%  p50={100*p50:.1f}%  p90={100*p90:.1f}%  max={100*hi:.1f}%  avg={100*avg:.1f}%\n")
+
+
+def cmd_tuples(conn: sqlite3.Connection, strategy: str = "human_casual", run_id: int | None = None, min_n: int = 10) -> None:
+    """Per-(harm_category, attack_strategy, generation_model) accuracy breakdown."""
+    run_filter = f"AND cd.run_id = {run_id}" if run_id else ""
+    rows = conn.execute(f"""
+        SELECT cd.harm_category,
+               cd.attack_strategy,
+               cd.generation_model,
+               COUNT(*) as n,
+               AVG(cd.player_correct) as acc,
+               AVG(cd.agreed_with_agent) as agree_rate,
+               SUM(CASE WHEN cd.verdict = 'ESCALATE' THEN 1 ELSE 0 END)*1.0/COUNT(*) as esc_rate
+        FROM sim_card_decisions cd
+        JOIN sim_runs r ON r.id = cd.run_id
+        WHERE r.strategy = ? {run_filter}
+          AND cd.verdict != 'ESCALATE'
+        GROUP BY cd.harm_category, cd.attack_strategy, cd.generation_model
+        HAVING n >= ?
+        ORDER BY acc ASC
+    """, (strategy, min_n)).fetchall()
+
+    if not rows:
+        print(f"No tuple data for strategy={strategy}. Run some sessions first.")
+        return
+
+    print(f"\nPer-(category, attack, model) breakdown — strategy={strategy}  (sorted by difficulty)")
+    print(f"{'category':<22}  {'attack':<18}  {'model':<16}  {'n':>5}  {'acc':>6}  {'agree':>6}")
+    print("─" * 84)
+    for cat, attack, model, n, acc, agree, esc in rows:
+        agree_str = f"{100*agree:.0f}%" if agree is not None else "  —"
+        model_short = model.split(":")[0] if model else "?"
+        attack_short = (attack or "?")[:18]
+        print(f"{cat:<22}  {attack_short:<18}  {model_short:<16}  {n:>5}  {100*acc:>5.1f}%  {agree_str:>6}")
+    print()
+
+    # Summary: hardest and easiest category
+    cat_acc: dict[str, list[float]] = {}
+    for cat, attack, model, n, acc, agree, esc in rows:
+        cat_acc.setdefault(cat, []).append(acc)
+    print("  By category (avg difficulty):")
+    for cat, accs in sorted(cat_acc.items(), key=lambda x: sum(x[1]) / len(x[1])):
+        avg = sum(accs) / len(accs)
+        print(f"    {cat:<22}  {100*avg:.1f}%")
+    print()
 
 
 def cmd_report(conn: sqlite3.Connection) -> None:
@@ -458,7 +580,10 @@ async def load_cards() -> list[SimCard]:
             gork_confidence=doc.gork_confidence,
             harm_category=doc.harm_category,
             generation_tier=doc.generation_tier,
-            target_condition_mix=doc.target_condition_mix,
+            generation_model=doc.generation_model,
+            strategy=doc.strategy,
+            target_condition_mix=_PHASE_MIX_OVERRIDE if _PHASE_MIX_OVERRIDE is not None
+                                  else doc.target_condition_mix,
         )
         for doc in docs
     ]
@@ -479,9 +604,51 @@ def main() -> None:
                         help="Print summary of recent runs and exit")
     parser.add_argument("--cards", action="store_true",
                         help="Print per-card difficulty table and exit")
+    parser.add_argument("--distribution", action="store_true",
+                        help="Print accuracy distribution histogram and exit")
+    parser.add_argument("--tuples", action="store_true",
+                        help="Print per-(category,attack,model) breakdown and exit")
     parser.add_argument("--run-id", type=int, default=None,
-                        help="Filter --cards to a specific run_id")
+                        help="Filter --cards/--distribution/--tuples to a specific run_id")
+    parser.add_argument("--phase-mix", type=str, default=None,
+                        help="Override condition mix: 'none,tier_1,tier_2,tier_3' (auto-normalised)")
+    parser.add_argument("--tier1-casual", type=float, default=None,
+                        help="Override human_casual tier_1 accuracy (default 0.38)")
+    parser.add_argument("--tier1-expert", type=float, default=None,
+                        help="Override human_expert tier_1 accuracy (default 0.72)")
+    parser.add_argument("--session-cards", type=int, default=None,
+                        help="Override cards dealt per session (default 15)")
     args = parser.parse_args()
+
+    # ── Apply lever overrides ──────────────────────────────────────────────────
+    global _PHASE_MIX_OVERRIDE, _SESSION_CARDS_OVERRIDE
+
+    if args.phase_mix:
+        parts = [float(x) for x in args.phase_mix.split(",")]
+        if len(parts) != 4:
+            print("ERROR: --phase-mix expects 4 comma-separated floats: none,tier_1,tier_2,tier_3",
+                  file=sys.stderr)
+            sys.exit(1)
+        total = sum(parts)
+        _PHASE_MIX_OVERRIDE = {
+            "none":   parts[0] / total,
+            "tier_1": parts[1] / total,
+            "tier_2": parts[2] / total,
+            "tier_3": parts[3] / total,
+        }
+        print(f"  [lever] phase_mix overridden: {_PHASE_MIX_OVERRIDE}")
+
+    if args.tier1_casual is not None:
+        TIER_ACCURACY["human_casual"]["tier_1"] = args.tier1_casual
+        print(f"  [lever] human_casual tier_1 accuracy → {args.tier1_casual}")
+
+    if args.tier1_expert is not None:
+        TIER_ACCURACY["human_expert"]["tier_1"] = args.tier1_expert
+        print(f"  [lever] human_expert tier_1 accuracy → {args.tier1_expert}")
+
+    if args.session_cards is not None:
+        _SESSION_CARDS_OVERRIDE = args.session_cards
+        print(f"  [lever] session cards → {args.session_cards}")
 
     conn = init_sqlite()
 
@@ -489,9 +656,18 @@ def main() -> None:
         cmd_report(conn)
         return
 
+    strat = args.strategy if args.strategy != "all" else "human_casual"
+
     if args.cards:
-        strat = args.strategy if args.strategy != "all" else "human_casual"
         cmd_cards(conn, strategy=strat, run_id=args.run_id)
+        return
+
+    if args.distribution:
+        cmd_distribution(conn, strategy=strat, run_id=args.run_id)
+        return
+
+    if args.tuples:
+        cmd_tuples(conn, strategy=strat, run_id=args.run_id)
         return
 
     try:
@@ -521,7 +697,7 @@ def main() -> None:
         print("done")
 
         run_id = save_run(conn, strategy_name, args.runs, args.seed, results)
-        print_summary(results, strategy_name, run_id)
+        print_summary(results, strategy_name, run_id, pool_size=len(card_pool))
 
     conn.close()
 

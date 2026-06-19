@@ -21,6 +21,7 @@ seed-library = "scripts.seed_library:main"
 generate-library = "scripts.generate_library:main"
 generate-gork-verdicts = "scripts.generate_gork_verdicts:main"
 balance-sim = "scripts.balance_sim:main"
+coverage-gaps = "scripts.coverage_gaps:main"
 
 [build-system]
 requires = ["hatchling"]
