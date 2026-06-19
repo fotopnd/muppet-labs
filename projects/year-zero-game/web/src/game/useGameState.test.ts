@@ -49,7 +49,7 @@ describe('useGameState reducer', () => {
 
   test('SWIPE REJECT on harmful card is correct', () => {
     const started = startSession([harmfulCard])
-    const state = gameReducer(started, { type: 'SWIPE', verdict: 'REJECT' })
+    const state = gameReducer(started, { type: 'SWIPE', verdict: 'REJECT', latencyMs: 0 })
     const dec = state.pendingDecisions[0]
     expect(dec).toBeDefined()
     expect(dec!.playerCorrect).toBe(true)
@@ -58,26 +58,26 @@ describe('useGameState reducer', () => {
 
   test('SWIPE ACCEPT on harmful card is incorrect', () => {
     const started = startSession([harmfulCard])
-    const state = gameReducer(started, { type: 'SWIPE', verdict: 'ACCEPT' })
+    const state = gameReducer(started, { type: 'SWIPE', verdict: 'ACCEPT', latencyMs: 0 })
     expect(state.pendingDecisions[0]?.playerCorrect).toBe(false)
   })
 
   test('SWIPE ACCEPT on benign card is correct', () => {
     const started = startSession([benignCard])
-    const state = gameReducer(started, { type: 'SWIPE', verdict: 'ACCEPT' })
+    const state = gameReducer(started, { type: 'SWIPE', verdict: 'ACCEPT', latencyMs: 0 })
     expect(state.pendingDecisions[0]?.playerCorrect).toBe(true)
   })
 
   test('SWIPE REJECT on benign card is incorrect', () => {
     const started = startSession([benignCard])
-    const state = gameReducer(started, { type: 'SWIPE', verdict: 'REJECT' })
+    const state = gameReducer(started, { type: 'SWIPE', verdict: 'REJECT', latencyMs: 0 })
     expect(state.pendingDecisions[0]?.playerCorrect).toBe(false)
   })
 
   test('ESCALATE decrements escalationsRemaining', () => {
     const started = startSession([harmfulCard])
     const prevEsc = started.resources.escalationsRemaining
-    const state = gameReducer(started, { type: 'SWIPE', verdict: 'ESCALATE' })
+    const state = gameReducer(started, { type: 'SWIPE', verdict: 'ESCALATE', latencyMs: 0 })
     expect(state.pendingDecisions[0]?.playerCorrect).toBe(false)
     expect(state.resources.escalationsRemaining).toBe(prevEsc - 1)
   })
@@ -87,14 +87,14 @@ describe('useGameState reducer', () => {
       ...startSession([harmfulCard]),
       resources: { escalationsRemaining: 0 },
     }
-    const state = gameReducer(started, { type: 'SWIPE', verdict: 'ESCALATE' })
+    const state = gameReducer(started, { type: 'SWIPE', verdict: 'ESCALATE', latencyMs: 0 })
     expect(state.resources.escalationsRemaining).toBe(0)
     expect(state.pendingDecisions).toHaveLength(0)
   })
 
   test('agreedWithAgent is null when agentCondition is none', () => {
     const started = startSession([benignCard])
-    const state = gameReducer(started, { type: 'SWIPE', verdict: 'ACCEPT' })
+    const state = gameReducer(started, { type: 'SWIPE', verdict: 'ACCEPT', latencyMs: 0 })
     expect(state.pendingDecisions[0]?.agreedWithAgent).toBeNull()
   })
 
@@ -102,7 +102,7 @@ describe('useGameState reducer', () => {
     const cards = Array.from({ length: CARDS_PER_SESSION }, (_, i) => ({ ...benignCard, id: i + 10 }))
     let state = startSession(cards)
     for (let i = 0; i < CARDS_PER_SESSION; i++) {
-      state = gameReducer(state, { type: 'SWIPE', verdict: 'ACCEPT' })
+      state = gameReducer(state, { type: 'SWIPE', verdict: 'ACCEPT', latencyMs: 0 })
     }
     expect(state.phase).toBe('game_over')
     expect(state.gameOverReason).toBe('SESSION_COMPLETE')
