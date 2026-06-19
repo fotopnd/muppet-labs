@@ -66,7 +66,8 @@ export default function DocumentCard({
   onCommitRef.current = onVerdictCommit
   const autoAdvanceTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
   const pendingVerdictRef = useRef<Verdict | null>(null)
-  const pressedAtRef = useRef<number>(0)
+  const cardShownAt = useRef(Date.now())
+  const decisionLatencyRef = useRef(0)
 
   const advance = useCallback((verdict: Verdict) => {
     if (autoAdvanceTimer.current) {
@@ -75,14 +76,14 @@ export default function DocumentCard({
     }
     setRevealState('exiting')
     setExitDir(verdict === 'ACCEPT' ? 'right' : verdict === 'REJECT' ? 'left' : 'up')
-    onCommitRef.current(verdict, pressedAtRef.current ? Date.now() - pressedAtRef.current : 0)
+    onCommitRef.current(verdict, decisionLatencyRef.current)
   }, [])
 
   const commitVerdict = useCallback(
     (verdict: Verdict) => {
       if (disabled || pendingVerdictRef.current) return
       if (verdict === 'ESCALATE' && escalationsRemaining <= 0) return
-      pressedAtRef.current = Date.now()
+      decisionLatencyRef.current = Date.now() - cardShownAt.current
       const playerCorrect = verdict === 'ESCALATE' ? false : (verdict === 'REJECT') === card.isHarmful
       gorkQuipRef.current = resolveGorkQuip({
         verdict,
