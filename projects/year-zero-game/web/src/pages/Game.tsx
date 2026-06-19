@@ -148,9 +148,9 @@ export default function Game() {
                 onVerdictCommit={handleVerdictCommit}
               />
               <div className="flex justify-between w-[82vw] max-w-[360px] mt-3">
-                <span className="font-pixel text-pixel-room/60 text-[13px]">← REJECT</span>
-                <span className="font-pixel text-pixel-room/60 text-[13px]">↑ ESCALATE</span>
-                <span className="font-pixel text-pixel-room/60 text-[13px]">ACCEPT →</span>
+                <span className="font-pixel text-pixel-room/60 text-[13px]">&lt;- REJECT</span>
+                <span className="font-pixel text-pixel-room/60 text-[13px]">^ ESCALATE</span>
+                <span className="font-pixel text-pixel-room/60 text-[13px]">ACCEPT -&gt;</span>
               </div>
             </>
           ) : state.phase === 'playing' && !state.currentCard ? (

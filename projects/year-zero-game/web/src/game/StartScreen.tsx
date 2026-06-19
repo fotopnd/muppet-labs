@@ -56,8 +56,8 @@ export default function StartScreen({ onStart, loading }: StartScreenProps) {
           {loading ? 'CONNECTING...' : 'BEGIN INTAKE >'}
         </button>
 
-        <p className="font-pixel text-pixel-card/30 text-[7px]">
-          → ACCEPT &nbsp;·&nbsp; ← REJECT &nbsp;·&nbsp; ↑ ESCALATE
+        <p className="font-pixel text-pixel-card/30 text-[9px]">
+          -&gt; ACCEPT &nbsp;·&nbsp; &lt;- REJECT &nbsp;·&nbsp; ^ ESCALATE
         </p>
 
         {/* Divider */}
@@ -103,7 +103,7 @@ export default function StartScreen({ onStart, loading }: StartScreenProps) {
               rel="noopener noreferrer"
               className="text-pixel-terminal underline"
             >
-              Muppet Labs
+              fotopnd.dev
             </a>
             . Part of a portfolio of AI safety and evaluation projects.
           </p>
