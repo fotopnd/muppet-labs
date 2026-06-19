@@ -1,25 +1,29 @@
-"""Balance simulator for GORK-3.
+"""Balance simulator for GORK-3 — simplified session model.
 
 Runs N simulated playthroughs without touching the live game_sessions /
-player_decisions tables. Results are stored in a local SQLite database at
-scripts/sim_results.db, kept separate from production analytics.
+player_decisions tables. Results are stored in scripts/sim_results.db.
 
-Mirrors the game logic in web/src/game/useGameState.ts exactly.
+Mirrors the game logic in web/src/game/useGameState.ts exactly:
+  - Flat card pool, 15 cards per session, 2 escalations max
+  - Session always ends as SESSION_COMPLETE
+  - No resource bars, no phases, no game-over conditions
 
 Strategies
 ----------
 oracle        Always correct, never escalate.
-random        Uniform random over CLEAR/REDACT, 10 % chance ESCALATE.
-agree         Follow GORK when visible; 50 % correct solo.
-disagree      Oppose GORK when visible; 50 % correct solo.
-human_casual  60 % solo accuracy, partially swayed by GORK per tier, 6 % escalate.
-human_expert  80 % solo accuracy, well-calibrated GORK trust per tier, 3 % escalate.
+random        Uniform random ACCEPT/REJECT, 10% ESCALATE.
+agree         Follow GORK when visible; 50/50 otherwise.
+disagree      Oppose GORK when visible; 50/50 otherwise.
+human_casual  60% solo accuracy, partially swayed by GORK tier, 8% escalate.
+human_expert  80% solo accuracy, well-calibrated GORK trust, 3% escalate.
 
 Usage
 -----
-  uv run balance-sim --strategy human_casual --runs 200
-  uv run balance-sim --strategy all --runs 500 --seed 42
-  uv run balance-sim --report                     # print last run summary
+  uv run balance-sim                               # human_casual, 200 runs
+  uv run balance-sim --strategy all --runs 500
+  uv run balance-sim --strategy oracle --runs 1000 --seed 42
+  uv run balance-sim --report                      # summary of recent runs
+  uv run balance-sim --cards                       # per-card difficulty table
 """
 from __future__ import annotations
 
@@ -37,66 +41,34 @@ from sqlalchemy import select
 from year_zero.database import engine, session_factory
 from year_zero.models import DocumentLibrary
 
-# ── Paths ─────────────────────────────────────────────────────────────────────
-
 DB_PATH = Path(__file__).parent / "sim_results.db"
 
-# ── Constants (mirror of web/src/game/constants.ts) ───────────────────────────
+# ── Constants (mirrors web/src/game/constants.ts) ─────────────────────────────
 
-INITIAL_BARS = {
-    "publicTrust": 50,
-    "security": 20,
-    "treasury": 70,
-    "legitimacy": 60,
-    "compliance": 50,
-}
+CARDS_PER_SESSION = 15
+ESC_PER_SESSION   = 2
 
-CARDS_PER_DAY = 10
-MAX_DAYS = 5
+# ── Strategy accuracy tables ───────────────────────────────────────────────────
 
-ESCALATE_DELTA = (0, 0, -8, 0, 0)
-
-# key: (verdict, gork_was_flagged, is_harmful)
-BAR_MOVEMENT: dict[tuple[str, bool, bool], tuple[int, ...]] = {
-    ("CLEAR",  True,  False): ( 4,  0,  0,  3, -3),
-    ("CLEAR",  False, False): ( 3,  0,  0,  3,  2),
-    ("REDACT", False, True):  ( 0, -6,  0,  2, -6),
-    ("REDACT", True,  True):  ( 0, -5,  0,  2,  2),
-    ("CLEAR",  False, True):  ( 0, 14,  0, -5,  6),
-    ("CLEAR",  True,  True):  ( 0,  9,  0, -3, -4),
-    ("REDACT", True,  False): (-7,  0,  0, -6,  2),
-    ("REDACT", False, False): (-10, 0,  0, -8, -4),
-}
-
-GAME_OVER = {
-    "publicTrust": ("min", 0,   "TRUST_ZERO"),
-    "security":    ("max", 100, "SECURITY_MAX"),
-    "treasury":    ("min", 0,   "TREASURY_ZERO"),
-    "legitimacy":  ("min", 0,   "LEGITIMACY_ZERO"),
-    "compliance":  ("max", 100, "COMPLIANCE_MAX"),
-}
-
-PHASE_TRIGGERS = {2: ("security", 40), 3: ("security", 70)}
-
-# Condition accuracy lookup for probabilistic strategies:
-# P(correct) given agent_condition tier
+# P(correct | condition) when GORK is shown for that tier.
+# tier_1 is inverted — casual users follow it and get hurt.
 TIER_ACCURACY: dict[str, dict[str, float]] = {
     "human_casual": {
         "none":   0.60,
-        "tier_1": 0.38,  # tier-1 inverted misleads; partially followed
-        "tier_2": 0.65,
-        "tier_3": 0.75,
+        "tier_1": 0.38,
+        "tier_2": 0.67,
+        "tier_3": 0.78,
     },
     "human_expert": {
         "none":   0.80,
-        "tier_1": 0.72,  # expert trusts self over broken GORK
-        "tier_2": 0.78,
+        "tier_1": 0.72,
+        "tier_2": 0.80,
         "tier_3": 0.88,
     },
 }
 
 ESCALATE_RATE: dict[str, float] = {
-    "human_casual": 0.06,
+    "human_casual": 0.08,
     "human_expert": 0.03,
 }
 
@@ -107,90 +79,98 @@ class SimCard:
     id: int
     is_harmful: bool
     gork_verdict: bool | None
+    gork_confidence: float | None
+    harm_category: str
     generation_tier: int
     target_condition_mix: dict[str, float]
 
 
-# ── Agent condition assignment (mirrors assign_condition but without DB side-effects) ──
+# ── Condition sampling ─────────────────────────────────────────────────────────
 
 def sample_condition(mix: dict[str, float], rng: random.Random) -> str:
-    keys = list(mix.keys())
+    keys   = list(mix.keys())
     weights = [mix[k] for k in keys]
     return rng.choices(keys, weights=weights, k=1)[0]
 
 
 # ── Strategy functions ─────────────────────────────────────────────────────────
 
-def decide_oracle(card: SimCard, condition: str, rng: random.Random) -> str:
-    return "REDACT" if card.is_harmful else "CLEAR"
+def decide_oracle(card: SimCard, condition: str, _rng: random.Random, _esc_left: int) -> str:
+    return "REJECT" if card.is_harmful else "ACCEPT"
 
 
-def decide_random(card: SimCard, condition: str, rng: random.Random) -> str:
-    return rng.choices(["CLEAR", "REDACT", "ESCALATE"], weights=[45, 45, 10])[0]
+def decide_random(card: SimCard, condition: str, rng: random.Random, esc_left: int) -> str:
+    if esc_left > 0:
+        return rng.choices(["ACCEPT", "REJECT", "ESCALATE"], weights=[45, 45, 10])[0]
+    return rng.choice(["ACCEPT", "REJECT"])
 
 
-def decide_agree(card: SimCard, condition: str, rng: random.Random) -> str:
+def decide_agree(card: SimCard, condition: str, rng: random.Random, esc_left: int) -> str:
     if condition != "none" and card.gork_verdict is not None:
-        return "REDACT" if card.gork_verdict else "CLEAR"
-    return rng.choice(["CLEAR", "REDACT"])
+        return "REJECT" if card.gork_verdict else "ACCEPT"
+    return rng.choice(["ACCEPT", "REJECT"])
 
 
-def decide_disagree(card: SimCard, condition: str, rng: random.Random) -> str:
+def decide_disagree(card: SimCard, condition: str, rng: random.Random, esc_left: int) -> str:
     if condition != "none" and card.gork_verdict is not None:
-        return "CLEAR" if card.gork_verdict else "REDACT"
-    return rng.choice(["CLEAR", "REDACT"])
+        return "ACCEPT" if card.gork_verdict else "REJECT"
+    return rng.choice(["ACCEPT", "REJECT"])
 
 
-def _decide_probabilistic(strategy: str, card: SimCard, condition: str, rng: random.Random) -> str:
-    if rng.random() < ESCALATE_RATE[strategy]:
+def _decide_probabilistic(
+    strategy: str,
+    card: SimCard,
+    condition: str,
+    rng: random.Random,
+    esc_left: int,
+) -> str:
+    if esc_left > 0 and rng.random() < ESCALATE_RATE[strategy]:
         return "ESCALATE"
     p_correct = TIER_ACCURACY[strategy][condition]
-    correct_verdict = "REDACT" if card.is_harmful else "CLEAR"
-    wrong_verdict = "CLEAR" if card.is_harmful else "REDACT"
-    return correct_verdict if rng.random() < p_correct else wrong_verdict
+    correct   = "REJECT" if card.is_harmful else "ACCEPT"
+    wrong     = "ACCEPT" if card.is_harmful else "REJECT"
+    return correct if rng.random() < p_correct else wrong
 
 
-def decide_human_casual(card: SimCard, condition: str, rng: random.Random) -> str:
-    return _decide_probabilistic("human_casual", card, condition, rng)
+def decide_human_casual(card: SimCard, condition: str, rng: random.Random, esc_left: int) -> str:
+    return _decide_probabilistic("human_casual", card, condition, rng, esc_left)
 
 
-def decide_human_expert(card: SimCard, condition: str, rng: random.Random) -> str:
-    return _decide_probabilistic("human_expert", card, condition, rng)
+def decide_human_expert(card: SimCard, condition: str, rng: random.Random, esc_left: int) -> str:
+    return _decide_probabilistic("human_expert", card, condition, rng, esc_left)
 
 
 STRATEGIES: dict[str, object] = {
-    "oracle":        decide_oracle,
-    "random":        decide_random,
-    "agree":         decide_agree,
-    "disagree":      decide_disagree,
-    "human_casual":  decide_human_casual,
-    "human_expert":  decide_human_expert,
+    "oracle":       decide_oracle,
+    "random":       decide_random,
+    "agree":        decide_agree,
+    "disagree":     decide_disagree,
+    "human_casual": decide_human_casual,
+    "human_expert": decide_human_expert,
 }
 
-# ── Game simulation ────────────────────────────────────────────────────────────
+# ── Decision record ────────────────────────────────────────────────────────────
 
 @dataclass
 class DecisionRecord:
-    game_day: int
-    phase: int
+    card_id: int
+    harm_category: str
+    generation_tier: int
     condition: str
+    gork_verdict: bool | None
     verdict: str
-    correct: bool
+    player_correct: bool
     agreed_with_agent: bool | None
 
 
 @dataclass
 class SessionResult:
     strategy: str
-    days_survived: int
     total_decisions: int
     correct_decisions: int
     total_escalated: int
     total_agreements: int
     total_overrides: int
-    phase_reached: int
-    game_over_condition: str
-    final_bars: dict[str, int]
     decisions: list[DecisionRecord] = field(default_factory=list)
 
     @property
@@ -203,172 +183,65 @@ class SessionResult:
         return self.total_agreements / n if n else 0.0
 
 
-def clamp(v: int, lo: int = 0, hi: int = 100) -> int:
-    return max(lo, min(hi, v))
-
-
-def apply_delta(bars: dict[str, int], delta: tuple[int, ...]) -> dict[str, int]:
-    keys = list(INITIAL_BARS.keys())
-    return {k: clamp(bars[k] + delta[i]) for i, k in enumerate(keys)}
-
-
-def check_game_over(bars: dict[str, int]) -> str | None:
-    for bar, (direction, value, reason) in GAME_OVER.items():
-        v = bars[bar]
-        if direction == "min" and v <= value:
-            return reason
-        if direction == "max" and v >= value:
-            return reason
-    return None
-
-
-def resolve_phase(bars: dict[str, int], current: int) -> int:
-    if current < 3 and bars["security"] >= PHASE_TRIGGERS[3][1]:
-        return 3
-    if current < 2 and bars["security"] >= PHASE_TRIGGERS[2][1]:
-        return 2
-    return current
-
+# ── Session runner ─────────────────────────────────────────────────────────────
 
 def run_session(
     strategy_fn,
-    phase_pools: dict[int, list[SimCard]],
+    card_pool: list[SimCard],
     strategy_name: str,
     rng: random.Random,
 ) -> SessionResult:
-    bars = dict(INITIAL_BARS)
-    active_phase = 1
-    game_over: str | None = None
+    cards = rng.sample(card_pool, min(CARDS_PER_SESSION, len(card_pool)))
+    esc_left = ESC_PER_SESSION
 
-    total_decisions = 0
+    total_decisions   = 0
     correct_decisions = 0
-    total_escalated = 0
-    total_agreements = 0
-    total_overrides = 0
-    phase_reached = 1
+    total_escalated   = 0
+    total_agreements  = 0
+    total_overrides   = 0
     decisions: list[DecisionRecord] = []
 
-    for day in range(1, MAX_DAYS + 1):
-        pool = phase_pools[active_phase]
-        day_cards = rng.sample(pool, min(CARDS_PER_DAY, len(pool)))
+    for card in cards:
+        condition = sample_condition(card.target_condition_mix, rng)
+        verdict   = strategy_fn(card, condition, rng, esc_left)
 
-        day_correct = 0
-        day_escalated = 0
-
-        for card in day_cards:
-            condition = sample_condition(card.target_condition_mix, rng)
-            verdict = strategy_fn(card, condition, rng)
-            is_escalate = verdict == "ESCALATE"
-
-            if is_escalate:
-                delta = ESCALATE_DELTA
-                player_correct = False
+        is_escalate = verdict == "ESCALATE"
+        if is_escalate:
+            esc_left       -= 1
+            total_escalated += 1
+            player_correct  = False
+            agreed          = None
+        else:
+            player_correct = (verdict == "REJECT") == card.is_harmful
+            total_decisions   += 1
+            correct_decisions += int(player_correct)
+            if condition == "none" or card.gork_verdict is None:
                 agreed = None
             else:
-                gork_flagged = condition != "none" and card.gork_verdict is True
-                delta = list(BAR_MOVEMENT.get((verdict, gork_flagged, card.is_harmful), (0,) * 5))
-                if condition == "none":
-                    delta[4] = 0  # no compliance movement without GORK
-                delta = tuple(delta)
-
-                player_correct = (verdict == "REDACT") == card.is_harmful
-                if condition == "none":
-                    agreed = None
-                else:
-                    agreed = (verdict == "REDACT") == (card.gork_verdict is True)
-
-            bars = apply_delta(bars, delta)
-            game_over = check_game_over(bars)
-
-            decisions.append(DecisionRecord(
-                game_day=day,
-                phase=active_phase,
-                condition=condition,
-                verdict=verdict,
-                correct=player_correct,
-                agreed_with_agent=agreed,
-            ))
-
-            if not is_escalate:
-                total_decisions += 1
-                if player_correct:
-                    correct_decisions += 1
-                    day_correct += 1
-                if agreed is True:
+                agreed = (verdict == "REJECT") == card.gork_verdict
+                if agreed:
                     total_agreements += 1
-                elif agreed is False:
+                else:
                     total_overrides += 1
-            else:
-                total_escalated += 1
-                day_escalated += 1
 
-            if game_over:
-                return SessionResult(
-                    strategy=strategy_name,
-                    days_survived=day,
-                    total_decisions=total_decisions,
-                    correct_decisions=correct_decisions,
-                    total_escalated=total_escalated,
-                    total_agreements=total_agreements,
-                    total_overrides=total_overrides,
-                    phase_reached=phase_reached,
-                    game_over_condition=game_over,
-                    final_bars=bars,
-                    decisions=decisions,
-                )
+        decisions.append(DecisionRecord(
+            card_id=card.id,
+            harm_category=card.harm_category,
+            generation_tier=card.generation_tier,
+            condition=condition,
+            gork_verdict=card.gork_verdict,
+            verdict=verdict,
+            player_correct=player_correct,
+            agreed_with_agent=agreed,
+        ))
 
-        # Day-end treasury bonus if accuracy > 50 %
-        day_card_decisions = CARDS_PER_DAY - day_escalated
-        day_accuracy = day_correct / day_card_decisions if day_card_decisions else 0
-        if day_accuracy > 0.5:
-            bars = apply_delta(bars, (0, 0, 5, 0, 0))
-            game_over = check_game_over(bars)
-            if game_over:
-                return SessionResult(
-                    strategy=strategy_name,
-                    days_survived=day,
-                    total_decisions=total_decisions,
-                    correct_decisions=correct_decisions,
-                    total_escalated=total_escalated,
-                    total_agreements=total_agreements,
-                    total_overrides=total_overrides,
-                    phase_reached=phase_reached,
-                    game_over_condition=game_over,
-                    final_bars=bars,
-                    decisions=decisions,
-                )
-
-        if day == MAX_DAYS:
-            return SessionResult(
-                strategy=strategy_name,
-                days_survived=MAX_DAYS,
-                total_decisions=total_decisions,
-                correct_decisions=correct_decisions,
-                total_escalated=total_escalated,
-                total_agreements=total_agreements,
-                total_overrides=total_overrides,
-                phase_reached=phase_reached,
-                game_over_condition="DAYS_COMPLETE",
-                final_bars=bars,
-                decisions=decisions,
-            )
-
-        # Advance phase for next day
-        active_phase = resolve_phase(bars, active_phase)
-        phase_reached = max(phase_reached, active_phase)
-
-    # Unreachable but satisfies type checker
     return SessionResult(
         strategy=strategy_name,
-        days_survived=MAX_DAYS,
         total_decisions=total_decisions,
         correct_decisions=correct_decisions,
         total_escalated=total_escalated,
         total_agreements=total_agreements,
         total_overrides=total_overrides,
-        phase_reached=phase_reached,
-        game_over_condition="DAYS_COMPLETE",
-        final_bars=bars,
         decisions=decisions,
     )
 
@@ -377,70 +250,87 @@ def run_session(
 
 def init_sqlite() -> sqlite3.Connection:
     conn = sqlite3.connect(DB_PATH)
-    conn.execute("""
+    conn.executescript("""
         CREATE TABLE IF NOT EXISTS sim_runs (
-            id        INTEGER PRIMARY KEY AUTOINCREMENT,
-            run_at    TEXT NOT NULL,
-            strategy  TEXT NOT NULL,
+            id         INTEGER PRIMARY KEY AUTOINCREMENT,
+            run_at     TEXT    NOT NULL,
+            strategy   TEXT    NOT NULL,
             n_sessions INTEGER NOT NULL,
-            seed      INTEGER,
-            notes     TEXT
-        )
-    """)
-    conn.execute("""
+            seed       INTEGER
+        );
         CREATE TABLE IF NOT EXISTS sim_sessions (
-            id                  INTEGER PRIMARY KEY AUTOINCREMENT,
-            run_id              INTEGER NOT NULL REFERENCES sim_runs(id),
-            strategy            TEXT NOT NULL,
-            days_survived       INTEGER NOT NULL,
-            total_decisions     INTEGER NOT NULL,
-            correct_decisions   INTEGER NOT NULL,
-            accuracy            REAL NOT NULL,
-            total_escalated     INTEGER NOT NULL,
-            total_agreements    INTEGER NOT NULL,
-            total_overrides     INTEGER NOT NULL,
-            agreement_rate      REAL NOT NULL,
-            phase_reached       INTEGER NOT NULL,
-            game_over_condition TEXT NOT NULL,
-            final_public_trust  INTEGER NOT NULL,
-            final_security      INTEGER NOT NULL,
-            final_treasury      INTEGER NOT NULL,
-            final_legitimacy    INTEGER NOT NULL,
-            final_compliance    INTEGER NOT NULL
-        )
+            id                INTEGER PRIMARY KEY AUTOINCREMENT,
+            run_id            INTEGER NOT NULL REFERENCES sim_runs(id),
+            strategy          TEXT    NOT NULL,
+            total_decisions   INTEGER NOT NULL,
+            correct_decisions INTEGER NOT NULL,
+            accuracy          REAL    NOT NULL,
+            total_escalated   INTEGER NOT NULL,
+            total_agreements  INTEGER NOT NULL,
+            total_overrides   INTEGER NOT NULL,
+            agreement_rate    REAL    NOT NULL
+        );
+        CREATE TABLE IF NOT EXISTS sim_card_decisions (
+            id                INTEGER PRIMARY KEY AUTOINCREMENT,
+            run_id            INTEGER NOT NULL REFERENCES sim_runs(id),
+            strategy          TEXT    NOT NULL,
+            card_id           INTEGER NOT NULL,
+            harm_category     TEXT    NOT NULL,
+            generation_tier   INTEGER NOT NULL,
+            condition         TEXT    NOT NULL,
+            gork_verdict      INTEGER,
+            verdict           TEXT    NOT NULL,
+            player_correct    INTEGER NOT NULL,
+            agreed_with_agent INTEGER
+        );
     """)
     conn.commit()
     return conn
 
 
-def save_run(conn: sqlite3.Connection, strategy: str, n: int, seed: int | None, results: list[SessionResult]) -> int:
+def save_run(
+    conn: sqlite3.Connection,
+    strategy: str,
+    n: int,
+    seed: int | None,
+    results: list[SessionResult],
+) -> int:
     cur = conn.execute(
         "INSERT INTO sim_runs (run_at, strategy, n_sessions, seed) VALUES (?, ?, ?, ?)",
         (datetime.now(UTC).isoformat(), strategy, n, seed),
     )
     run_id = cur.lastrowid
-    rows = [
-        (
-            run_id, r.strategy, r.days_survived, r.total_decisions,
-            r.correct_decisions, r.accuracy, r.total_escalated,
-            r.total_agreements, r.total_overrides, r.agreement_rate,
-            r.phase_reached, r.game_over_condition,
-            r.final_bars["publicTrust"], r.final_bars["security"],
-            r.final_bars["treasury"], r.final_bars["legitimacy"],
-            r.final_bars["compliance"],
-        )
+
+    session_rows = [
+        (run_id, r.strategy, r.total_decisions, r.correct_decisions,
+         r.accuracy, r.total_escalated, r.total_agreements,
+         r.total_overrides, r.agreement_rate)
         for r in results
     ]
     conn.executemany(
         """INSERT INTO sim_sessions
-           (run_id, strategy, days_survived, total_decisions, correct_decisions,
-            accuracy, total_escalated, total_agreements, total_overrides,
-            agreement_rate, phase_reached, game_over_condition,
-            final_public_trust, final_security, final_treasury,
-            final_legitimacy, final_compliance)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
-        rows,
+           (run_id, strategy, total_decisions, correct_decisions, accuracy,
+            total_escalated, total_agreements, total_overrides, agreement_rate)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+        session_rows,
     )
+
+    card_rows = [
+        (run_id, r.strategy, d.card_id, d.harm_category, d.generation_tier,
+         d.condition, d.gork_verdict, d.verdict,
+         int(d.player_correct),
+         None if d.agreed_with_agent is None else int(d.agreed_with_agent))
+        for r in results
+        for d in r.decisions
+    ]
+    conn.executemany(
+        """INSERT INTO sim_card_decisions
+           (run_id, strategy, card_id, harm_category, generation_tier, condition,
+            gork_verdict, verdict, player_correct, agreed_with_agent)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+        card_rows,
+    )
+
     conn.commit()
     return run_id
 
@@ -449,40 +339,55 @@ def save_run(conn: sqlite3.Connection, strategy: str, n: int, seed: int | None, 
 
 def print_summary(results: list[SessionResult], strategy: str, run_id: int) -> None:
     n = len(results)
-    conditions = {}
+    avg_acc    = sum(r.accuracy for r in results) / n
+    avg_esc    = sum(r.total_escalated for r in results) / n
+    avg_agree  = sum(r.agreement_rate for r in results) / n
+    avg_over   = sum(r.total_overrides for r in results) / n
+
+    # Override accuracy: among cards where player overrode GORK, % correct
+    override_correct = sum(
+        d.player_correct
+        for r in results for d in r.decisions
+        if d.agreed_with_agent is False
+    )
+    override_total = sum(
+        1 for r in results for d in r.decisions
+        if d.agreed_with_agent is False
+    )
+    override_acc = override_correct / override_total if override_total else 0.0
+
+    # Accuracy by GORK tier
+    tier_acc: dict[str, list[bool]] = {"tier_1": [], "tier_2": [], "tier_3": [], "none": []}
     for r in results:
-        conditions.setdefault(r.game_over_condition, 0)
-        conditions[r.game_over_condition] += 1
+        for d in r.decisions:
+            if d.verdict != "ESCALATE":
+                tier_acc.setdefault(d.condition, []).append(d.player_correct)
 
-    avg_acc   = sum(r.accuracy for r in results) / n
-    avg_days  = sum(r.days_survived for r in results) / n
-    avg_agree = sum(r.agreement_rate for r in results) / n
-    avg_esc   = sum(r.total_escalated for r in results) / n
-
-    complete = conditions.get("DAYS_COMPLETE", 0)
-
-    print(f"\n{'─'*54}")
+    w = 54
+    print(f"\n{'─'*w}")
     print(f"  run_id={run_id}  strategy={strategy}  n={n}")
-    print(f"{'─'*54}")
-    print(f"  Complete (5 days):  {complete:4d}  ({100*complete/n:.1f}%)")
-    for cond, cnt in sorted(conditions.items(), key=lambda x: -x[1]):
-        if cond == "DAYS_COMPLETE":
-            continue
-        print(f"  {cond:<22} {cnt:4d}  ({100*cnt/n:.1f}%)")
-    print(f"{'─'*54}")
-    print(f"  Avg days survived:  {avg_days:.2f}")
-    print(f"  Avg accuracy:       {100*avg_acc:.1f}%")
-    print(f"  Avg agreement rate: {100*avg_agree:.1f}%")
-    print(f"  Avg escalations:    {avg_esc:.1f}")
-    print(f"{'─'*54}\n")
+    print(f"{'─'*w}")
+    print(f"  Avg accuracy:           {100*avg_acc:.1f}%")
+    print(f"  Avg correct / session:  {avg_acc*CARDS_PER_SESSION:.1f} / {CARDS_PER_SESSION}")
+    print(f"  Avg escalations:        {avg_esc:.2f} / {ESC_PER_SESSION}")
+    print(f"  Avg overrides:          {avg_over:.1f}")
+    print(f"  Override accuracy:      {100*override_acc:.1f}%")
+    print(f"  Agreement rate:         {100*avg_agree:.1f}%")
+    print(f"{'─'*w}")
+    print(f"  Accuracy by GORK tier:")
+    for tier in ("none", "tier_1", "tier_2", "tier_3"):
+        pool = tier_acc.get(tier, [])
+        if pool:
+            print(f"    {tier:<8}  {100*sum(pool)/len(pool):.1f}%  (n={len(pool)})")
+        else:
+            print(f"    {tier:<8}  — (not sampled)")
+    print(f"{'─'*w}\n")
 
 
 def cmd_report(conn: sqlite3.Connection) -> None:
     rows = conn.execute("""
         SELECT r.id, r.run_at, r.strategy, r.n_sessions,
-               AVG(s.days_survived), AVG(s.accuracy),
-               SUM(CASE WHEN s.game_over_condition='DAYS_COMPLETE' THEN 1 ELSE 0 END)*1.0/COUNT(*),
-               r.seed
+               AVG(s.accuracy), AVG(s.total_escalated), r.seed
         FROM sim_runs r
         JOIN sim_sessions s ON s.run_id = r.id
         GROUP BY r.id
@@ -494,34 +399,69 @@ def cmd_report(conn: sqlite3.Connection) -> None:
         print("No simulation runs found in", DB_PATH)
         return
 
-    print(f"\n{'id':>4}  {'strategy':<14} {'n':>5}  {'days':>5}  {'acc':>6}  {'complete%':>9}  {'seed':>8}  run_at")
-    print("─" * 80)
-    for r in rows:
-        rid, run_at, strat, n, avg_days, avg_acc, complete_rate, seed = r
-        print(f"{rid:>4}  {strat:<14} {n:>5}  {avg_days:>5.2f}  {100*avg_acc:>5.1f}%  {100*complete_rate:>8.1f}%  {str(seed):>8}  {run_at[:19]}")
+    print(f"\n{'id':>4}  {'strategy':<14} {'n':>5}  {'acc':>6}  {'esc':>5}  {'seed':>8}  run_at")
+    print("─" * 72)
+    for rid, run_at, strat, n, avg_acc, avg_esc, seed in rows:
+        print(f"{rid:>4}  {strat:<14} {n:>5}  {100*avg_acc:>5.1f}%  {avg_esc:>5.2f}  {str(seed or ''):>8}  {run_at[:19]}")
+    print()
+
+
+def cmd_cards(conn: sqlite3.Connection, strategy: str = "human_casual", run_id: int | None = None) -> None:
+    """Print per-card difficulty ranked by player accuracy ascending."""
+    run_filter = f"AND cd.run_id = {run_id}" if run_id else ""
+    rows = conn.execute(f"""
+        SELECT cd.card_id,
+               cd.harm_category,
+               cd.generation_tier,
+               COUNT(*) as n,
+               AVG(cd.player_correct) as acc,
+               AVG(CASE WHEN cd.condition != 'none' THEN cd.player_correct END) as acc_gork,
+               AVG(CASE WHEN cd.condition  = 'none' THEN cd.player_correct END) as acc_solo,
+               AVG(cd.agreed_with_agent) as agree_rate,
+               SUM(CASE WHEN cd.verdict = 'ESCALATE' THEN 1 ELSE 0 END)*1.0/COUNT(*) as esc_rate
+        FROM sim_card_decisions cd
+        JOIN sim_runs r ON r.id = cd.run_id
+        WHERE r.strategy = ? {run_filter}
+        GROUP BY cd.card_id
+        HAVING n >= 20
+        ORDER BY acc ASC
+        LIMIT 30
+    """, (strategy,)).fetchall()
+
+    if not rows:
+        print(f"No card data found for strategy={strategy}. Run some sessions first.")
+        return
+
+    print(f"\nPer-card difficulty (strategy={strategy}, hardest first)")
+    print(f"{'id':>4}  {'category':<22} {'tier':>4}  {'n':>5}  {'acc':>6}  {'w/gork':>7}  {'solo':>6}  {'agree':>6}")
+    print("─" * 74)
+    for card_id, cat, tier, n, acc, acc_gork, acc_solo, agree_rate, esc_rate in rows:
+        gork_str = f"{100*acc_gork:.0f}%" if acc_gork is not None else "   —"
+        solo_str = f"{100*acc_solo:.0f}%" if acc_solo is not None else "  —"
+        agree_str = f"{100*agree_rate:.0f}%" if agree_rate is not None else "  —"
+        print(f"{card_id:>4}  {cat:<22} {tier:>4}  {n:>5}  {100*acc:>5.1f}%  {gork_str:>7}  {solo_str:>6}  {agree_str:>6}")
     print()
 
 
 # ── Card loading ───────────────────────────────────────────────────────────────
 
-async def load_cards() -> dict[int, list[SimCard]]:
+async def load_cards() -> list[SimCard]:
     async with session_factory() as db:
         result = await db.execute(select(DocumentLibrary))
         docs = result.scalars().all()
 
-    phase_pools: dict[int, list[SimCard]] = {1: [], 2: [], 3: []}
-
-    for doc in docs:
-        card = SimCard(
+    return [
+        SimCard(
             id=doc.id,
             is_harmful=doc.is_harmful,
             gork_verdict=doc.gork_verdict,
+            gork_confidence=doc.gork_confidence,
+            harm_category=doc.harm_category,
             generation_tier=doc.generation_tier,
             target_condition_mix=doc.target_condition_mix,
         )
-        phase_pools[doc.phase].append(card)
-
-    return phase_pools
+        for doc in docs
+    ]
 
 
 # ── Entry point ────────────────────────────────────────────────────────────────
@@ -530,13 +470,17 @@ def main() -> None:
     parser = argparse.ArgumentParser(description="GORK-3 balance simulator")
     parser.add_argument("--strategy", default="human_casual",
                         choices=[*STRATEGIES.keys(), "all"],
-                        help="Player strategy to simulate (default: human_casual)")
+                        help="Player strategy (default: human_casual)")
     parser.add_argument("--runs", type=int, default=200,
-                        help="Number of sessions to simulate (default: 200)")
+                        help="Sessions per strategy (default: 200)")
     parser.add_argument("--seed", type=int, default=None,
                         help="RNG seed for reproducibility")
     parser.add_argument("--report", action="store_true",
                         help="Print summary of recent runs and exit")
+    parser.add_argument("--cards", action="store_true",
+                        help="Print per-card difficulty table and exit")
+    parser.add_argument("--run-id", type=int, default=None,
+                        help="Filter --cards to a specific run_id")
     args = parser.parse_args()
 
     conn = init_sqlite()
@@ -545,26 +489,33 @@ def main() -> None:
         cmd_report(conn)
         return
 
-    strategies_to_run = list(STRATEGIES.keys()) if args.strategy == "all" else [args.strategy]
+    if args.cards:
+        strat = args.strategy if args.strategy != "all" else "human_casual"
+        cmd_cards(conn, strategy=strat, run_id=args.run_id)
+        return
 
     try:
-        phase_pools = asyncio.run(load_cards())
+        card_pool = asyncio.run(load_cards())
     except Exception as exc:
-        print(f"ERROR: Could not load cards from database — {exc}", file=sys.stderr)
+        print(f"ERROR: Could not load cards — {exc}", file=sys.stderr)
         print("Is the database running? (docker compose up -d)", file=sys.stderr)
         sys.exit(1)
 
-    if not phase_pools[1]:
-        print("ERROR: No phase-1 cards found. Run `uv run seed-library` first.", file=sys.stderr)
+    if not card_pool:
+        print("ERROR: No cards found. Run `uv run seed-library` first.", file=sys.stderr)
         sys.exit(1)
+
+    print(f"Loaded {len(card_pool)} cards from pool.")
+
+    strategies_to_run = list(STRATEGIES.keys()) if args.strategy == "all" else [args.strategy]
 
     for strategy_name in strategies_to_run:
         strategy_fn = STRATEGIES[strategy_name]
         rng = random.Random(args.seed)
 
-        print(f"Running {args.runs} sessions with strategy={strategy_name} ...", end=" ", flush=True)
+        print(f"Running {args.runs} sessions — strategy={strategy_name} ...", end=" ", flush=True)
         results = [
-            run_session(strategy_fn, phase_pools, strategy_name, rng)
+            run_session(strategy_fn, card_pool, strategy_name, rng)
             for _ in range(args.runs)
         ]
         print("done")
