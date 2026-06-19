@@ -95,13 +95,13 @@ class DealOut(BaseModel):
 class AnalyticsSummary(BaseModel):
     total_sessions: int
     sessions_today: int
-    global_fp_rate: float
-    global_fn_rate: float
-    avg_latency_ms: float
-    phase_survival: dict[str, float]
-    system_drift_error_rate: list[dict]
+    avg_accuracy: float
+    agreement_rate: float
+    override_accuracy: float
     escalation_rate: float
-    escalation_rate_by_category: dict[str, float]
+    avg_latency_ms: float
+    sessions_by_day: list[dict]
+    accuracy_by_category: dict[str, float]
 
 
 class UpliftRow(BaseModel):

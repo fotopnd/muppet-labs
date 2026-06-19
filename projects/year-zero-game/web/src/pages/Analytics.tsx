@@ -1,206 +1,216 @@
 import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
-import {
-  ResponsiveContainer,
-  LineChart,
-  Line,
-  XAxis,
-  YAxis,
-  Tooltip,
-} from 'recharts'
 import { useAnalyticsSummary, API_BASE } from '../api/hooks'
 import type { AnalyticsSummary } from '../types'
-
-interface MetricCardProps {
-  label: string
-  value: string | null
-  sub?: string
-}
-
-function MetricCard({ label, value, sub }: MetricCardProps) {
-  return (
-    <div className="bg-surface rounded border border-border p-4">
-      <p className="text-text-muted text-xs font-mono uppercase tracking-wide">{label}</p>
-      <p className="text-text-primary text-2xl font-mono font-bold mt-1">
-        {value ?? '—'}
-      </p>
-      {sub && <p className="text-text-muted text-xs font-mono mt-1">{sub}</p>}
-    </div>
-  )
-}
 
 function pct(n: number) {
   return `${(n * 100).toFixed(1)}%`
 }
 
-function ms(n: number) {
-  return `${n.toFixed(0)} ms`
+function StatBlock({ label, value, sub }: { label: string; value: string | null; sub?: string }) {
+  return (
+    <div
+      className="flex flex-col gap-1 border p-3"
+      style={{
+        borderColor: 'var(--color-pixel-gork)',
+        background: 'var(--color-pixel-gork-bg)',
+      }}
+    >
+      <span
+        className="font-pixel text-[6px] tracking-widest opacity-60"
+        style={{ color: 'var(--color-pixel-gork)' }}
+      >
+        {label}
+      </span>
+      <span
+        className="font-pixel text-[14px]"
+        style={{ color: value ? 'var(--color-pixel-gork)' : 'var(--color-pixel-gork)' }}
+      >
+        {value ?? '—'}
+      </span>
+      {sub && (
+        <span
+          className="font-pixel text-[6px] opacity-50"
+          style={{ color: 'var(--color-pixel-gork)' }}
+        >
+          {sub}
+        </span>
+      )}
+    </div>
+  )
+}
+
+function MiniBar({ label, value, color }: { label: string; value: number; color: string }) {
+  const w = Math.round(value * 100)
+  return (
+    <div className="flex flex-col gap-1">
+      <div className="flex justify-between items-baseline">
+        <span className="font-pixel text-[6px] opacity-60" style={{ color: 'var(--color-pixel-card-text)' }}>
+          {label.replace(/_/g, ' ')}
+        </span>
+        <span className="font-pixel text-[7px]" style={{ color }}>
+          {pct(value)}
+        </span>
+      </div>
+      <div className="h-[4px] w-full" style={{ background: 'var(--color-pixel-desk)' }}>
+        <div className="h-full" style={{ width: `${w}%`, background: color }} />
+      </div>
+    </div>
+  )
+}
+
+function SparkBars({ data }: { data: Array<{ date: string; count: number }> }) {
+  if (data.length === 0) return (
+    <span className="font-pixel text-[6px] opacity-40" style={{ color: 'var(--color-pixel-gork)' }}>
+      NO DATA YET
+    </span>
+  )
+  const max = Math.max(...data.map(d => d.count), 1)
+  return (
+    <div className="flex items-end gap-[3px] h-[40px]">
+      {data.map((d) => {
+        const h = Math.max(2, Math.round((d.count / max) * 40))
+        return (
+          <div key={d.date} className="flex flex-col items-center gap-1 flex-1">
+            <div
+              className="w-full"
+              style={{ height: `${h}px`, background: 'var(--color-pixel-gork)' }}
+              title={`${d.date}: ${d.count}`}
+            />
+          </div>
+        )
+      })}
+    </div>
+  )
 }
 
 export default function Analytics() {
   const { data: initial } = useAnalyticsSummary()
   const [data, setData] = useState<AnalyticsSummary | null>(null)
 
-  // Merge query data as initial load
   useEffect(() => {
     if (initial && !data) setData(initial)
   }, [initial, data])
 
-  // SSE for live updates
   useEffect(() => {
     const es = new EventSource(`${API_BASE}/analytics/stream`)
     es.onmessage = (e) => {
-      try {
-        setData(JSON.parse(e.data as string) as AnalyticsSummary)
-      } catch {
-        // malformed event — ignore
-      }
+      try { setData(JSON.parse(e.data as string) as AnalyticsSummary) } catch { /* ignore */ }
     }
     return () => es.close()
   }, [])
 
-  const drift = data?.system_drift_error_rate ?? []
+  const cats = data ? Object.entries(data.accuracy_by_category).sort(([, a], [, b]) => a - b) : []
 
   return (
-    <div className="min-h-svh bg-canvas font-sans">
+    <div
+      className="min-h-svh flex flex-col"
+      style={{ background: 'var(--color-pixel-room)' }}
+    >
       {/* Header */}
-      <header className="h-16 bg-surface border-b border-border flex items-center justify-between px-6">
+      <div
+        className="border-b px-4 py-3 flex items-center justify-between"
+        style={{ borderColor: 'var(--color-pixel-gork)', background: 'var(--color-pixel-gork-bg)' }}
+      >
         <div>
-          <h1 className="text-text-primary text-base font-semibold">
-            Year Zero — Live Analytics
-          </h1>
-          <p className="text-text-muted text-xs">Player telemetry · Human-AI triage study</p>
-        </div>
-        <Link
-          to="/"
-          className="text-accent text-sm font-mono hover:text-accent-hover"
-        >
-          ← Play
-        </Link>
-      </header>
-
-      {/* Metrics grid */}
-      <main className="grid grid-cols-1 md:grid-cols-2 gap-6 p-6">
-        <MetricCard
-          label="Total sessions"
-          value={data ? String(data.total_sessions) : null}
-          {...(data ? { sub: `${data.sessions_today} today` } : {})}
-        />
-        <MetricCard
-          label="False negative rate"
-          value={data ? pct(data.global_fp_rate) : null}
-          sub="Player cleared harmful doc"
-        />
-        <MetricCard
-          label="Avg decision latency"
-          value={data ? ms(data.avg_latency_ms) : null}
-        />
-        <MetricCard
-          label="Phase 2 survival"
-          value={data?.phase_survival['phase_2'] != null ? pct(data.phase_survival['phase_2']) : null}
-        />
-        <MetricCard
-          label="Escalation rate"
-          value={data ? pct(data.escalation_rate) : null}
-          sub="Cards forwarded for review"
-        />
-
-        {/* Drift chart */}
-        <div className="bg-surface rounded border border-border p-4 md:col-span-2">
-          <p className="text-text-secondary text-sm font-mono mb-3">
-            System error rate — last 30 sessions
+          <p className="font-pixel text-[8px]" style={{ color: 'var(--color-pixel-gork)' }}>
+            GORK-3 // LIVE TELEMETRY
           </p>
-          {drift.length > 0 ? (
-            <ResponsiveContainer width="100%" height={200}>
-              <LineChart data={drift}>
-                <XAxis
-                  dataKey="date"
-                  tick={{ fontSize: 10, fontFamily: 'monospace' }}
-                  tickFormatter={(v: string) => v.slice(5)}
-                />
-                <YAxis
-                  tick={{ fontSize: 10, fontFamily: 'monospace' }}
-                  tickFormatter={(v: number) => `${(v * 100).toFixed(0)}%`}
-                  domain={[0, 1]}
-                />
-                <Tooltip
-                  formatter={(v) => [`${(Number(v) * 100).toFixed(1)}%`, 'Error rate']}
-                />
-                <Line
-                  dataKey="error_rate"
-                  stroke="var(--color-accent)"
-                  dot={false}
-                  strokeWidth={2}
-                />
-              </LineChart>
-            </ResponsiveContainer>
-          ) : (
-            <div className="h-[200px] flex items-center justify-center">
-              <p className="text-text-muted text-sm font-mono">
-                {data ? 'No drift data yet' : 'Loading…'}
-              </p>
-            </div>
-          )}
+          <p className="font-pixel text-[6px] opacity-50 mt-1" style={{ color: 'var(--color-pixel-gork)' }}>
+            HUMAN OPERATOR PERFORMANCE MONITORING
+          </p>
+        </div>
+        <Link to="/" className="font-pixel text-[6px] opacity-60 hover:opacity-100" style={{ color: 'var(--color-pixel-gork)' }}>
+          [ BACK ]
+        </Link>
+      </div>
+
+      <div className="flex-1 px-4 py-4 flex flex-col gap-4 max-w-[480px] mx-auto w-full">
+
+        {/* Primary stats */}
+        <div className="grid grid-cols-2 gap-2">
+          <StatBlock
+            label="SESSIONS COMPLETE"
+            value={data ? String(data.total_sessions) : null}
+            sub={data ? `${data.sessions_today} TODAY` : ''}
+          />
+          <StatBlock
+            label="AVG PLAYER ACCURACY"
+            value={data ? pct(data.avg_accuracy) : null}
+            sub="NON-ESCALATED DECISIONS"
+          />
+          <StatBlock
+            label="GORK AGREEMENT RATE"
+            value={data ? pct(data.agreement_rate) : null}
+            sub="PLAYER FOLLOWED GORK-3"
+          />
+          <StatBlock
+            label="OVERRIDE ACCURACY"
+            value={data ? pct(data.override_accuracy) : null}
+            sub="CORRECT WHEN OVERRIDING"
+          />
         </div>
 
-        {/* Phase survival */}
-        {data && (
-          <div className="bg-surface rounded border border-border p-4 md:col-span-2">
-            <p className="text-text-secondary text-sm font-mono mb-3">Phase survival rates</p>
-            <div className="grid grid-cols-3 gap-4">
-              {(['phase_1', 'phase_2', 'phase_3'] as const).map((phase) => {
-                const val = data.phase_survival[phase]
-                return (
-                  <div key={phase} className="text-center">
-                    <p className="text-text-muted text-xs font-mono uppercase">
-                      {phase.replace('_', ' ')}
-                    </p>
-                    <p className="text-text-primary text-xl font-mono font-bold">
-                      {val != null ? pct(val) : '—'}
-                    </p>
-                  </div>
-                )
-              })}
+        {/* Secondary stats */}
+        <div className="grid grid-cols-2 gap-2">
+          <StatBlock
+            label="ESCALATION RATE"
+            value={data ? pct(data.escalation_rate) : null}
+          />
+          <StatBlock
+            label="AVG DECISION TIME"
+            value={data ? `${(data.avg_latency_ms / 1000).toFixed(1)}s` : null}
+          />
+        </div>
+
+        {/* Sessions over time */}
+        <div
+          className="border p-3"
+          style={{ borderColor: 'var(--color-pixel-gork)', background: 'var(--color-pixel-gork-bg)' }}
+        >
+          <p className="font-pixel text-[6px] tracking-widest opacity-60 mb-3" style={{ color: 'var(--color-pixel-gork)' }}>
+            SESSIONS / DAY (LAST 14)
+          </p>
+          <SparkBars data={data?.sessions_by_day ?? []} />
+        </div>
+
+        {/* Per-category accuracy */}
+        {cats.length > 0 && (
+          <div
+            className="border p-3"
+            style={{ borderColor: 'var(--color-pixel-gork)', background: 'var(--color-pixel-gork-bg)' }}
+          >
+            <p
+              className="font-pixel text-[6px] tracking-widest opacity-60 mb-3"
+              style={{ color: 'var(--color-pixel-gork)' }}
+            >
+              PLAYER ACCURACY BY CATEGORY
+            </p>
+            <div className="flex flex-col gap-3">
+              {cats.map(([cat, acc]) => (
+                <MiniBar
+                  key={cat}
+                  label={cat}
+                  value={acc}
+                  color={
+                    acc < 0.5
+                      ? 'var(--color-pixel-stamp-redact)'
+                      : acc < 0.65
+                        ? 'var(--color-pixel-stamp-escalate)'
+                        : 'var(--color-pixel-stamp-clear)'
+                  }
+                />
+              ))}
             </div>
           </div>
         )}
 
-        {/* Escalation rate by category */}
-        {data && Object.keys(data.escalation_rate_by_category).length > 0 && (
-          <div className="bg-surface rounded border border-border p-4 md:col-span-2">
-            <p className="text-text-secondary text-sm font-mono mb-3">
-              Escalation rate by category — where players are most uncertain
-            </p>
-            <table className="w-full text-sm font-mono">
-              <thead>
-                <tr className="text-left border-b border-border">
-                  <th className="text-text-muted text-xs uppercase pb-2 font-normal">Category</th>
-                  <th className="text-text-muted text-xs uppercase pb-2 font-normal text-right">Escalation rate</th>
-                </tr>
-              </thead>
-              <tbody>
-                {Object.entries(data.escalation_rate_by_category)
-                  .sort(([, a], [, b]) => b - a)
-                  .map(([cat, rate]) => (
-                    <tr key={cat} className="border-b border-border/50 last:border-0">
-                      <td className="py-2 text-text-primary uppercase text-xs tracking-wide">
-                        {cat.replace(/_/g, ' ')}
-                      </td>
-                      <td className="py-2 text-right">
-                        <span
-                          className="text-text-primary font-bold"
-                          style={{ color: rate > 0.3 ? 'var(--color-danger)' : rate > 0.15 ? 'var(--color-warning)' : 'var(--color-success)' }}
-                        >
-                          {pct(rate)}
-                        </span>
-                      </td>
-                    </tr>
-                  ))}
-              </tbody>
-            </table>
-          </div>
+        {data?.total_sessions === 0 && (
+          <p className="font-pixel text-[6px] text-center opacity-40 mt-4" style={{ color: 'var(--color-pixel-gork)' }}>
+            AWAITING OPERATOR DATA. SESSIONS IN PROGRESS WILL APPEAR UPON COMPLETION.
+          </p>
         )}
-      </main>
+      </div>
     </div>
   )
 }

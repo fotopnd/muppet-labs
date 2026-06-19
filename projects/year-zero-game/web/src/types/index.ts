@@ -104,11 +104,11 @@ export interface BatchAccepted {
 export interface AnalyticsSummary {
   total_sessions: number
   sessions_today: number
-  global_fp_rate: number
-  global_fn_rate: number
-  avg_latency_ms: number
-  phase_survival: Record<string, number>
-  system_drift_error_rate: Array<{ date: string; error_rate: number }>
+  avg_accuracy: number
+  agreement_rate: number
+  override_accuracy: number
   escalation_rate: number
-  escalation_rate_by_category: Record<string, number>
+  avg_latency_ms: number
+  sessions_by_day: Array<{ date: string; count: number }>
+  accuracy_by_category: Record<string, number>
 }
