@@ -1,7 +1,5 @@
 import { useParams, Link } from 'react-router-dom'
 import { useSessionResult } from '../api/hooks'
-import { GAME_OVER_NARRATIVES } from '../game/constants'
-import type { GameOverReason } from '../types'
 
 function StatRow({ label, value }: { label: string; value: string }) {
   return (
@@ -77,9 +75,9 @@ export default function Result() {
               </div>
             </div>
 
-            {data.game_over_condition && GAME_OVER_NARRATIVES[data.game_over_condition as GameOverReason] && (
+            {data.game_over_condition && (
               <p className="font-pixel text-pixel-card/60 text-[7px] leading-6 text-center">
-                {GAME_OVER_NARRATIVES[data.game_over_condition as GameOverReason]}
+                {data.game_over_condition.replace(/_/g, ' ')}
               </p>
             )}
           </>

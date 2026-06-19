@@ -28,11 +28,10 @@ function toCard(raw: CardOut): Card {
   }
 }
 
-// Maps resource state to backend bar columns (reusing existing schema)
 function resourceStateToRecord(res: ResourceState): Record<string, number> {
   return {
-    public_trust: res.integrity,
-    security: res.friction,
+    public_trust: 0,
+    security: 0,
     treasury: res.escalationsRemaining,
     legitimacy: 0,
     compliance: 0,

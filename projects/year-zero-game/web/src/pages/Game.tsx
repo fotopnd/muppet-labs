@@ -1,13 +1,21 @@
 import { useCallback, useEffect, useRef } from 'react'
 import { useGameState } from '../game/useGameState'
 import { useCreateSession, useDealCards, useBatchDecisions, usePatchSession } from '../api/hooks'
-import StatusBar from '../game/StatusBar'
 import DocumentCard from '../game/DocumentCard'
-import DayScreen from '../game/DayScreen'
 import GameOver from '../game/GameOver'
 import StartScreen from '../game/StartScreen'
 import LorePage from '../game/LorePage'
-import type { Verdict } from '../types'
+import type { Card, Verdict } from '../types'
+import { CARDS_PER_SESSION } from '../game/constants'
+
+function shuffle<T>(arr: T[]): T[] {
+  const a = [...arr]
+  for (let i = a.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1))
+    const tmp = a[i]; a[i] = a[j] as T; a[j] = tmp as T
+  }
+  return a
+}
 
 export default function Game() {
   const [state, dispatch] = useGameState()
@@ -33,25 +41,21 @@ export default function Game() {
     if (gameStarted.current) return
     if (!sessionId || !deal || state.phase !== 'start') return
     gameStarted.current = true
-    dispatch({
-      type: 'START_SESSION',
-      sessionId,
-      phaseCards: { 1: deal.phase_1, 2: deal.phase_2, 3: deal.phase_3 },
-    })
+    const allCards: Card[] = shuffle([...deal.phase_1, ...deal.phase_2, ...deal.phase_3]).slice(0, CARDS_PER_SESSION)
+    dispatch({ type: 'START_SESSION', sessionId, cards: allCards })
   }, [sessionId, deal, state.phase, dispatch])
 
-  const batchSubmitted = useRef<number | null>(null)
+  const batchSubmitted = useRef(false)
   useEffect(() => {
-    if (state.phase !== 'day_end') return
-    if (!sessionId) return
-    if (batchSubmitted.current === state.gameDay) return
-    batchSubmitted.current = state.gameDay
+    if (state.phase !== 'game_over') return
+    if (!sessionId || batchSubmitted.current) return
+    batchSubmitted.current = true
     batchDecisions.mutate({
       sessionId,
-      gameDay: state.gameDay,
+      gameDay: 1,
       decisions: state.pendingDecisions,
     })
-  }, [state.phase, state.gameDay, sessionId, state.pendingDecisions, batchDecisions])
+  }, [state.phase, sessionId, state.pendingDecisions, batchDecisions])
 
   const patchSubmitted = useRef(false)
   useEffect(() => {
@@ -63,12 +67,12 @@ export default function Game() {
     const overrides = state.pendingDecisions.filter((d) => d.agreedWithAgent === false).length
     patchSession.mutate({
       sessionId,
-      totalDays: state.gameDay,
+      totalDays: 1,
       totalDecisions,
       correctDecisions: totalCorrect,
       accuracy: totalDecisions > 0 ? totalCorrect / totalDecisions : 0,
-      phaseReached: state.activePhase,
-      gameOverCondition: state.gameOverReason ?? 'UNKNOWN',
+      phaseReached: 1,
+      gameOverCondition: 'SESSION_COMPLETE',
       finalResources: state.resources,
       calibrationAccuracy: 0,
       calibrationDecisions: 0,
@@ -85,15 +89,11 @@ export default function Game() {
     [dispatch],
   )
 
-  const handleDayContinue = useCallback(() => {
-    dispatch({ type: 'DAY_ACKNOWLEDGED' })
-  }, [dispatch])
-
   const handleReturn = useCallback(() => {
     userReady.current = false
     gameStarted.current = false
     patchSubmitted.current = false
-    batchSubmitted.current = null
+    batchSubmitted.current = false
     createSession.reset()
     dispatch({ type: 'RESET' })
   }, [dispatch, createSession])
@@ -107,34 +107,33 @@ export default function Game() {
         <StartScreen onStart={handleBeginIntake} loading={createSession.isPending} />
       )}
       {state.phase === 'lore' && (
-        <LorePage onContinue={() => dispatch({ type: 'DAY_ACKNOWLEDGED' })} />
-      )}
-      {state.phase === 'day_end' && (
-        <DayScreen
-          gameDay={state.gameDay}
-          dayCorrect={state.dayCorrect}
-          dayEscalated={state.dayEscalated}
-          totalDecisions={totalDecisions}
-          totalCorrect={state.totalCorrect}
-          onContinue={handleDayContinue}
-        />
+        <LorePage onContinue={() => dispatch({ type: 'RESET' })} />
       )}
       {state.phase === 'game_over' && state.gameOverReason && (
         <GameOver
           reason={state.gameOverReason}
-          days={state.gameDay}
+          days={1}
           decisions={totalDecisions}
           accuracy={accuracy}
           shareId={shareId}
           onReturn={handleReturn}
+          gorkCorrect={state.pendingDecisions.filter(
+            (d) => d.agreedWithAgent !== null && d.agentCondition !== 'none'
+          ).filter((d) => {
+            // gork correct = player agreed with gork AND player was correct, OR gork and player both wrong together
+            // simpler: count cards where gork_verdict_correct (stored in card but not in pendingDecision)
+            // We track via agreedWithAgent + playerCorrect
+            return d.agreedWithAgent === false && d.playerCorrect
+          }).length}
+          totalGorkShown={state.pendingDecisions.filter(
+            (d) => d.agentCondition !== 'none'
+          ).length}
         />
       )}
 
-      <StatusBar resources={state.resources} />
-
-      <div className="flex-1 flex flex-col items-center justify-center pt-10">
+      <div className="flex-1 flex flex-col items-center justify-center">
         <div
-          className="w-full flex flex-col items-center justify-center py-8 rounded-sm min-h-[420px]"
+          className="w-full flex flex-col items-center justify-center py-8 min-h-[480px]"
           style={{
             background:
               'radial-gradient(ellipse at 50% 40%, var(--color-pixel-desk-lit) 0%, var(--color-pixel-desk) 70%)',
@@ -148,10 +147,10 @@ export default function Game() {
                 escalationsRemaining={state.resources.escalationsRemaining}
                 onVerdictCommit={handleVerdictCommit}
               />
-              <div className="flex justify-between w-[80vw] max-w-[340px] mt-2">
-                <span className="font-pixel text-pixel-room/60 text-[10px]">← REJECT</span>
-                <span className="font-pixel text-pixel-room/60 text-[10px]">↑ ESC</span>
-                <span className="font-pixel text-pixel-room/60 text-[10px]">ACCEPT →</span>
+              <div className="flex justify-between w-[82vw] max-w-[360px] mt-3">
+                <span className="font-pixel text-pixel-room/60 text-[13px]">← REJECT</span>
+                <span className="font-pixel text-pixel-room/60 text-[13px]">↑ ESCALATE</span>
+                <span className="font-pixel text-pixel-room/60 text-[13px]">ACCEPT →</span>
               </div>
             </>
           ) : state.phase === 'playing' && !state.currentCard ? (
@@ -161,9 +160,12 @@ export default function Game() {
       </div>
 
       {state.phase === 'playing' && (
-        <div className="text-center pb-4">
+        <div className="flex justify-between px-6 py-3 w-full max-w-[360px] mx-auto">
           <span className="font-pixel text-pixel-card/40 text-[7px]">
-            DAY {state.gameDay} / {5} — {state.cardsInDay}/10
+            {state.cardsPlayed} / {CARDS_PER_SESSION} reviewed
+          </span>
+          <span className="font-pixel text-pixel-card/40 text-[7px]">
+            {state.resources.escalationsRemaining} escalations
           </span>
         </div>
       )}

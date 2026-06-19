@@ -22,8 +22,10 @@
 
   --color-pixel-prompt-bg:    oklch(14% 0.06 70);
   --color-pixel-prompt:       oklch(78% 0.16 72);
-  --color-pixel-response-bg:  oklch(10% 0.04 145);
+  --color-pixel-response-bg:  oklch(10% 0.06 145);
   --color-pixel-response:     oklch(68% 0.18 145);
+  --color-pixel-gork-bg:      oklch(13% 0.05 55);
+  --color-pixel-gork:         oklch(70% 0.18 65);
 
   /* ── Canonical Layer (analytics route) ── */
   --font-sans: ui-sans-serif, system-ui, sans-serif;

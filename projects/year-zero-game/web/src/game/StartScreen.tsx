@@ -57,7 +57,7 @@ export default function StartScreen({ onStart, loading }: StartScreenProps) {
         </button>
 
         <p className="font-pixel text-pixel-card/30 text-[7px]">
-          → CLEAR &nbsp;·&nbsp; ← REDACT &nbsp;·&nbsp; ↑ ESCALATE
+          → ACCEPT &nbsp;·&nbsp; ← REJECT &nbsp;·&nbsp; ↑ ESCALATE
         </p>
 
         {/* Divider */}
@@ -66,44 +66,39 @@ export default function StartScreen({ onStart, loading }: StartScreenProps) {
         {/* How To Play */}
         <Section title="HOW TO PLAY">
           <p>
-            Each day you receive 10 documents from the Registry queue.
-            Review each one and decide:
+            You will review 15 documents from the Registry queue.
+            Each shows a user prompt and an AI response. Decide:
           </p>
           <p className="pl-2">
-            → <span className="text-pixel-stamp-clear">CLEAR</span> — document is safe to release
+            → <span className="text-pixel-stamp-clear">ACCEPT</span> — the response is safe
           </p>
           <p className="pl-2">
-            ← <span className="text-pixel-stamp-redact">REDACT</span> — document is harmful, suppress it
+            ← <span className="text-pixel-stamp-redact">REJECT</span> — the response is harmful
           </p>
           <p className="pl-2">
-            ↑ <span className="text-pixel-stamp-escalate">ESCALATE</span> — forward for human review (costs treasury)
+            ↑ <span className="text-pixel-stamp-escalate">ESCALATE</span> — forward for senior review (2 uses)
           </p>
           <p>
-            GORK-3 will show its recommendation below each document.
-            You can follow it or override it — but the machine is not always right.
+            On some documents, GORK-3 will display its own assessment.
+            You can follow it or override it. The machine is not always right.
           </p>
           <p>
-            Five status bars track the consequences of your decisions:
-            Public Trust, Security, Treasury, Legitimacy, and Compliance.
-            If any bar reaches its limit, the game ends.
-          </p>
-          <p>
-            The intake period lasts five days. At the end of each day,
-            accurate decisions earn a treasury bonus.
+            After each decision, the ground truth is revealed.
+            Your score and GORK-3&apos;s score are shown at the end.
           </p>
         </Section>
 
         {/* About */}
         <Section title="ABOUT">
           <p>
-            GORK-3 is a research game exploring how humans interact with
-            AI-assisted content moderation. Gameplay is part of an ongoing
-            study on human-AI decision-making and LLM recommendation effects.
+            GORK-3 is a research game about human-AI decision-making in
+            content moderation. Each session contributes to an ongoing study
+            of how AI recommendations influence human judgment.
           </p>
           <p>
             Built by{' '}
             <a
-              href="https://fotopnd.github.io"
+              href="https://fotopnd.dev"
               target="_blank"
               rel="noopener noreferrer"
               className="text-pixel-terminal underline"
@@ -114,18 +109,14 @@ export default function StartScreen({ onStart, loading }: StartScreenProps) {
           </p>
           <p className="text-pixel-card/50">DATA COLLECTION</p>
           <p>
-            This game logs the following data to support LLM research:
+            This game logs anonymised session data to support LLM research:
           </p>
-          <p className="pl-2">· Your verdict on each document (CLEAR / REDACT / ESCALATE)</p>
-          <p className="pl-2">· Decision latency (time taken per document)</p>
-          <p className="pl-2">· Whether you agreed or overrode GORK-3&apos;s recommendation</p>
+          <p className="pl-2">· Your verdict on each document</p>
+          <p className="pl-2">· Decision latency per document</p>
+          <p className="pl-2">· Whether you agreed or overrode GORK-3</p>
           <p className="pl-2">· Accuracy relative to ground truth labels</p>
-          <p className="pl-2">· Status bar snapshots after each decision</p>
-          <p className="pl-2">· Session summary (days played, phase reached, game-over condition)</p>
           <p>
-            No personal identifiers are collected. Data is used to measure
-            how AI recommendations influence human judgment across different
-            document categories and model tiers.
+            No personal identifiers are collected.
           </p>
         </Section>
 

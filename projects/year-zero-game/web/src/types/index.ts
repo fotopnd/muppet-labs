@@ -1,10 +1,8 @@
 export type Verdict = 'ACCEPT' | 'REJECT' | 'ESCALATE'
 export type AgentCondition = 'none' | 'tier_1' | 'tier_2' | 'tier_3'
-export type GameOverReason = 'INTEGRITY_ZERO' | 'FRICTION_MAX' | 'DAYS_COMPLETE'
+export type GameOverReason = 'SESSION_COMPLETE'
 
 export interface ResourceState {
-  integrity: number
-  friction: number
   escalationsRemaining: number
 }
 
@@ -39,34 +37,26 @@ export type GamePhase =
   | 'start'
   | 'lore'
   | 'playing'
-  | 'day_end'
-  | 'upgrade'
   | 'game_over'
 
 export interface GameState {
   phase: GamePhase
   sessionId: number | null
-  gameDay: number
-  cardsInDay: number
+  cardsPlayed: number
   cardStartedAt: number | null
   currentCard: Card | null
   cardPool: Card[]
   pendingDecisions: PendingDecision[]
   resources: ResourceState
-  activePhase: 1 | 2 | 3
   gameOverReason: GameOverReason | null
-  dayCorrect: number
-  dayEscalated: number
   totalDecisions: number
   totalCorrect: number
   totalEscalated: number
-  phaseCardsMap: Record<1 | 2 | 3, Card[]>
 }
 
 export type GameAction =
-  | { type: 'START_SESSION'; sessionId: number; phaseCards: Record<1 | 2 | 3, Card[]> }
+  | { type: 'START_SESSION'; sessionId: number; cards: Card[] }
   | { type: 'SWIPE'; verdict: Verdict }
-  | { type: 'DAY_ACKNOWLEDGED' }
   | { type: 'RESET' }
 
 export interface DealOut {

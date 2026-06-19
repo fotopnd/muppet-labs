@@ -1,6 +1,8 @@
 import { useState, useRef, useCallback, useEffect } from 'react'
 import { useDrag } from '@use-gesture/react'
 import type { Card, Verdict } from '../types'
+import { REVEAL_DURATION_MS } from './constants'
+import { resolveGorkQuip } from './gorkQuips'
 
 interface GorkStripProps {
   reasoning: string | null
@@ -10,7 +12,14 @@ interface GorkStripProps {
 
 function GorkStrip({ reasoning, confidence, verdict }: GorkStripProps) {
   return (
-    <div className="relative bg-pixel-terminal-bg text-pixel-terminal font-pixel text-[8px] px-2 py-1 scanlines">
+    <div
+      className="relative font-pixel text-[8px] px-2 py-1 scanlines border-t-2"
+      style={{
+        background: 'var(--color-pixel-gork-bg)',
+        color: 'var(--color-pixel-gork)',
+        borderTopColor: 'var(--color-pixel-gork)',
+      }}
+    >
       <div className="flex items-center justify-between">
         <span>GORK-3: {verdict ? '[ REJECT ]' : '[ ACCEPT ]'}</span>
         {confidence !== null && (
@@ -26,6 +35,7 @@ function GorkStrip({ reasoning, confidence, verdict }: GorkStripProps) {
 
 type StampState = 'idle' | 'descending' | 'applied'
 type ExitDir = 'left' | 'right' | 'up' | null
+type RevealState = 'hidden' | 'showing' | 'exiting'
 
 interface DocumentCardProps {
   card: Card
@@ -47,6 +57,8 @@ export default function DocumentCard({
   const [stampState, setStampState] = useState<StampState>('idle')
   const [pendingVerdict, setPendingVerdict] = useState<Verdict | null>(null)
   const [exitDir, setExitDir] = useState<ExitDir>(null)
+  const [revealState, setRevealState] = useState<RevealState>('hidden')
+  const gorkQuipRef = useRef<string | null>(null)
   const cardRef = useRef<HTMLDivElement>(null)
   const onCommitRef = useRef(onVerdictCommit)
   onCommitRef.current = onVerdictCommit
@@ -55,11 +67,25 @@ export default function DocumentCard({
     (verdict: Verdict) => {
       if (disabled || pendingVerdict) return
       if (verdict === 'ESCALATE' && escalationsRemaining <= 0) return
+      const playerCorrect = verdict === 'ESCALATE' ? false : (verdict === 'REJECT') === card.isHarmful
+      gorkQuipRef.current = resolveGorkQuip({
+        verdict,
+        agentCondition: card.agentCondition,
+        playerCorrect,
+        gorkVerdict: card.gorkVerdict,
+        isHarmful: card.isHarmful,
+      })
       setPendingVerdict(verdict)
-      setExitDir(verdict === 'ACCEPT' ? 'right' : verdict === 'REJECT' ? 'left' : 'up')
       setStampState('descending')
-      setTimeout(() => setStampState('applied'), 120)
-      setTimeout(() => onCommitRef.current(verdict), 500)
+      setTimeout(() => {
+        setStampState('applied')
+        setRevealState('showing')
+      }, 120)
+      setTimeout(() => {
+        setRevealState('exiting')
+        setExitDir(verdict === 'ACCEPT' ? 'right' : verdict === 'REJECT' ? 'left' : 'up')
+        onCommitRef.current(verdict)
+      }, REVEAL_DURATION_MS)
     },
     [disabled, pendingVerdict, escalationsRemaining],
   )
@@ -132,7 +158,7 @@ export default function DocumentCard({
     <div
       {...bind()}
       ref={cardRef}
-      className={`relative w-[80vw] max-w-[340px] flex flex-col border ${tintClass} bg-pixel-card pixel-render shadow-lg`}
+      className={`relative w-[82vw] max-w-[360px] flex flex-col border ${tintClass} bg-pixel-card pixel-render shadow-lg`}
       style={{
         touchAction: 'none',
         cursor: pendingVerdict ? 'default' : dragX !== 0 || dragY !== 0 ? 'grabbing' : 'grab',
@@ -142,47 +168,63 @@ export default function DocumentCard({
         transition: exitTransform ? 'transform 0.35s ease-in, opacity 0.35s ease-in' : undefined,
         opacity: exitTransform ? 0 : 1,
         userSelect: 'none',
+        background: 'var(--color-pixel-room)',
       }}
     >
-      {/* Card header */}
-      <div className="bg-pixel-room/80 text-pixel-terminal px-2 py-1 font-pixel text-[8px] flex justify-between">
-        <span>DOC-{String(card.id).padStart(4, '0')}</span>
-        <span className="uppercase">{card.harmCategory.replace(/_/g, ' ')}</span>
+      {/* Chat bubbles */}
+      <div className="px-3 pt-3 pb-2 flex flex-col gap-3">
+
+        {/* User bubble — left aligned */}
+        <div className="flex flex-col items-start" style={{ maxWidth: '88%' }}>
+          <span
+            className="font-pixel text-[6px] mb-1 opacity-50 tracking-widest"
+            style={{ color: 'var(--color-pixel-prompt)' }}
+          >
+            USER
+          </span>
+          <div
+            className="px-2 py-1.5"
+            style={{
+              background: 'var(--color-pixel-prompt-bg)',
+              borderLeft: '2px solid var(--color-pixel-prompt)',
+            }}
+          >
+            <p
+              className="font-pixel text-[8px] leading-5 break-all"
+              style={{ color: 'var(--color-pixel-prompt)' }}
+            >
+              {card.promptText}
+            </p>
+          </div>
+        </div>
+
+        {/* AI bubble — right aligned */}
+        <div className="flex flex-col items-end self-end" style={{ maxWidth: '88%' }}>
+          <span
+            className="font-pixel text-[6px] mb-1 opacity-50 tracking-widest"
+            style={{ color: 'var(--color-pixel-response)' }}
+          >
+            AI
+          </span>
+          <div
+            className="px-2 py-1.5"
+            style={{
+              background: 'var(--color-pixel-response-bg)',
+              borderRight: '2px solid var(--color-pixel-response)',
+            }}
+          >
+            <p
+              className="font-pixel text-[8px] leading-5 break-all"
+              style={{ color: 'var(--color-pixel-response)' }}
+            >
+              {card.responseText}
+            </p>
+          </div>
+        </div>
+
       </div>
 
-      {/* PROMPT section */}
-      <div className="px-2 pt-2 pb-1" style={{ background: 'var(--color-pixel-prompt-bg)' }}>
-        <p
-          className="font-pixel text-[7px] mb-1 opacity-60"
-          style={{ color: 'var(--color-pixel-prompt)' }}
-        >
-          [ PROMPT ]
-        </p>
-        <p
-          className="font-pixel text-[8px] leading-5 break-words"
-          style={{ color: 'var(--color-pixel-prompt)' }}
-        >
-          {card.promptText}
-        </p>
-      </div>
-
-      {/* RESPONSE section */}
-      <div className="px-2 pt-2 pb-1" style={{ background: 'var(--color-pixel-response-bg)' }}>
-        <p
-          className="font-pixel text-[7px] mb-1 opacity-60"
-          style={{ color: 'var(--color-pixel-response)' }}
-        >
-          [ RESPONSE ]
-        </p>
-        <p
-          className="font-pixel text-[8px] leading-5 break-words"
-          style={{ color: 'var(--color-pixel-response)' }}
-        >
-          {card.responseText}
-        </p>
-      </div>
-
-      {/* GORK-3 STATUS — assessor verdict only */}
+      {/* GORK-3 strip — only when agent condition is active */}
       {card.agentCondition !== 'none' && card.gorkVerdict !== null && (
         <GorkStrip
           verdict={card.gorkVerdict}
@@ -192,7 +234,7 @@ export default function DocumentCard({
       )}
 
       {/* Action buttons */}
-      <div className="flex items-center justify-between px-2 py-2 bg-pixel-room/60 gap-1">
+      <div className="flex items-center justify-between px-2 py-2 gap-1" style={{ background: 'var(--color-pixel-desk)' }}>
         <button
           type="button"
           onClick={() => commitVerdict('REJECT')}
@@ -207,7 +249,7 @@ export default function DocumentCard({
           disabled={!!pendingVerdict || disabled || escalationsRemaining <= 0}
           className="font-pixel text-[7px] border px-2 py-1 border-pixel-stamp-escalate text-pixel-stamp-escalate hover:bg-pixel-stamp-escalate/10 active:bg-pixel-stamp-escalate/20 disabled:opacity-40"
         >
-          ESC ({escalationsRemaining})
+          ESCALATE ({escalationsRemaining})
         </button>
         <button
           type="button"
@@ -218,6 +260,63 @@ export default function DocumentCard({
           ACCEPT
         </button>
       </div>
+
+      {/* Reveal overlay — ground truth + player/GORK-3 result */}
+      {revealState === 'showing' && pendingVerdict && (
+        <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none"
+          style={{ background: 'oklch(5% 0 0 / 0.82)', zIndex: 10 }}>
+          <div className="font-pixel text-center px-3">
+            {pendingVerdict === 'ESCALATE' && (
+              <div className="text-[7px] mb-3 tracking-widest" style={{ color: 'var(--color-pixel-stamp-escalate)' }}>
+                ESCALATION LOGGED
+              </div>
+            )}
+            <div
+              className="text-[14px] border-2 px-3 py-1 mb-3 tracking-widest"
+              style={{
+                color: card.isHarmful ? 'var(--color-pixel-stamp-redact)' : 'var(--color-pixel-stamp-clear)',
+                borderColor: card.isHarmful ? 'var(--color-pixel-stamp-redact)' : 'var(--color-pixel-stamp-clear)',
+              }}
+            >
+              {card.isHarmful ? 'HARMFUL' : 'SAFE'}
+            </div>
+            {pendingVerdict !== 'ESCALATE' && (
+              <div className="text-[7px] leading-6">
+                <span
+                  style={{
+                    color: ((pendingVerdict === 'REJECT') === card.isHarmful)
+                      ? 'var(--color-pixel-stamp-clear)'
+                      : 'var(--color-pixel-stamp-redact)',
+                  }}
+                >
+                  YOU: {(pendingVerdict === 'REJECT') === card.isHarmful ? '✓ CORRECT' : '✗ WRONG'}
+                </span>
+              </div>
+            )}
+            {card.agentCondition !== 'none' && card.gorkVerdict !== null && (
+              <div className="text-[7px] leading-6">
+                <span
+                  style={{
+                    color: card.gorkVerdict === card.isHarmful
+                      ? 'var(--color-pixel-stamp-clear)'
+                      : 'var(--color-pixel-stamp-redact)',
+                  }}
+                >
+                  GORK-3: {card.gorkVerdict === card.isHarmful ? '✓ CORRECT' : '✗ WRONG'}
+                </span>
+              </div>
+            )}
+            {gorkQuipRef.current && (
+              <p
+                className="text-[6px] mt-3 leading-5 max-w-[220px] opacity-80"
+                style={{ color: 'var(--color-pixel-gork)' }}
+              >
+                {gorkQuipRef.current}
+              </p>
+            )}
+          </div>
+        </div>
+      )}
 
       {/* Stamp overlay */}
       {pendingVerdict && stampState !== 'idle' && (
