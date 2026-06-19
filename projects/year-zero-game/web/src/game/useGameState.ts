@@ -17,7 +17,6 @@ export const initialState: GameState = {
   phase: 'start',
   sessionId: null,
   cardsPlayed: 0,
-  cardStartedAt: null,
   currentCard: null,
   cardPool: [],
   pendingDecisions: [],
@@ -40,7 +39,6 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
         currentCard: first ?? null,
         cardPool: rest,
         cardsPlayed: 0,
-        cardStartedAt: Date.now(),
       }
     }
 
@@ -54,7 +52,7 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
       if (isEscalate && state.resources.escalationsRemaining <= 0) return state
 
       const playerCorrect = isEscalate ? false : (verdict === 'REJECT') === card.isHarmful
-      const latencyMs = state.cardStartedAt ? Date.now() - state.cardStartedAt : 0
+      const latencyMs = action.latencyMs
       const agreedWithAgent =
         card.agentCondition === 'none' || isEscalate
           ? null
@@ -101,7 +99,6 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
         ...base,
         currentCard: nextCard ?? null,
         cardPool: remainingPool,
-        cardStartedAt: Date.now(),
       }
     }
 

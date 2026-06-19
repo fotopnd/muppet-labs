@@ -83,8 +83,8 @@ export default function Game() {
   }, [state.phase, sessionId]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const handleVerdictCommit = useCallback(
-    (verdict: Verdict) => {
-      dispatch({ type: 'SWIPE', verdict })
+    (verdict: Verdict, latencyMs: number) => {
+      dispatch({ type: 'SWIPE', verdict, latencyMs })
     },
     [dispatch],
   )

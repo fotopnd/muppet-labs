@@ -43,7 +43,6 @@ export interface GameState {
   phase: GamePhase
   sessionId: number | null
   cardsPlayed: number
-  cardStartedAt: number | null
   currentCard: Card | null
   cardPool: Card[]
   pendingDecisions: PendingDecision[]
@@ -56,7 +55,7 @@ export interface GameState {
 
 export type GameAction =
   | { type: 'START_SESSION'; sessionId: number; cards: Card[] }
-  | { type: 'SWIPE'; verdict: Verdict }
+  | { type: 'SWIPE'; verdict: Verdict; latencyMs: number }
   | { type: 'RESET' }
 
 export interface DealOut {
