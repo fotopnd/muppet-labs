@@ -97,11 +97,9 @@ def _pick_corpus_key(conglomerate_id: int) -> str:
 
 
 def sample_first_name(corpus: dict, conglomerate_id: int) -> str:
-    """Sample a first name from the corpus (male or female with equal probability)."""
+    """Sample a first name from the male_first pool (includes ambiguous names)."""
     key = _pick_corpus_key(conglomerate_id)
-    # Coaches and boosters: mix male and female names equally
-    gender = random.choice(["male_first", "female_first"])
-    return _sample_weighted(corpus[gender][key])
+    return _sample_weighted(corpus["male_first"][key])
 
 
 def sample_last_name(corpus: dict, short_only: bool = False) -> str:
