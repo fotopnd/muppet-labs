@@ -98,9 +98,23 @@ Portfolio piece demonstrating live SSE streaming, event-driven analytics, and re
 
 ---
 
-## ⚠ Architecture Flag for Planner
+## ✅ Resolved: Streaming Architecture
 
-**SSE vs. WebSocket conflict:** Brief locked SSE fan-out (same as year-zero). Design doc section 6.2 specifies "WebSocket connection." These are different protocols with different server-side architecture. Planner must resolve before architect runs.
+**Decision: SSE with per-game queues. No WebSocket.**
+
+Design doc section 6.2 said "WebSocket" meaning real-time server push — the intent is preserved, the protocol is SSE.
+
+Rationale: v1 is unidirectional (server → client only; no user interaction). WebSocket adds bidirectionality and binary framing that v1 does not use. SSE handles this natively, works through Cloudflare proxying without config, has built-in browser reconnection, and requires no new dependencies.
+
+Year-zero pattern extended minimally:
+
+| Channel | Endpoint | Queue structure | Pattern |
+|---------|----------|----------------|---------|
+| Dashboard global ticker | `/stream/ticker` | `app.state.ticker_queues: list[Queue]` | year-zero identical |
+| Per-game live feed | `/games/{game_id}/stream` | `app.state.game_queues: dict[int, list[Queue]]` | per-game fan-out |
+
+Simulation loop calls `broadcast_play(game_id, event)` → fans out to `game_queues[game_id]` only.
+Single uvicorn worker constraint maintained (in-process state).
 
 ---
 
