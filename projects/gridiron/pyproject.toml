@@ -18,6 +18,7 @@ dependencies = [
 
 [project.scripts]
 serve = "gridiron.api.main:serve"
+sim-sandbox = "scripts.sim_sandbox:main"
 
 [build-system]
 requires = ["hatchling"]
