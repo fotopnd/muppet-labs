@@ -12,6 +12,9 @@ dist/
 node_modules/
 web/dist/
 
+# ── Project-internal config — never commit ───────────────────────────────────
+_config/
+
 # ── PRIVATE: simulation engine — never commit to a public repo ──────────────
 # gridiron/engine/ contains scoring constants, play distributions, team
 # generation logic, and balance parameters. This is the proprietary core.
