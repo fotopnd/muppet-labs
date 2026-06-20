@@ -63,3 +63,7 @@ _config/
 .claude/
 resources/
 BUILDOUT.md
+
+# Project-level resources/ directories are tracked (override above)
+!projects/*/resources/
+!projects/*/resources/**
