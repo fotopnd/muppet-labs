@@ -98,6 +98,35 @@ Portfolio piece demonstrating live SSE streaming, event-driven analytics, and re
 
 ---
 
+## ✅ Resolved: Simulation Execution Pattern
+
+**Decision: simulation runs in a thread pool executor, not inline in the asyncio event loop.**
+
+The weekly slate (~30s CPU burst) is pure synchronous Python — no I/O. Running it inline would freeze the entire API and all SSE connections for 30 seconds every slate cycle. Fix:
+
+```python
+await asyncio.get_event_loop().run_in_executor(None, run_simulation_slate)
+```
+
+Engine code stays synchronous, clean, and testable. The executor call is the only async boundary. This must be the invocation pattern everywhere the engine is called from the simulation loop.
+
+---
+
+## ✅ Resolved: Stats Storage Strategy
+
+**Decision: two-table split. `play_log` stores narrative + primary credits. `player_game_stats` stores aggregated totals.**
+
+Section 5.2 stats at per-play × 22-player granularity = ~6M rows/season. At ~200 bytes each, 40 GB SSD fills within 2–3 seasons.
+
+| Table | Contents | Written when |
+|-------|----------|-------------|
+| `play_log` | Full event JSON (play state, description string, spatial coords, primary stat credits) | Every play, during simulation |
+| `player_game_stats` | Aggregated season/game totals per player per position group | Once, at game end |
+
+Replay and live feed read from `play_log`. Leaderboards, standings, and team profiles query `player_game_stats`. Reduces storage by ~10× with no loss of user-facing capability.
+
+---
+
 ## ✅ Resolved: Streaming Architecture
 
 **Decision: SSE with per-game queues. No WebSocket.**
