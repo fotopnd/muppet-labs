@@ -21,22 +21,30 @@ Tagline: **More Football More Of The Time.**
 |---------|--------------------------|
 | The league | [USER INPUT — name TBD] |
 | A conference | Broadcast Conglomerate |
-| A season | Season / Annual Cycle |
+| A season | Season |
 | Division within a conference | Tier 1 / Tier 2 |
 | Promotion/relegation event | The Boardroom Swap |
-| A team | Program |
-| A player | [USER INPUT] |
-| A game | [USER INPUT — "match"? "broadcast"? "game"?] |
-| A play | Play / Atomic State Transition (internal); Play (frontend) |
+| A team | Team / Program (both standard college football usage) |
+| A player | Player |
+| A coach | Coach |
+| A game | Game |
+| A play | Play |
+| A score | Score / Points |
+| A roster | Roster |
+| A recruit | Recruit |
+| Transfer portal | Transfer Portal |
+| Positions | Standard football positions (QB, RB, WR, TE, OL, DL, LB, CB, S, K, P) |
+| Stats | Standard football stats terminology throughout |
 | The rivalry weeks | Rivalry Window / Exhibition Shield |
 | The variance factor | Primetime Drama Multiplier |
 | The championship promotion rule | The Ultimate Ascent Clause |
-| Player budget system | Media Rights Revenue |
-| Player recruitment cycle | Recruiting / Transfer Portal Loop |
+| Team budget system | Media Rights Revenue |
+| Player recruitment cycle | Recruiting / Transfer Portal |
 | Live game view | Gamecast Central |
 | Standings page | The Conglomerate Grid |
-| Cross-tier elo guarantee | Tier 2 Guaranteed Bracket Pathway |
-| Cinderella path | Cinderella Window / Cinderella Path |
+| Tier 2 at-large guarantee | Tier 2 Guaranteed Bracket Pathway |
+| Upset potential framing | Cinderella Path / Cinderella Window |
+| The 5 conference names | [USER INPUT — names TBD] |
 
 ---
 
