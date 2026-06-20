@@ -1,0 +1,20 @@
+__pycache__/
+*.pyc
+*.pyo
+.venv/
+*.db
+.python-version
+dist/
+*.egg-info/
+.pytest_cache/
+.ruff_cache/
+.env
+node_modules/
+web/dist/
+
+# ── PRIVATE: simulation engine — never commit to a public repo ──────────────
+# gridiron/engine/ contains scoring constants, play distributions, team
+# generation logic, and balance parameters. This is the proprietary core.
+# The API layer (gridiron/api/) and frontend (web/) are shareable.
+# If creating a public mirror, exclude this path explicitly.
+# gridiron/engine/
