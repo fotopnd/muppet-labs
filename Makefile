@@ -2,11 +2,12 @@
         monitor-api redteam-api ehs-api \
         sweep publish cluster \
         ehs-seed ehs-plant ehs-score \
-        clean
+        yz-deploy clean
 
 MONITOR  := projects/llm-safety-monitor
 REDTEAM  := projects/red-team-platform
 EHS      := projects/error-hide-seek
+YZ       := projects/year-zero-game
 
 # ── Environment ──────────────────────────────────────────────────────────────
 
@@ -54,6 +55,12 @@ redteam-api:
 
 ehs-api:
 	cd $(EHS) && uv run api
+
+# ── Year Zero Game ───────────────────────────────────────────────────────────
+
+# Build and deploy frontend to Cloudflare Pages (requires VITE_API_URL in .env)
+yz-deploy:
+	cd $(YZ)/web && pnpm build && npx wrangler pages deploy dist --commit-dirty=true
 
 # ── Attack sweep (requires Ollama with gemma2:9b) ─────────────────────────────
 
