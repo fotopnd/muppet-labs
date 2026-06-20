@@ -54,8 +54,18 @@ Portfolio piece demonstrating live SSE streaming, event-driven analytics, and re
 
 ### Universe
 - Fictional universe — legal remapping of real college football landscape (teams, stadiums relocated to nearby cities)
-- 130 teams / 5 Broadcast Conglomerates / 26 teams per conglomerate / 13 Tier 1 + 13 Tier 2
+- Governing body: **NAFCA** (National American Football Conference Association) — public-private partnership; 45% media equity + 55% sovereign coalition; Security Council veto held by TCB, ISG, STN, CHBA
+- 130 teams / 5 Broadcast Conglomerates / 26 teams per conglomerate / 13 Tier 1 (Championship) + 13 Tier 2 (Developmental)
+- **5 Conglomerates:**
+  - **NCC** — National Collegiate Conference / TCB Sports Network (Great Lakes → Pacific)
+  - **GSC** — Great Southern Conference / ISG Sports Network (Deep South / TX / Plains)
+  - **ACA** — American College Alliance / STN Broadcast Group (Eastern Seaboard)
+  - **MCC** — Midwestern Collegiate Conference / CHBA Sports (Interior / Rust Belt / Plains)
+  - **UAC** — United American Conference / FPC Americana Network (Nationwide mid-major)
+- Team assignments and initial tiers: `resources/teams-original.md`
+- Network brand palettes and governance: `resources/nafca-brand-guide.md` and `resources/writing-voice.md`
 - Promotion/relegation: bottom 2 Tier 1 ↔ top 2 Tier 2 per conglomerate each season ("The Boardroom Swap")
+- ⚠️ UAC Tier 1 has a placeholder slot (Western Michigan listed twice — duplicate with MCC Tier 2). Needs 1 replacement team before seeding.
 - Roster cap: 105 players per program, hard limit
 - Named players, coaches, boosters — generated procedurally; 4-year graduation clock
 - Elo rating system drives all standings, seeding, and tiebreaking
@@ -151,9 +161,9 @@ Single uvicorn worker constraint maintained (in-process state).
 
 _Update this section at the end of each session._
 
-**Last session:** 2026-06-20 — scaffold created, brief written, setup files created; design-doc.md filled by user
-**Blocked on:** SSE vs. WebSocket decision (planner must resolve); team/conglomerate name list (TBD); secret player attributes (TBD)
-**Next action:** Resolve SSE/WebSocket → run planner role
+**Last session:** 2026-06-20 — NAFCA brand guide and 130-team roster incorporated; all 5 conglomerate names, network identities, and brand palettes locked; UNIVERSE-SEEDING.md rebuilt with full team assignments; writing-voice.md updated with brand palettes
+**Blocked on:** UAC Tier 1 placeholder (1 team slot needs replacement); secret player attributes (TBD); fictional team names / relocated cities pass; player/coach data scrape
+**Next action:** Resolve UAC placeholder → fictional naming pass → roster scrape → run planner role
 
 ---
 
