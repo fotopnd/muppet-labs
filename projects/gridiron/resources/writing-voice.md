@@ -45,7 +45,7 @@ Tagline: **More Football More Of The Time.**
 | Tier 2 at-large guarantee | Tier 2 Guaranteed Bracket Pathway |
 | Upset potential framing | Cinderella Path / Cinderella Window |
 | Conglomerate 1 | **NCC** — National Collegiate Conference / TCB Sports Network |
-| Conglomerate 2 | **GSC** — Great Southern Conference / ISG Sports Network |
+| Conglomerate 2 | **SBC** — Southern Broadcast Coalition / ISG Sports Network |
 | Conglomerate 3 | **ACA** — American College Alliance / STN Broadcast Group |
 | Conglomerate 4 | **MCC** — Midwestern Collegiate Conference / CHBA Sports |
 | Conglomerate 5 | **UAC** — United American Conference / FPC Americana Network |
@@ -72,7 +72,7 @@ Tagline: **More Football More Of The Time.**
 
 **Aesthetic:** Minimalist, flat, mechanical. Heavy stat tickers, rolling win-probability graphs.
 
-### GSC — ISG Sports Network
+### SBC — ISG Sports Network
 
 | Token | Hex | Usage |
 |-------|-----|-------|

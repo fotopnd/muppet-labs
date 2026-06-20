@@ -58,7 +58,7 @@ Portfolio piece demonstrating live SSE streaming, event-driven analytics, and re
 - 130 teams / 5 Broadcast Conglomerates / 26 teams per conglomerate / 13 Tier 1 (Championship) + 13 Tier 2 (Developmental)
 - **5 Conglomerates:**
   - **NCC** — National Collegiate Conference / TCB Sports Network (Great Lakes → Pacific)
-  - **GSC** — Great Southern Conference / ISG Sports Network (Deep South / TX / Plains)
+  - **SBC** — Southern Broadcast Coalition / ISG Sports Network (Deep South / TX / Plains)
   - **ACA** — American College Alliance / STN Broadcast Group (Eastern Seaboard)
   - **MCC** — Midwestern Collegiate Conference / CHBA Sports (Interior / Rust Belt / Plains)
   - **UAC** — United American Conference / FPC Americana Network (Nationwide mid-major)
