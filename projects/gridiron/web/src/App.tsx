@@ -8,7 +8,7 @@ export default function App() {
       <TickerBar />
       <main>
         <Routes>
-          <Route path="/games/153" element={<Gamecast />} />
+          <Route path="/games/:gameId" element={<Gamecast />} />
           <Route path="*" element={<Navigate to="/games/153" replace />} />
         </Routes>
       </main>
