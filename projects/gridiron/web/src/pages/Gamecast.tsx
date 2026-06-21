@@ -336,7 +336,7 @@ function schoolSecondary(id: number): string {
 
 function hslParts(c: string): [number, number, number] | null {
   const m = c.match(/hsl\(([\d.]+),\s*([\d.]+)%,\s*([\d.]+)%\)/)
-  return m ? [parseFloat(m[1]), parseFloat(m[2]), parseFloat(m[3])] : null
+  return m ? [parseFloat(m[1]!), parseFloat(m[2]!), parseFloat(m[3]!)] : null
 }
 
 // Near-white: very light or very desaturated

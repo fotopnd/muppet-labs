@@ -1,0 +1,2 @@
+/gridiron-demo https://gridiron-demo.pages.dev 302
+/gridiron-demo/* https://gridiron-demo.pages.dev/:splat 302

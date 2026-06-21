@@ -6,9 +6,9 @@ export default function GameCard({
   game, liveScore, revealed, onReveal,
 }: {
   game: ScheduleGame
-  liveScore?: LiveScore
-  revealed?: boolean
-  onReveal?: () => void
+  liveScore?: LiveScore | undefined
+  revealed?: boolean | undefined
+  onReveal?: (() => void) | undefined
 }) {
   const navigate = useNavigate()
   const href = `/games/${game.game_id}`
