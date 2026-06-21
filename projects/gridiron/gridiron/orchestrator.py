@@ -41,6 +41,7 @@ def _run_game_sync(game_id: int) -> None:
     engine = create_engine(settings.sync_database_url)
     with Session(engine) as session:
         conn = session.connection()
+        conn.execute(text("DELETE FROM play_log WHERE game_id=:gid"), {"gid": game_id})
         GameEngine(game_id, conn).run()
         session.commit()
     engine.dispose()
@@ -96,7 +97,7 @@ async def stream_game_replay(game_id: int, app: FastAPI) -> None:
         await asyncio.sleep(EMIT_INTERVAL)
 
     # Sentinel: signal end-of-game to per-game clients; mark complete in DB
-    for q in list(game_queues):
+    for q in list(app.state.game_queues.get(game_id, [])):
         await q.put(None)
 
     sync_engine = create_engine(settings.sync_database_url)

@@ -167,7 +167,10 @@ async def game_boxscore(game_id: int, db: AsyncSession = Depends(get_db)) -> Gam
     game_row = (
         (
             await db.execute(
-                text("SELECT id, home_program_id, away_program_id FROM games WHERE id = :gid"),
+                text("""
+        SELECT id, home_program_id, away_program_id, status, replay_started_at
+        FROM games WHERE id = :gid
+    """),
                 {"gid": game_id},
             )
         )
@@ -177,6 +180,17 @@ async def game_boxscore(game_id: int, db: AsyncSession = Depends(get_db)) -> Gam
     if game_row is None:
         raise HTTPException(status_code=404, detail="Game not found")
 
+    # Live games: compute from play_log up to the time-gated max_play
+    if game_row["status"] == "live" and game_row["replay_started_at"] is not None:
+        return await _live_boxscore(
+            game_id,
+            game_row["home_program_id"],
+            game_row["away_program_id"],
+            game_row["replay_started_at"],
+            db,
+        )
+
+    # Complete (or fallback): read from player_game_stats
     rows = (
         (
             await db.execute(
@@ -210,5 +224,142 @@ async def game_boxscore(game_id: int, db: AsyncSession = Depends(get_db)) -> Gam
         if r["program_id"] == home_id:
             home.append(stat)
         elif r["program_id"] == away_id:
+            away.append(stat)
+    return GameBoxscore(home=home, away=away)
+
+
+async def _live_boxscore(
+    game_id: int,
+    home_program_id: int,
+    away_program_id: int,
+    replay_started_at: datetime,
+    db: AsyncSession,
+) -> GameBoxscore:
+    elapsed = (datetime.now(timezone.utc) - replay_started_at).total_seconds()
+    max_play = max(0, int(elapsed / EMIT_INTERVAL))
+
+    # Rush stats
+    rush_rows = (
+        await db.execute(
+            text("""
+        SELECT pll.primary_player_id,
+               pl.last_name AS name, pl.position, pl.program_id,
+               SUM(CASE WHEN pll.play_type='RUSH' THEN COALESCE(pll.yards_gained,0) ELSE 0 END)::int AS rush_yards,
+               COUNT(CASE WHEN pll.play_type='RUSH' THEN 1 END)::int AS rush_attempts
+        FROM play_log pll
+        JOIN players pl ON pl.id = pll.primary_player_id
+        WHERE pll.game_id = :gid
+          AND pll.play_type IN ('RUSH','TACKLE_FOR_LOSS')
+          AND pll.play_number <= :max_play
+        GROUP BY pll.primary_player_id, pl.last_name, pl.position, pl.program_id
+    """),
+            {"gid": game_id, "max_play": max_play},
+        )
+    ).mappings().all()
+
+    # Receiving stats
+    rec_rows = (
+        await db.execute(
+            text("""
+        SELECT pll.primary_player_id,
+               pl.last_name AS name, pl.position, pl.program_id,
+               SUM(CASE WHEN pll.play_type='PASS_COMPLETE' THEN COALESCE(pll.yards_gained,0) ELSE 0 END)::int AS receiving_yards,
+               COUNT(CASE WHEN pll.play_type='PASS_COMPLETE' THEN 1 END)::int AS receptions,
+               COUNT(*)::int AS targets
+        FROM play_log pll
+        JOIN players pl ON pl.id = pll.primary_player_id
+        WHERE pll.game_id = :gid
+          AND pll.play_type IN ('PASS_COMPLETE','PASS_INCOMPLETE','PASS_DEFLECTION')
+          AND pll.play_number <= :max_play
+        GROUP BY pll.primary_player_id, pl.last_name, pl.position, pl.program_id
+    """),
+            {"gid": game_id, "max_play": max_play},
+        )
+    ).mappings().all()
+
+    # Build per-player stat map, merge rush + rec
+    stats: dict[int, dict] = {}
+    for r in rush_rows:
+        pid = r["primary_player_id"]
+        stats[pid] = {
+            "player_id": pid, "name": r["name"], "position": r["position"],
+            "program_id": r["program_id"],
+            "rush_yards": r["rush_yards"], "rush_attempts": r["rush_attempts"],
+            "rush_tds": 0,
+            "receiving_yards": 0, "receptions": 0, "targets": 0, "receiving_tds": 0,
+            "pass_yards": 0, "pass_attempts": 0, "pass_completions": 0, "pass_tds": 0,
+            "sacks": 0, "ints_def": 0,
+        }
+    for r in rec_rows:
+        pid = r["primary_player_id"]
+        if pid not in stats:
+            stats[pid] = {
+                "player_id": pid, "name": r["name"], "position": r["position"],
+                "program_id": r["program_id"],
+                "rush_yards": 0, "rush_attempts": 0, "rush_tds": 0,
+                "pass_yards": 0, "pass_attempts": 0, "pass_completions": 0, "pass_tds": 0,
+                "sacks": 0, "ints_def": 0,
+            }
+        stats[pid]["receiving_yards"] = r["receiving_yards"]
+        stats[pid]["receptions"] = r["receptions"]
+        stats[pid]["targets"] = r["targets"]
+        stats[pid]["receiving_tds"] = 0
+
+    # Passing stats: top QB per team credited with team's total pass production
+    for prog_id in (home_program_id, away_program_id):
+        qb_row = (
+            await db.execute(
+                text("""
+            SELECT id AS qb_id, last_name FROM players
+            WHERE program_id = :pid AND position = 'QB'
+            ORDER BY alpha DESC LIMIT 1
+        """),
+                {"pid": prog_id},
+            )
+        ).mappings().one_or_none()
+        if qb_row is None:
+            continue
+        pass_agg = (
+            await db.execute(
+                text("""
+            SELECT COUNT(CASE WHEN pll.play_type='PASS_COMPLETE' THEN 1 END)::int AS pass_completions,
+                   COUNT(*)::int AS pass_attempts,
+                   SUM(CASE WHEN pll.play_type='PASS_COMPLETE' THEN COALESCE(pll.yards_gained,0) ELSE 0 END)::int AS pass_yards
+            FROM play_log pll
+            JOIN players pl ON pl.id = pll.primary_player_id
+            WHERE pll.game_id = :gid
+              AND pll.play_type IN ('PASS_COMPLETE','PASS_INCOMPLETE','PASS_DEFLECTION')
+              AND pll.play_number <= :max_play
+              AND pl.program_id = :pid
+        """),
+                {"gid": game_id, "pid": prog_id, "max_play": max_play},
+            )
+        ).mappings().one_or_none()
+        if pass_agg is None or pass_agg["pass_attempts"] == 0:
+            continue
+        qb_id = qb_row["qb_id"]
+        if qb_id not in stats:
+            stats[qb_id] = {
+                "player_id": qb_id, "name": qb_row["last_name"], "position": "QB",
+                "program_id": prog_id,
+                "rush_yards": 0, "rush_attempts": 0, "rush_tds": 0,
+                "receiving_yards": 0, "receptions": 0, "targets": 0, "receiving_tds": 0,
+                "sacks": 0, "ints_def": 0,
+            }
+        stats[qb_id]["pass_yards"] = pass_agg["pass_yards"]
+        stats[qb_id]["pass_completions"] = pass_agg["pass_completions"]
+        stats[qb_id]["pass_attempts"] = pass_agg["pass_attempts"]
+        stats[qb_id]["pass_tds"] = 0
+
+    home: list[PlayerBoxscore] = []
+    away: list[PlayerBoxscore] = []
+    for s in stats.values():
+        # skip players with no meaningful stats yet
+        if not any(s.get(k, 0) for k in ("rush_yards", "receiving_yards", "pass_yards")):
+            continue
+        stat = PlayerBoxscore.model_validate(s)
+        if s["program_id"] == home_program_id:
+            home.append(stat)
+        else:
             away.append(stat)
     return GameBoxscore(home=home, away=away)

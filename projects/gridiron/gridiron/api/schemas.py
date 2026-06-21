@@ -191,3 +191,18 @@ class Leaderboards(BaseModel):
     passers: list[LeaderboardEntry]
     rushers: list[LeaderboardEntry]
     receivers: list[LeaderboardEntry]
+
+
+class LiveLeader(BaseModel):
+    player_id: int
+    name: str
+    program_name: str
+    program_emoji: str
+    game_id: int
+    yards: int
+
+
+class LiveLeaders(BaseModel):
+    passers: list[LiveLeader]
+    rushers: list[LiveLeader]
+    receivers: list[LiveLeader]

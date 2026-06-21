@@ -166,6 +166,7 @@ export default function Gamecast() {
 
   if (state.status === 'scheduled') {
     const { game } = state
+    if (!game) return <div className="p-6 text-text-muted">Game not found.</div>
     return (
       <div className="p-4 md:p-6 max-w-2xl mx-auto">
         <MatchupHeader
@@ -199,6 +200,8 @@ export default function Gamecast() {
           homeEmoji={game.home.emoji} awayEmoji={game.away.emoji}
           homeAbbr={game.home.name.slice(0, 3).toUpperCase()}
           awayAbbr={game.away.name.slice(0, 3).toUpperCase()}
+          homeProgramId={game.home.program_id}
+          awayProgramId={game.away.program_id}
         />
         <div className="grid grid-cols-1 lg:grid-cols-[1fr_280px] gap-4">
           <div>
@@ -293,14 +296,68 @@ function MatchupHeader({
   )
 }
 
+const ROW = 2.5
+const MIN_ROWS = 8
+
+// Maps field_pos 0–100 to SVG x 10–90 (10-unit end zones each side)
+function fx(pos: number): number { return 10 + pos * 0.8 }
+
+function schoolColor(id: number): string {
+  const hue = (id * 137) % 360
+  return `hsl(${hue}, 72%, 38%)`
+}
+
+function schoolSecondary(id: number): string {
+  const hue = (id * 137 + 150) % 360
+  return `hsl(${hue}, 72%, 38%)`
+}
+
+function hslParts(c: string): [number, number, number] | null {
+  const m = c.match(/hsl\(([\d.]+),\s*([\d.]+)%,\s*([\d.]+)%\)/)
+  return m ? [parseFloat(m[1]), parseFloat(m[2]), parseFloat(m[3])] : null
+}
+
+// Near-white: very light or very desaturated
+function isNearWhite(c: string): boolean {
+  const p = hslParts(c)
+  return p ? p[2] > 80 || p[1] < 15 : false
+}
+
+// Too similar to field green (#2d6a4f ≈ hsl 150, 40%, 30%)
+function isNearFieldGreen(c: string): boolean {
+  const p = hslParts(c)
+  if (!p) return false
+  return p[0] >= 100 && p[0] <= 175 && p[1] > 35 && p[2] > 15 && p[2] < 60
+}
+
+// End zone: primary color, lightened if it would blend into the field
+function ezColor(id: number): string {
+  const primary = schoolColor(id)
+  if (isNearFieldGreen(primary)) {
+    const [h, s] = hslParts(primary)!
+    return `hsl(${h}, ${s}%, 65%)`  // much lighter — clearly distinct from field
+  }
+  return primary
+}
+
+// Arrow: white; fall back to secondary if primary is white; amber if secondary is also field-like
+function arrowColor(id: number): string {
+  if (isNearWhite(schoolColor(id))) {
+    const sec = schoolSecondary(id)
+    return isNearFieldGreen(sec) ? '#d97706' : sec
+  }
+  return '#ffffff'
+}
+
 function DrivePanel({
   down, distance, fieldPos, possession, quarter, plays,
-  homeEmoji, awayEmoji, homeAbbr, awayAbbr,
+  homeEmoji, awayEmoji, homeAbbr, awayAbbr, homeProgramId, awayProgramId,
 }: {
   down: number | null; distance: number | null; fieldPos: number | null
   possession: string | null; quarter: number
   plays: GamePlay[]
   homeEmoji: string; awayEmoji: string; homeAbbr: string; awayAbbr: string
+  homeProgramId: number; awayProgramId: number
 }) {
   const drivePlays = getCurrentDrive(plays, possession, quarter)
   const teamLabel = possession === 'home' ? homeAbbr : awayAbbr
@@ -309,6 +366,14 @@ function DrivePanel({
   const yardLine = fieldPos != null ? (fieldPos <= 50 ? fieldPos : 100 - fieldPos) : null
   const side = fieldPos != null ? (fieldPos < 50 ? 'OWN' : fieldPos === 50 ? 'MID' : 'OPP') : null
   const posLabel = side === 'MID' ? '50' : (yardLine != null && side ? `${side} ${yardLine}` : '')
+
+  const homeEzColor    = ezColor(homeProgramId)
+  const awayEzColor    = ezColor(awayProgramId)
+  const homeArrowColor = arrowColor(homeProgramId)
+  const awayArrowColor = arrowColor(awayProgramId)
+
+  const rowCount = Math.max(MIN_ROWS, drivePlays.length)
+  const H = rowCount * ROW
 
   return (
     <div className="bg-surface border border-border rounded-lg p-3 mb-4">
@@ -320,56 +385,79 @@ function DrivePanel({
           </span>
         )}
       </div>
-      {/* Field graphic */}
-      <div className="relative h-8 rounded overflow-hidden" style={{ backgroundColor: '#2d6a4f' }}>
-        <div className="absolute left-0 top-0 bottom-0 w-[8%] flex items-center justify-center text-sm"
-             style={{ backgroundColor: '#1b4332' }}>
-          {homeEmoji}
-        </div>
-        <div className="absolute right-0 top-0 bottom-0 w-[8%] flex items-center justify-center text-sm"
-             style={{ backgroundColor: '#1b4332' }}>
-          {awayEmoji}
-        </div>
-        {[20, 30, 40, 50, 60, 70, 80].map((y) => (
-          <div key={y} className="absolute top-1 bottom-1 w-px bg-white/20" style={{ left: `${y}%` }} />
+      <svg viewBox={`0 0 100 ${H}`} style={{ width: '100%', display: 'block' }}>
+        {/* End zones in school colors (field-similar hues are lightened for visibility) */}
+        <rect x="0"  y="0" width="10" height={H} fill={homeEzColor} />
+        <rect x="90" y="0" width="10" height={H} fill={awayEzColor} />
+        {/* Playing field */}
+        <rect x="10" y="0" width="80" height={H} fill="#2d6a4f" />
+        {/* End zone emojis */}
+        <text x="5"  y={H / 2} fontSize="2.5" textAnchor="middle" dominantBaseline="middle">{homeEmoji}</text>
+        <text x="95" y={H / 2} fontSize="2.5" textAnchor="middle" dominantBaseline="middle">{awayEmoji}</text>
+        {/* Goal lines */}
+        <line x1={fx(0)}   y1="0" x2={fx(0)}   y2={H} stroke="white" strokeOpacity="0.6" strokeWidth="0.5" />
+        <line x1={fx(100)} y1="0" x2={fx(100)} y2={H} stroke="white" strokeOpacity="0.6" strokeWidth="0.5" />
+        {/* Major yard lines every 10 yards */}
+        {[10, 20, 30, 40, 60, 70, 80, 90].map((yd) => (
+          <line key={yd} x1={fx(yd)} y1="0" x2={fx(yd)} y2={H}
+            stroke="white" strokeOpacity="0.3" strokeWidth="0.3" />
         ))}
-        {fieldPos != null && (
-          <div
-            className="absolute top-1.5 bottom-1.5 w-2 rounded-sm bg-amber-400 shadow-sm transition-all duration-500"
-            style={{ left: `calc(${fieldPos}% - 4px)` }}
-          />
-        )}
-      </div>
-      <div className="flex justify-between mt-0.5 text-[9px] text-white/40 px-[8%]">
-        {[10, 20, 30, 40, 50, 40, 30, 20, 10].map((n, i) => (
-          <span key={i}>{n}</span>
+        {/* 50-yard line — thicker */}
+        <line x1={fx(50)} y1="0" x2={fx(50)} y2={H}
+          stroke="white" strokeOpacity="0.7" strokeWidth="0.7" />
+        {/* Hash marks at every 5-yard gap — short ticks at top and bottom */}
+        {[5, 15, 25, 35, 45, 55, 65, 75, 85, 95].map((yd) => (
+          <g key={yd}>
+            <line x1={fx(yd)} y1="0"     x2={fx(yd)} y2="0.9"
+              stroke="white" strokeOpacity="0.35" strokeWidth="0.25" />
+            <line x1={fx(yd)} y1={H}     x2={fx(yd)} y2={H - 0.9}
+              stroke="white" strokeOpacity="0.35" strokeWidth="0.25" />
+          </g>
         ))}
-      </div>
-      {/* Current drive plays */}
-      {drivePlays.length > 0 && (
-        <div className="mt-2 pt-1.5 border-t border-border/30 max-h-28 overflow-y-auto">
-          {drivePlays.map((p, i) => (
-            <DrivePlayRow key={p.play_number} play={p} isLatest={i === drivePlays.length - 1} />
-          ))}
-        </div>
-      )}
-    </div>
-  )
-}
+        {/* Yard numbers — top and bottom */}
+        {([10,20,30,40,50,60,70,80,90] as const).map((yd, i) => {
+          const label = [10,20,30,40,50,40,30,20,10][i]
+          return (
+            <g key={yd}>
+              <text x={fx(yd)} y="1.5" fontSize="1.6"
+                fill="white" fillOpacity="0.55" textAnchor="middle">{label}</text>
+              <text x={fx(yd)} y={H - 0.4} fontSize="1.6"
+                fill="white" fillOpacity="0.55" textAnchor="middle" dominantBaseline="text-before-edge">{label}</text>
+            </g>
+          )
+        })}
+        {/* Play arrows */}
+        {drivePlays.map((play, i) => {
+          const cy = (i + 0.5) * ROW
+          const startPos = play.field_pos_before ?? fieldPos ?? 50
+          const endPos   = play.field_pos_after  ?? startPos
+          const x1 = fx(startPos)
+          const x2 = fx(endPos)
+          const color = play.possession === 'home' ? homeArrowColor : awayArrowColor
+          const right = x2 >= x1
+          const AS = 0.8
+          const x2shaft = right ? Math.max(x1, x2 - AS) : Math.min(x1, x2 + AS)
+          const pts = right
+            ? `${x2},${cy} ${x2 - AS},${cy - AS * 0.8} ${x2 - AS},${cy + AS * 0.8}`
+            : `${x2},${cy} ${x2 + AS},${cy - AS * 0.8} ${x2 + AS},${cy + AS * 0.8}`
+          const span = Math.abs(x2 - x1)
 
-function DrivePlayRow({ play, isLatest }: { play: GamePlay; isLatest: boolean }) {
-  const ordinals = ['', '1st', '2nd', '3rd', '4th']
-  const downStr = play.down ? `${ordinals[play.down] ?? `${play.down}th`} & ${play.distance}` : ''
-  const typeLabel = PLAY_LABELS[play.play_type] ?? play.play_type
-  const showYards = !NO_YARDS_TYPES.has(play.play_type) && play.yards_gained != null
-  const yardsStr = showYards
-    ? (play.yards_gained! > 0 ? `+${play.yards_gained}y` : `${play.yards_gained}y`)
-    : ''
-  return (
-    <div className={`flex items-center gap-1.5 py-0.5 text-[11px] ${isLatest ? 'text-text-primary' : 'text-text-muted'}`}>
-      <span className="shrink-0 w-16 font-mono">{downStr}</span>
-      <span className="flex-1 truncate">{typeLabel}</span>
-      {yardsStr && <span className="shrink-0 tabular-nums">{yardsStr}</span>}
+          return (
+            <g key={`${play.play_number}_${play.play_type}`}>
+              {span > 0.5 && (
+                <line x1={x1} y1={cy} x2={x2shaft} y2={cy}
+                  stroke={color} strokeWidth="1" strokeOpacity="1" strokeLinecap="round" />
+              )}
+              <polygon points={pts} fill={color} fillOpacity="1" />
+            </g>
+          )
+        })}
+        {/* Line of scrimmage */}
+        {fieldPos != null && (
+          <line x1={fx(fieldPos)} y1="0" x2={fx(fieldPos)} y2={H}
+            stroke="#facc15" strokeOpacity="0.6" strokeWidth="0.5" strokeDasharray="1.5,1" />
+        )}
+      </svg>
     </div>
   )
 }
