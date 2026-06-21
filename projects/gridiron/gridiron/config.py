@@ -17,3 +17,6 @@ class Settings(BaseSettings):
 
 
 settings = Settings()
+
+PLAYS_PER_GAME: int = 135
+EMIT_INTERVAL: float = 600 / PLAYS_PER_GAME  # ~4.44 s per play in SSE replay

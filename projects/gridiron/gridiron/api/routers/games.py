@@ -6,7 +6,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from gridiron.engine.constants import EMIT_INTERVAL
+from gridiron.config import EMIT_INTERVAL
 
 from gridiron.api.schemas import (
     GameBoxscore,

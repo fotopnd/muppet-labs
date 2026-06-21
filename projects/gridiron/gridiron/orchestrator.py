@@ -20,8 +20,7 @@ from fastapi import FastAPI
 from sqlalchemy import create_engine, text
 from sqlalchemy.orm import Session
 
-from gridiron.config import settings
-from gridiron.engine.constants import EMIT_INTERVAL, PLAYS_PER_GAME
+from gridiron.config import EMIT_INTERVAL, PLAYS_PER_GAME, settings
 
 logger = logging.getLogger(__name__)
 

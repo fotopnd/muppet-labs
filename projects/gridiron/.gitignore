@@ -22,5 +22,10 @@ scripts/seed_data/
 # gridiron/engine/ contains scoring constants, play distributions, team
 # generation logic, and balance parameters. This is the proprietary core.
 # The API layer (gridiron/api/) and frontend (web/) are shareable.
-# If creating a public mirror, exclude this path explicitly.
-# gridiron/engine/
+gridiron/engine/
+
+# ── PRIVATE: internal project resources ─────────────────────────────────────
+resources/CONTEXT.md
+resources/design-doc.md
+resources/writing-voice.md
+resources/engine-constants.md

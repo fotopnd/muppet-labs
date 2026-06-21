@@ -64,7 +64,14 @@ export default function Gamecast() {
   const gameId = parseInt(gameIdParam ?? '0', 10)
   const [state, setState] = useState<GamecastState>({ status: 'loading' })
   const [playsFilter, setPlaysFilter] = useState<'all' | 'scoring'>('all')
+  const [fetchKey, setFetchKey] = useState(0)
   const qc = useQueryClient()
+
+  async function handleReplay() {
+    await apiFetch('/admin/replay', { method: 'POST' })
+    setState({ status: 'loading' })
+    setFetchKey(k => k + 1)
+  }
 
   useEffect(() => {
     if (!gameId) return
@@ -110,7 +117,7 @@ export default function Gamecast() {
       }
     })()
     return () => { cancelled = true }
-  }, [gameId, qc])
+  }, [gameId, qc, fetchKey])
 
   useGameStream(
     gameId,
@@ -194,6 +201,7 @@ export default function Gamecast() {
           homeScore={home_score} awayScore={away_score}
           status="live" week={game.week} slot={game.broadcast_slot} quarter={quarter}
         />
+        {gameId === 153 && <ReplayButton onReplay={handleReplay} />}
         <DrivePanel
           down={down} distance={distance} fieldPos={field_pos}
           possession={possession} quarter={quarter} plays={plays}
@@ -235,6 +243,7 @@ export default function Gamecast() {
         homeScore={game.home_score} awayScore={game.away_score}
         status="complete" week={game.week} slot={game.broadcast_slot}
       />
+      {gameId === 153 && <ReplayButton onReplay={handleReplay} />}
       <div className="grid grid-cols-1 lg:grid-cols-[1fr_280px] gap-4 mt-2">
         <div>
           <PlaysToggle filter={playsFilter} onChange={setPlaysFilter} count={filteredPlays.length} />
@@ -254,6 +263,19 @@ export default function Gamecast() {
 }
 
 // ── Sub-components ────────────────────────────────────────────────────────────
+
+function ReplayButton({ onReplay }: { onReplay: () => Promise<void> }) {
+  const [loading, setLoading] = useState(false)
+  return (
+    <button
+      onClick={async () => { setLoading(true); await onReplay(); setLoading(false) }}
+      disabled={loading}
+      className="mb-4 px-3 py-1.5 text-xs border border-border rounded hover:bg-surface/80 text-text-muted disabled:opacity-50 transition-colors"
+    >
+      {loading ? 'Restarting…' : '↺ Restart stream'}
+    </button>
+  )
+}
 
 function MatchupHeader({
   homeEmoji, homeName, awayEmoji, awayName,
