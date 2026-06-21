@@ -121,7 +121,7 @@ export default function Gamecast() {
         // REST seed and SSE can overlap — skip adding plays we already have
         const latestPlayNum = prev.plays[0]?.play_number ?? 0
         const isNew = e.play_number > latestPlayNum
-        return {
+        const updated = {
           ...prev,
           plays: isNew ? [sseToPlay(e), ...prev.plays] : prev.plays,
           home_score: e.score_home,
@@ -132,6 +132,17 @@ export default function Gamecast() {
           field_pos: e.field_pos_after,
           possession: e.possession,
         }
+        // Refetch boxscore every 5 new plays or on scoring events
+        const SCORING_SSE = new Set(['TOUCHDOWN', 'FIELD_GOAL_ATTEMPT'])
+        const shouldRefetch = isNew && (
+          updated.plays.length % 5 === 0 || SCORING_SSE.has(e.play_type)
+        )
+        if (shouldRefetch) {
+          void apiFetch<GameBoxscore>(`/games/${gameId}/boxscore`).then((boxscore) => {
+            setState((s) => s.status === 'live' ? { ...s, boxscore } : s)
+          })
+        }
+        return updated
       })
     },
     () => {

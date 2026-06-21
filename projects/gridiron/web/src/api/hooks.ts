@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useQuery, useQueries } from '@tanstack/react-query'
 import { apiFetch, API_BASE } from './client'
 import type {
@@ -13,6 +13,8 @@ import type {
   ProgramStats,
   ConglomerateStandings,
   Leaderboards,
+  LiveLeaders,
+  LiveScore,
   SsePlayEvent,
 } from '@/types'
 
@@ -102,6 +104,33 @@ export function useLeaderboards(season = 1) {
     queryKey: ['leaderboards', season],
     queryFn: () => apiFetch<Leaderboards>(`/leaderboards?season=${season}`),
   })
+}
+
+export function useLiveLeaders(enabled: boolean) {
+  return useQuery({
+    queryKey: ['live', 'leaders'],
+    queryFn: () => apiFetch<LiveLeaders>('/live/leaders'),
+    enabled,
+    refetchInterval: enabled ? 30_000 : false,
+  })
+}
+
+export function useTickerScoreboard(): Map<number, LiveScore> {
+  const [scores, setScores] = useState<Map<number, LiveScore>>(new Map())
+  useTickerStream((e: SsePlayEvent) => {
+    setScores((prev) => {
+      const next = new Map(prev)
+      next.set(e.game_id, {
+        game_id: e.game_id,
+        score_home: e.score_home,
+        score_away: e.score_away,
+        quarter: e.quarter,
+        possession: e.possession,
+      })
+      return next
+    })
+  })
+  return scores
 }
 
 // SSE hooks — raw EventSource, no TanStack Query

@@ -210,6 +210,30 @@ export type SsePlayEvent = {
   distance: number | null
 }
 
+// Live scoreboard and leaders
+export type LiveScore = {
+  game_id: number
+  score_home: number
+  score_away: number
+  quarter: number
+  possession: string
+}
+
+export type LiveLeader = {
+  player_id: number
+  name: string
+  program_name: string
+  program_emoji: string
+  game_id: number
+  yards: number
+}
+
+export type LiveLeaders = {
+  passers: LiveLeader[]
+  rushers: LiveLeader[]
+  receivers: LiveLeader[]
+}
+
 // Gamecast internal state
 export type GamecastState =
   | { status: 'loading' }
