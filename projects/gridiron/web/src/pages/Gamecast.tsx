@@ -68,7 +68,11 @@ export default function Gamecast() {
   const qc = useQueryClient()
 
   async function handleReplay() {
-    await apiFetch('/admin/replay', { method: 'POST' })
+    const secret = import.meta.env.VITE_REPLAY_SECRET as string | undefined
+    await apiFetch('/admin/replay', {
+      method: 'POST',
+      headers: secret ? { 'x-replay-secret': secret } : {},
+    })
     setState({ status: 'loading' })
     setFetchKey(k => k + 1)
   }

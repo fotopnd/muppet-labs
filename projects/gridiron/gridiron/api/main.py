@@ -5,7 +5,7 @@ import logging
 from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
 
-from fastapi import FastAPI, Request
+from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy import text
 
@@ -63,6 +63,8 @@ async def health() -> dict:
 
 @app.post("/admin/replay")
 async def admin_replay(request: Request) -> dict:
+    if settings.replay_secret and request.headers.get("x-replay-secret") != settings.replay_secret:
+        raise HTTPException(status_code=403)
     game_id = settings.dev_replay_game_id
     if not game_id:
         return {"error": "no dev replay configured"}

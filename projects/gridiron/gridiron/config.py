@@ -10,6 +10,7 @@ class Settings(BaseSettings):
     vite_origin: str = "http://localhost:5177"
     api_port: int = 8006
     dev_replay_game_id: int | None = None
+    replay_secret: str = ""
 
     @property
     def sync_database_url(self) -> str:
