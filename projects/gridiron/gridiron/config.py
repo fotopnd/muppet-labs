@@ -9,6 +9,11 @@ class Settings(BaseSettings):
     database_url: str = "postgresql+asyncpg://gridiron:gridiron@localhost:5438/gridiron"
     vite_origin: str = "http://localhost:5177"
     api_port: int = 8006
+    dev_replay_game_id: int | None = None
+
+    @property
+    def sync_database_url(self) -> str:
+        return self.database_url.replace("+asyncpg", "+psycopg2")
 
 
 settings = Settings()

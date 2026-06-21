@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 import logging
 from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
@@ -7,8 +8,11 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
+from gridiron.api.routers import conglomerates, games, leaderboards, programs, schedule
+from gridiron.api.routers import stream as stream_module
 from gridiron.config import settings
 from gridiron.database import engine, init_db, session_factory
+from gridiron.orchestrator import season_loop, stream_game_replay
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -17,10 +21,18 @@ logger = logging.getLogger(__name__)
 @asynccontextmanager
 async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     await init_db()
-    app.state.sse_queues = []
+    app.state.ticker_queues: list[asyncio.Queue] = []
+    app.state.game_queues: dict[int, list[asyncio.Queue]] = {}
     app.state.session_factory = session_factory
-    logger.info("Gridiron API started on port %d", settings.api_port)
+    dev_replay = settings.dev_replay_game_id
+    if dev_replay:
+        loop_task = asyncio.create_task(stream_game_replay(dev_replay, app))
+        logger.info("Gridiron API started — DEV REPLAY game %d", dev_replay)
+    else:
+        loop_task = asyncio.create_task(season_loop(app))
+        logger.info("Gridiron API started on port %d", settings.api_port)
     yield
+    loop_task.cancel()
     await engine.dispose()
     logger.info("Gridiron API stopped")
 
@@ -34,7 +46,12 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Routers registered here by the implementer role.
+app.include_router(stream_module.router)
+app.include_router(conglomerates.router)
+app.include_router(programs.router)
+app.include_router(schedule.router)
+app.include_router(games.router)
+app.include_router(leaderboards.router)
 
 
 @app.get("/health")
@@ -44,4 +61,5 @@ async def health() -> dict:
 
 def serve() -> None:
     import uvicorn
+
     uvicorn.run("gridiron.api.main:app", host="0.0.0.0", port=settings.api_port, reload=True)

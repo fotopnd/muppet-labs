@@ -25,6 +25,8 @@ seed-programs = "scripts.seed_programs:main"
 seed-roster = "scripts.seed_roster:main"
 seed-staff = "scripts.seed_staff:main"
 seed-schedule = "scripts.seed_schedule:main"
+sim = "scripts.sim:main"
+assign-slots = "scripts.assign_broadcast_slots:main"
 
 [build-system]
 requires = ["hatchling"]

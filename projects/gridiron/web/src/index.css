@@ -1,1 +1,16 @@
 @import "tailwindcss";
+
+@theme {
+  --color-canvas: #0f1117;
+  --color-surface: #1a1d27;
+  --color-border: #2d3148;
+  --color-accent: #22c55e;
+  --color-accent-blue: #3b82f6;
+  --color-text-primary: #f1f5f9;
+  --color-text-muted: #64748b;
+}
+
+body {
+  background-color: theme(--color-canvas);
+  color: theme(--color-text-primary);
+}
