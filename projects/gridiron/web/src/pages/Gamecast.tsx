@@ -11,6 +11,27 @@ const NO_YARDS_TYPES = new Set([
   'PAT_CONVERSION', 'PAT_MISS', 'TWO_POINT_CONVERSION',
 ])
 
+const PLAY_LABELS: Record<string, string> = {
+  RUSH: 'Rush', PASS_COMPLETE: 'Pass', PASS_INCOMPLETE: 'Inc.',
+  PASS_DEFLECTION: 'Def.', SACK: 'Sack', TACKLE_FOR_LOSS: 'TFL',
+  TURNOVER_FUMBLE: 'Fumble', TURNOVER_INTERCEPTION: 'INT',
+  PUNT: 'Punt', FIELD_GOAL_ATTEMPT: 'FG', TOUCHDOWN: 'TD', SAFETY: 'Safety',
+}
+
+const DRIVE_SKIP = new Set(['PAT_CONVERSION', 'PAT_MISS', 'TWO_POINT_CONVERSION'])
+
+function getCurrentDrive(plays: GamePlay[], possession: string | null, quarter: number): GamePlay[] {
+  if (!plays.length || !possession) return []
+  const drive: GamePlay[] = []
+  for (const play of plays) {
+    if (DRIVE_SKIP.has(play.play_type)) continue
+    if (play.possession !== possession) break
+    if (quarter >= 3 && play.quarter <= 2) break
+    drive.push(play)
+  }
+  return drive.reverse()
+}
+
 const SCORING_TYPES = new Set([
   'TOUCHDOWN', 'FIELD_GOAL_ATTEMPT', 'SAFETY', 'PAT_CONVERSION', 'TWO_POINT_CONVERSION',
 ])
@@ -161,9 +182,10 @@ export default function Gamecast() {
           homeScore={home_score} awayScore={away_score}
           status="live" week={game.week} slot={game.broadcast_slot} quarter={quarter}
         />
-        <DriveChart
+        <DrivePanel
           down={down} distance={distance} fieldPos={field_pos}
-          possession={possession}
+          possession={possession} quarter={quarter} plays={plays}
+          homeEmoji={game.home.emoji} awayEmoji={game.away.emoji}
           homeAbbr={game.home.name.slice(0, 3).toUpperCase()}
           awayAbbr={game.away.name.slice(0, 3).toUpperCase()}
         />
@@ -172,7 +194,7 @@ export default function Gamecast() {
             <PlaysToggle filter={playsFilter} onChange={setPlaysFilter} count={filteredPlays.length} />
             <div className="space-y-0">
               {filteredPlays.slice(0, 50).map((p) => (
-                <PlayRow key={p.play_number} play={p} />
+                <PlayRow key={`${p.play_number}_${p.play_type}`} play={p} />
               ))}
             </div>
           </div>
@@ -204,7 +226,7 @@ export default function Gamecast() {
           <PlaysToggle filter={playsFilter} onChange={setPlaysFilter} count={filteredPlays.length} />
           <div className="mt-2 space-y-0 max-h-[600px] overflow-y-auto">
             {filteredPlays.map((p) => (
-              <PlayRow key={p.play_number} play={p} />
+              <PlayRow key={`${p.play_number}_${p.play_type}`} play={p} />
             ))}
           </div>
         </div>
@@ -260,51 +282,83 @@ function MatchupHeader({
   )
 }
 
-function DriveChart({
-  down, distance, fieldPos, possession, homeAbbr, awayAbbr,
+function DrivePanel({
+  down, distance, fieldPos, possession, quarter, plays,
+  homeEmoji, awayEmoji, homeAbbr, awayAbbr,
 }: {
-  down: number | null
-  distance: number | null
-  fieldPos: number | null
-  possession: string | null
-  homeAbbr: string
-  awayAbbr: string
+  down: number | null; distance: number | null; fieldPos: number | null
+  possession: string | null; quarter: number
+  plays: GamePlay[]
+  homeEmoji: string; awayEmoji: string; homeAbbr: string; awayAbbr: string
 }) {
-  if (down == null || distance == null || fieldPos == null || !possession) {
-    return <div className="bg-surface border border-border rounded-lg p-3 mb-4 h-16" />
-  }
-
+  const drivePlays = getCurrentDrive(plays, possession, quarter)
   const teamLabel = possession === 'home' ? homeAbbr : awayAbbr
-  const ordinals = ['', '1ST', '2ND', '3RD', '4TH']
-  const downStr = ordinals[down] ?? `${down}TH`
-
-  const yardLine = fieldPos <= 50 ? fieldPos : 100 - fieldPos
-  const side = fieldPos < 50 ? 'OWN' : fieldPos === 50 ? 'MID' : 'OPP'
-  const posLabel = side === 'MID' ? '50' : `${side} ${yardLine}`
+  const ordinals = ['', '1st', '2nd', '3rd', '4th']
+  const downStr = down != null ? `${ordinals[down] ?? `${down}th`} & ${distance}` : null
+  const yardLine = fieldPos != null ? (fieldPos <= 50 ? fieldPos : 100 - fieldPos) : null
+  const side = fieldPos != null ? (fieldPos < 50 ? 'OWN' : fieldPos === 50 ? 'MID' : 'OPP') : null
+  const posLabel = side === 'MID' ? '50' : (yardLine != null && side ? `${side} ${yardLine}` : '')
 
   return (
     <div className="bg-surface border border-border rounded-lg p-3 mb-4">
-      <div className="flex items-center justify-between mb-2">
-        <span className="text-xs font-semibold text-accent">{teamLabel} BALL</span>
-        <span className="text-xs font-mono text-text-primary">
-          {downStr} &amp; {distance} · {posLabel}
-        </span>
+      <div className="flex items-center justify-between mb-1.5">
+        <span className="text-[11px] font-semibold text-accent">{teamLabel} BALL</span>
+        {downStr && (
+          <span className="text-[11px] font-mono text-text-primary">
+            {downStr}{posLabel ? ` · ${posLabel}` : ''}
+          </span>
+        )}
       </div>
-      <div className="relative h-4 bg-border/40 rounded overflow-hidden">
-        <div className="absolute top-0 bottom-0 left-1/2 w-px bg-border/80" />
-        {[10, 20, 30, 40, 60, 70, 80, 90].map((y) => (
-          <div key={y} className="absolute top-0 bottom-0 w-px bg-border/40" style={{ left: `${y}%` }} />
+      {/* Field graphic */}
+      <div className="relative h-8 rounded overflow-hidden" style={{ backgroundColor: '#2d6a4f' }}>
+        <div className="absolute left-0 top-0 bottom-0 w-[8%] flex items-center justify-center text-sm"
+             style={{ backgroundColor: '#1b4332' }}>
+          {homeEmoji}
+        </div>
+        <div className="absolute right-0 top-0 bottom-0 w-[8%] flex items-center justify-center text-sm"
+             style={{ backgroundColor: '#1b4332' }}>
+          {awayEmoji}
+        </div>
+        {[20, 30, 40, 50, 60, 70, 80].map((y) => (
+          <div key={y} className="absolute top-1 bottom-1 w-px bg-white/20" style={{ left: `${y}%` }} />
         ))}
-        <div
-          className="absolute top-0.5 bottom-0.5 w-2 rounded-sm bg-accent transition-all duration-500"
-          style={{ left: `calc(${fieldPos}% - 4px)` }}
-        />
+        {fieldPos != null && (
+          <div
+            className="absolute top-1.5 bottom-1.5 w-2 rounded-sm bg-amber-400 shadow-sm transition-all duration-500"
+            style={{ left: `calc(${fieldPos}% - 4px)` }}
+          />
+        )}
       </div>
-      <div className="flex justify-between mt-1 text-[10px] text-text-muted">
-        <span>HOME</span>
-        <span>50</span>
-        <span>AWAY</span>
+      <div className="flex justify-between mt-0.5 text-[9px] text-white/40 px-[8%]">
+        {[10, 20, 30, 40, 50, 40, 30, 20, 10].map((n, i) => (
+          <span key={i}>{n}</span>
+        ))}
       </div>
+      {/* Current drive plays */}
+      {drivePlays.length > 0 && (
+        <div className="mt-2 pt-1.5 border-t border-border/30 max-h-28 overflow-y-auto">
+          {drivePlays.map((p, i) => (
+            <DrivePlayRow key={p.play_number} play={p} isLatest={i === drivePlays.length - 1} />
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
+
+function DrivePlayRow({ play, isLatest }: { play: GamePlay; isLatest: boolean }) {
+  const ordinals = ['', '1st', '2nd', '3rd', '4th']
+  const downStr = play.down ? `${ordinals[play.down] ?? `${play.down}th`} & ${play.distance}` : ''
+  const typeLabel = PLAY_LABELS[play.play_type] ?? play.play_type
+  const showYards = !NO_YARDS_TYPES.has(play.play_type) && play.yards_gained != null
+  const yardsStr = showYards
+    ? (play.yards_gained! > 0 ? `+${play.yards_gained}y` : `${play.yards_gained}y`)
+    : ''
+  return (
+    <div className={`flex items-center gap-1.5 py-0.5 text-[11px] ${isLatest ? 'text-text-primary' : 'text-text-muted'}`}>
+      <span className="shrink-0 w-16 font-mono">{downStr}</span>
+      <span className="flex-1 truncate">{typeLabel}</span>
+      {yardsStr && <span className="shrink-0 tabular-nums">{yardsStr}</span>}
     </div>
   )
 }
