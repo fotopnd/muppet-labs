@@ -2,7 +2,7 @@ import { NavLink } from 'react-router-dom'
 
 const LINKS = [
   { to: '/', label: 'Home', icon: '🏠' },
-  { to: '/schedule', label: 'Schedule', icon: '📅' },
+  { to: '/schedule/week/1', label: 'Schedule', icon: '📅' },
   { to: '/standings', label: 'Standings', icon: '🏆' },
   { to: '/programs', label: 'Programs', icon: '🎓' },
   { to: '/leaderboards', label: 'Leaders', icon: '📊' },
