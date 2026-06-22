@@ -24,10 +24,10 @@
 
 | ID | Slug | Branch | Brief | Files owned | Status | Depends on | Parallel-safe with |
 |---|---|---|---|---|---|---|---|
-| 01a | ticker-and-conglomerate-hooks | sprint/gridiron/01a-ticker-and-conglomerate-hooks | roles/brief/archive/2026-06-22-gridiron-01a-ticker-and-conglomerate-hooks-brief.md | `web/src/api/hooks.ts` | pending | — | 01b |
-| 01b | scoreboard-widget | sprint/gridiron/01b-scoreboard-widget | roles/brief/archive/2026-06-22-gridiron-01b-scoreboard-widget-brief.md | `web/src/components/ScoreboardWidget.tsx` | pending | — | 01a |
-| 02 | conference-page | sprint/gridiron/02-conference-page | roles/brief/archive/2026-06-22-gridiron-02-conference-page-brief.md | `web/src/pages/ConferencePage.tsx` | pending | 01a, 01b | — |
-| 03 | app-home-routing | sprint/gridiron/03-app-home-routing | roles/brief/archive/2026-06-22-gridiron-03-app-home-routing-brief.md | `web/src/App.tsx`, `web/src/pages/Home.tsx`, `web/src/components/NavBar.tsx` | pending | 02 | — |
+| 01a | ticker-and-conglomerate-hooks | sprint/gridiron/01a-ticker-and-conglomerate-hooks | roles/brief/archive/2026-06-22-gridiron-01a-ticker-and-conglomerate-hooks-brief.md | `web/src/api/hooks.ts` | complete | — | 01b |
+| 01b | scoreboard-widget | sprint/gridiron/01b-scoreboard-widget | roles/brief/archive/2026-06-22-gridiron-01b-scoreboard-widget-brief.md | `web/src/components/ScoreboardWidget.tsx` | complete | — | 01a |
+| 02 | conference-page | sprint/gridiron/02-conference-page | roles/brief/archive/2026-06-22-gridiron-02-conference-page-brief.md | `web/src/pages/ConferencePage.tsx` | complete | 01a, 01b | — |
+| 03 | app-home-routing | sprint/gridiron/03-app-home-routing | roles/brief/archive/2026-06-22-gridiron-03-app-home-routing-brief.md | `web/src/App.tsx`, `web/src/pages/Home.tsx`, `web/src/components/NavBar.tsx` | complete | 02 | — |
 
 ---
 
