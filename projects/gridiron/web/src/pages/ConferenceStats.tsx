@@ -1,6 +1,6 @@
 import { useState } from 'react'
-import { Link } from 'react-router-dom'
-import { useLeaderboards } from '@/api/hooks'
+import { useParams } from 'react-router-dom'
+import { useAllConglomerates, useConglomerateStandings, useConferenceLeaderboards } from '@/api/hooks'
 import type { LeaderboardEntry } from '@/types'
 
 type Tab = 'passers' | 'rushers' | 'receivers'
@@ -39,17 +39,30 @@ function LeaderTable({ entries }: { entries: LeaderboardEntry[] }) {
   )
 }
 
-export default function Leaderboards() {
+export default function ConferenceStats() {
+  const { code } = useParams<{ code: string }>()
   const [tab, setTab] = useState<Tab>('passers')
-  const { data, isLoading, isError } = useLeaderboards()
+  const { data: allConglomerates } = useAllConglomerates()
+  const conglomerate = allConglomerates?.find(c => c.code === code)
+  const { data: standings } = useConglomerateStandings(conglomerate?.id ?? 0, {
+    enabled: !!conglomerate?.id,
+  })
+
+  const programIds = [
+    ...(standings?.tier1.map(p => p.id) ?? []),
+    ...(standings?.tier2.map(p => p.id) ?? []),
+  ]
+
+  const { data, isLoading, isError } = useConferenceLeaderboards(programIds, {
+    enabled: programIds.length > 0,
+  })
 
   if (isLoading) return <div className="p-6 text-text-muted">Loading...</div>
-  if (isError) return <div className="p-6 text-text-muted">Failed to load leaderboards.</div>
+  if (isError) return <div className="p-6 text-text-muted">Failed to load stats.</div>
   if (!data) return null
 
   return (
     <div className="p-4 md:p-6 max-w-3xl mx-auto">
-      <h1 className="text-xl font-bold mb-4">Leaderboards</h1>
       <div className="flex gap-1 mb-4 border-b border-border">
         {TABS.map(({ key, label }) => (
           <button

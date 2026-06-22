@@ -1,50 +1,39 @@
 import { NavLink } from 'react-router-dom'
-
-const LINKS = [
-  { to: '/', label: 'Home', icon: '🏠' },
-  { to: '/schedule/week/1', label: 'Schedule', icon: '📅' },
-  { to: '/standings', label: 'Standings', icon: '🏆' },
-  { to: '/programs', label: 'Programs', icon: '🎓' },
-  { to: '/leaderboards', label: 'Leaders', icon: '📊' },
-]
+import { useAllConglomerates } from '@/api/hooks'
 
 function linkClass({ isActive }: { isActive: boolean }) {
-  return isActive
-    ? 'text-accent font-semibold'
-    : 'text-text-muted hover:text-text-primary transition-colors'
+  return `text-sm px-2 py-1.5 rounded shrink-0 transition-colors ${
+    isActive ? 'text-accent font-semibold' : 'text-text-muted hover:text-text-primary'
+  }`
 }
 
 export default function NavBar() {
-  return (
-    <>
-      {/* Desktop top bar */}
-      <nav className="hidden md:flex items-center gap-6 px-6 py-3 border-b border-border bg-surface">
-        <span className="text-text-primary font-bold tracking-wide mr-4">NAFCA</span>
-        {LINKS.map(({ to, label }) => (
-          <NavLink key={to} to={to} className={linkClass} end={to === '/'}>
-            {label}
-          </NavLink>
-        ))}
-      </nav>
+  const { data: conglomerates } = useAllConglomerates()
 
-      {/* Mobile bottom bar */}
-      <nav className="md:hidden fixed bottom-0 inset-x-0 z-50 flex border-t border-border bg-surface pb-safe">
-        {LINKS.map(({ to, label, icon }) => (
-          <NavLink
-            key={to}
-            to={to}
-            end={to === '/'}
-            className={({ isActive }) =>
-              `flex-1 flex flex-col items-center py-2 text-xs gap-0.5 ${
-                isActive ? 'text-accent' : 'text-text-muted'
-              }`
-            }
-          >
-            <span className="text-lg leading-none">{icon}</span>
-            {label}
+  return (
+    <nav className="border-b border-border bg-surface">
+      <div className="flex items-center gap-1 px-4 py-1.5 overflow-x-auto">
+        <NavLink
+          to="/"
+          end
+          className={({ isActive }) =>
+            `text-sm px-2 py-1.5 rounded shrink-0 font-bold transition-colors ${
+              isActive ? 'text-accent' : 'text-text-primary hover:text-accent'
+            }`
+          }
+        >
+          NAFCA
+        </NavLink>
+        <span className="text-border/60 mx-1 shrink-0 select-none">|</span>
+        {(conglomerates ?? []).map(c => (
+          <NavLink key={c.code} to={`/conference/${c.code}`} className={linkClass}>
+            {c.code}
           </NavLink>
         ))}
-      </nav>
-    </>
+        <span className="flex-1 min-w-2" />
+        <NavLink to="/stats" className={linkClass}>Stats</NavLink>
+        <NavLink to="/leaderboard" className={linkClass}>Leaderboard</NavLink>
+      </div>
+    </nav>
   )
 }

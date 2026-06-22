@@ -15,6 +15,7 @@ import type {
   ConglomerateOut,
   ConglomerateStandings,
   Leaderboards,
+  NafcaLeaderboard,
   LiveLeaders,
   LiveScore,
   SsePlayEvent,
@@ -105,6 +106,27 @@ export function useLeaderboards(season = 1) {
   return useQuery({
     queryKey: ['leaderboards', season],
     queryFn: () => apiFetch<Leaderboards>(`/leaderboards?season=${season}`),
+  })
+}
+
+export function useConferenceLeaderboards(
+  programIds: number[],
+  options?: { enabled?: boolean },
+): UseQueryResult<Leaderboards> {
+  return useQuery({
+    queryKey: ['leaderboards', 'conference', programIds],
+    queryFn: () =>
+      apiFetch<Leaderboards>(
+        `/leaderboards?${programIds.map(id => `program_ids=${id}`).join('&')}`,
+      ),
+    ...(options?.enabled !== undefined ? { enabled: options.enabled } : {}),
+  })
+}
+
+export function useNafcaLeaderboard(): UseQueryResult<NafcaLeaderboard> {
+  return useQuery({
+    queryKey: ['nafca', 'leaderboard'],
+    queryFn: () => apiFetch<NafcaLeaderboard>('/nafca/leaderboard'),
   })
 }
 

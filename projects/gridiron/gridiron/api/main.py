@@ -9,7 +9,7 @@ from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy import text
 
-from gridiron.api.routers import conglomerates, games, leaderboards, programs, schedule
+from gridiron.api.routers import conglomerates, games, leaderboards, nafca, programs, schedule
 from gridiron.api.routers import stream as stream_module
 from gridiron.config import settings
 from gridiron.database import engine, init_db, session_factory
@@ -43,13 +43,20 @@ app = FastAPI(title="Gridiron API", lifespan=lifespan)
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:5177", settings.vite_origin],
+    allow_origins=[
+        "http://localhost:5177",
+        "http://localhost:5178",
+        "http://localhost:5179",
+        "http://localhost:5180",
+        settings.vite_origin,
+    ],
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
 app.include_router(stream_module.router)
 app.include_router(conglomerates.router)
+app.include_router(nafca.router)
 app.include_router(programs.router)
 app.include_router(schedule.router)
 app.include_router(games.router)

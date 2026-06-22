@@ -81,8 +81,8 @@ export default function ConferencePage() {
         />
 
         <div className="flex gap-4 text-sm text-text-muted pt-2 border-t border-border">
-          <Link to="/standings" className="hover:text-text-primary transition-colors">→ Full Standings</Link>
-          <Link to="/leaderboards" className="hover:text-text-primary transition-colors">→ Season Leaders</Link>
+          <Link to={`/conference/${code}/standings`} className="hover:text-text-primary transition-colors">→ Full Standings</Link>
+          <Link to={`/conference/${code}/stats`} className="hover:text-text-primary transition-colors">→ Season Leaders</Link>
         </div>
       </div>
     </div>

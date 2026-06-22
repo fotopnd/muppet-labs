@@ -234,6 +234,22 @@ export type LiveLeaders = {
   receivers: LiveLeader[]
 }
 
+export type ProgramEloRank = {
+  id: number
+  name: string
+  emoji: string
+  conglomerate_id: number
+  tier: number
+  elo: number
+  pre_season_elo: number
+  season_delta: number
+}
+
+export type NafcaLeaderboard = {
+  lifetime: ProgramEloRank[]
+  season: ProgramEloRank[]
+}
+
 // Gamecast internal state
 export type GamecastState =
   | { status: 'loading' }

@@ -75,7 +75,7 @@ async def conglomerate_standings(
             FROM programs p
             LEFT JOIN wl_agg ON wl_agg.pid = p.id
             WHERE p.conglomerate_id = :cid
-            ORDER BY p.tier, p.elo DESC
+            ORDER BY p.tier, wins DESC, losses ASC, p.elo DESC
         """),
                 {"cid": conglomerate_id},
             )

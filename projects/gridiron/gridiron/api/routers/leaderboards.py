@@ -21,7 +21,7 @@ _LEADER_QUERY = """
     JOIN players pl ON pl.id = pgs.player_id
     JOIN programs pr ON pr.id = pgs.program_id
     JOIN games g ON g.id = pgs.game_id
-    WHERE g.season = :season AND g.status = 'complete'
+    WHERE g.season = :season AND g.status = 'complete'{program_filter}
     GROUP BY pl.id, pl.first_name, pl.last_name, pr.name
     ORDER BY total_yards DESC
     LIMIT 10
@@ -31,13 +31,15 @@ _LEADER_QUERY = """
 @router.get("/leaderboards", response_model=Leaderboards)
 async def leaderboards(
     season: int = Query(default=1),
+    program_ids: list[int] | None = Query(default=None),
     db: AsyncSession = Depends(get_db),
 ) -> Leaderboards:
+    pf = f" AND pr.id IN ({','.join(str(i) for i in program_ids)})" if program_ids else ""
     p = {"season": season}
 
     async def _top(yards: str, tds: str) -> list[LeaderboardEntry]:
         rows = (
-            (await db.execute(text(_LEADER_QUERY.format(yards=yards, tds=tds)), p)).mappings().all()
+            (await db.execute(text(_LEADER_QUERY.format(yards=yards, tds=tds, program_filter=pf)), p)).mappings().all()
         )
         return [LeaderboardEntry.model_validate(dict(r)) for r in rows]
 

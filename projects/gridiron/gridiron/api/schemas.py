@@ -206,3 +206,20 @@ class LiveLeaders(BaseModel):
     passers: list[LiveLeader]
     rushers: list[LiveLeader]
     receivers: list[LiveLeader]
+
+
+class ProgramEloRank(BaseModel):
+    model_config = _ORM
+    id: int
+    name: str
+    emoji: str
+    conglomerate_id: int
+    tier: int
+    elo: float
+    pre_season_elo: float
+    season_delta: float
+
+
+class NafcaLeaderboard(BaseModel):
+    lifetime: list[ProgramEloRank]
+    season: list[ProgramEloRank]
