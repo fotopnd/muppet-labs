@@ -58,4 +58,19 @@ export const PROJECTS: Project[] = [
     ],
     demoUrl: 'https://error-seek.fotopnd.dev',
   },
+  {
+    id: 'gork3',
+    name: 'GORK-3',
+    tagline:
+      'A research game measuring whether AI recommendations anchor human judgment in content moderation — 15 real decisions, one Soviet-era classifier.',
+    description:
+      'Players act as operators of GORK-3, a document classifier inherited from a fallen authoritarian regime, reviewing 15 content-moderation decisions per session: Accept, Reject, or Escalate. On a randomly-assigned subset of documents, GORK-3 displays its own verdict — players can follow or override it. Sessions are logged to measure automation bias: how much GORK-3\'s recommendation shifts human accuracy when correct versus when wrong. A live telemetry dashboard aggregates agreement rate, override accuracy, per-category accuracy, and decision latency across all completed sessions.',
+    metrics: [
+      { label: 'Session length', value: '15 documents' },
+      { label: 'Conditions tracked', value: '4 agent exposure levels' },
+      { label: 'Primary signal', value: 'Automation bias' },
+      { label: 'Dashboard', value: 'Live cross-session analytics' },
+    ],
+    demoUrl: 'https://gork3.fotopnd.dev',
+  },
 ]
