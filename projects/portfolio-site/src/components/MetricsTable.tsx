@@ -13,7 +13,7 @@ export default function MetricsTable({ rows }: MetricsTableProps) {
         {rows.map((row) => (
           <div
             key={row.label}
-            className="flex justify-between items-baseline py-1.5 first:pt-0 last:pb-0"
+            className="flex justify-between items-baseline py-2.5 first:pt-0 last:pb-0"
           >
             <dt className="text-xs text-text-secondary">{row.label}</dt>
             <dd className="text-sm font-mono font-semibold text-text-primary tabular-nums">
