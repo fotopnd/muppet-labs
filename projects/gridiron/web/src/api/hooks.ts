@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { useQuery, useQueries } from '@tanstack/react-query'
+import type { UseQueryResult } from '@tanstack/react-query'
 import { apiFetch, API_BASE } from './client'
 import type {
   WeekSchedule,
@@ -11,6 +12,7 @@ import type {
   ProgramScheduleGame,
   PlayerRoster,
   ProgramStats,
+  ConglomerateOut,
   ConglomerateStandings,
   Leaderboards,
   LiveLeaders,
@@ -190,4 +192,34 @@ export function useGameStream(
     es.onerror = () => es.close()
     return () => es.close()
   }, [gameId, enabled])
+}
+
+export function useTickerGameState(): Map<number, SsePlayEvent> {
+  const [state, setState] = useState<Map<number, SsePlayEvent>>(new Map())
+  useTickerStream((e: SsePlayEvent) => {
+    setState((prev) => {
+      const next = new Map(prev)
+      next.set(e.game_id, e)
+      return next
+    })
+  })
+  return state
+}
+
+export function useAllConglomerates(): UseQueryResult<ConglomerateOut[]> {
+  return useQuery({
+    queryKey: ['conglomerates'],
+    queryFn: () => apiFetch<ConglomerateOut[]>('/conglomerates'),
+  })
+}
+
+export function useConglomerateStandings(
+  id: number,
+  options?: { enabled?: boolean },
+): UseQueryResult<ConglomerateStandings> {
+  return useQuery({
+    queryKey: ['conglomerate', id, 'standings'],
+    queryFn: () => apiFetch<ConglomerateStandings>(`/conglomerates/${id}/standings`),
+    ...(options?.enabled !== undefined ? { enabled: options.enabled } : {}),
+  })
 }
