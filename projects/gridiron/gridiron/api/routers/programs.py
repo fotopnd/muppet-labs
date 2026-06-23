@@ -1,10 +1,13 @@
 from __future__ import annotations
 
+import random
+
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from gridiron.api.schemas import (
+    PlayerDetail,
     PlayerRoster,
     ProgramDetail,
     ProgramScheduleGame,
@@ -13,6 +16,56 @@ from gridiron.api.schemas import (
     StatLeader,
 )
 from gridiron.database import get_db
+
+_TOWNS = [
+    ("Springfield", "IL"), ("Columbus", "OH"), ("Memphis", "TN"), ("Richmond", "VA"),
+    ("Baton Rouge", "LA"), ("Tulsa", "OK"), ("Fresno", "CA"), ("Omaha", "NE"),
+    ("Raleigh", "NC"), ("Mesa", "AZ"), ("Bakersfield", "CA"), ("Tampa", "FL"),
+    ("Aurora", "CO"), ("Corpus Christi", "TX"), ("Lexington", "KY"), ("St. Paul", "MN"),
+    ("Pittsburgh", "PA"), ("Stockton", "CA"), ("Cincinnati", "OH"), ("St. Louis", "MO"),
+    ("Toledo", "OH"), ("Greensboro", "NC"), ("Newark", "NJ"), ("Plano", "TX"),
+    ("Henderson", "NV"), ("Lincoln", "NE"), ("Buffalo", "NY"), ("Fort Wayne", "IN"),
+    ("Orlando", "FL"), ("St. Petersburg", "FL"), ("Norfolk", "VA"), ("Laredo", "TX"),
+    ("Madison", "WI"), ("Durham", "NC"), ("Lubbock", "TX"), ("Garland", "TX"),
+    ("Glendale", "AZ"), ("Hialeah", "FL"), ("Reno", "NV"), ("Irvine", "CA"),
+    ("Chesapeake", "VA"), ("Scottsdale", "AZ"), ("Fremont", "CA"), ("Gilbert", "AZ"),
+    ("San Bernardino", "CA"), ("Boise", "ID"), ("Birmingham", "AL"), ("Rochester", "NY"),
+    ("Spokane", "WA"), ("Des Moines", "IA"), ("Montgomery", "AL"), ("Modesto", "CA"),
+    ("Fayetteville", "NC"), ("Tacoma", "WA"), ("Shreveport", "LA"), ("Akron", "OH"),
+    ("Huntington Beach", "CA"), ("Little Rock", "AR"), ("Augusta", "GA"),
+    ("Grand Rapids", "MI"), ("Salt Lake City", "UT"), ("Tallahassee", "FL"),
+    ("Huntsville", "AL"), ("Worcester", "MA"), ("Knoxville", "TN"), ("Providence", "RI"),
+    ("Brownsville", "TX"), ("Newport News", "VA"), ("Fort Lauderdale", "FL"),
+    ("Mobile", "AL"), ("Chattanooga", "TN"), ("Tempe", "AZ"), ("Eugene", "OR"),
+    ("Vancouver", "WA"), ("Peoria", "IL"), ("Salem", "OR"), ("Fort Collins", "CO"),
+    ("McKinney", "TX"), ("Clarksville", "TN"), ("Killeen", "TX"), ("Cedar Rapids", "IA"),
+]
+
+_HEIGHT: dict[str, tuple[int, int]] = {
+    "QB": (72, 77), "WR": (70, 76), "RB": (68, 73), "TE": (74, 78),
+    "OL": (74, 78), "DL": (73, 78), "LB": (71, 75), "DB": (69, 74),
+    "S": (69, 74), "CB": (69, 74), "K": (70, 75), "P": (70, 75),
+}
+_WEIGHT: dict[str, tuple[int, int]] = {
+    "QB": (205, 235), "WR": (170, 210), "RB": (185, 225), "TE": (235, 265),
+    "OL": (280, 330), "DL": (270, 325), "LB": (225, 255), "DB": (185, 210),
+    "S": (190, 215), "CB": (180, 205), "K": (175, 210), "P": (175, 210),
+}
+
+
+def _generate_bio(player_id: int, position: str) -> dict:
+    rng = random.Random(player_id * 31337)
+    h_lo, h_hi = _HEIGHT.get(position, (70, 76))
+    w_lo, w_hi = _WEIGHT.get(position, (190, 220))
+    total_in = rng.randint(h_lo, h_hi)
+    hometown, state = _TOWNS[rng.randrange(len(_TOWNS))]
+    return {
+        "height_ft": total_in // 12,
+        "height_in": total_in % 12,
+        "weight_lbs": rng.randint(w_lo, w_hi),
+        "hometown": hometown,
+        "state": state,
+    }
 
 router = APIRouter()
 
@@ -191,3 +244,72 @@ async def program_stats(
     rushers = await _top("rush_yards", "rush_tds")
     receivers = await _top("receiving_yards", "receiving_tds")
     return ProgramStats(passers=passers, rushers=rushers, receivers=receivers)
+
+
+@router.get("/players/{player_id}", response_model=PlayerDetail)
+async def get_player(player_id: int, db: AsyncSession = Depends(get_db)) -> PlayerDetail:
+    row = (
+        await db.execute(
+            text("""
+        SELECT pl.id AS player_id, pl.first_name, pl.last_name, pl.position,
+               pl.year, pl.jersey_num, pl.program_id,
+               pr.name AS program_name, pr.emoji AS program_emoji,
+               c.code AS conglomerate_code,
+               COALESCE(st.pass_attempts, 0)    AS pass_attempts,
+               COALESCE(st.pass_completions, 0) AS pass_completions,
+               COALESCE(st.pass_yards, 0)       AS pass_yards,
+               COALESCE(st.pass_tds, 0)         AS pass_tds,
+               COALESCE(st.interceptions, 0)    AS interceptions,
+               COALESCE(st.rush_attempts, 0)    AS rush_attempts,
+               COALESCE(st.rush_yards, 0)       AS rush_yards,
+               COALESCE(st.rush_tds, 0)         AS rush_tds,
+               COALESCE(st.targets, 0)          AS targets,
+               COALESCE(st.receptions, 0)       AS receptions,
+               COALESCE(st.receiving_yards, 0)  AS receiving_yards,
+               COALESCE(st.receiving_tds, 0)    AS receiving_tds,
+               COALESCE(st.tackles, 0)          AS tackles,
+               COALESCE(st.sacks, 0)            AS sacks,
+               COALESCE(st.ints_def, 0)         AS ints_def,
+               COALESCE(st.forced_fumbles, 0)   AS forced_fumbles,
+               COALESCE(st.fg_attempts, 0)      AS fg_attempts,
+               COALESCE(st.fg_made, 0)          AS fg_made,
+               COALESCE(st.games_played, 0)     AS games_played
+        FROM players pl
+        JOIN programs pr ON pr.id = pl.program_id
+        JOIN conglomerates c ON c.id = pr.conglomerate_id
+        LEFT JOIN (
+            SELECT pgs.player_id,
+                   SUM(pgs.pass_attempts)::int    AS pass_attempts,
+                   SUM(pgs.pass_completions)::int AS pass_completions,
+                   SUM(pgs.pass_yards)::int       AS pass_yards,
+                   SUM(pgs.pass_tds)::int         AS pass_tds,
+                   SUM(pgs.interceptions)::int    AS interceptions,
+                   SUM(pgs.rush_attempts)::int    AS rush_attempts,
+                   SUM(pgs.rush_yards)::int       AS rush_yards,
+                   SUM(pgs.rush_tds)::int         AS rush_tds,
+                   SUM(pgs.targets)::int          AS targets,
+                   SUM(pgs.receptions)::int       AS receptions,
+                   SUM(pgs.receiving_yards)::int  AS receiving_yards,
+                   SUM(pgs.receiving_tds)::int    AS receiving_tds,
+                   SUM(pgs.tackles)::int          AS tackles,
+                   SUM(pgs.sacks)::int            AS sacks,
+                   SUM(pgs.ints_def)::int         AS ints_def,
+                   SUM(pgs.forced_fumbles)::int   AS forced_fumbles,
+                   SUM(pgs.fg_attempts)::int      AS fg_attempts,
+                   SUM(pgs.fg_made)::int          AS fg_made,
+                   COUNT(DISTINCT pgs.game_id)::int AS games_played
+            FROM player_game_stats pgs
+            JOIN games g ON g.id = pgs.game_id
+            WHERE g.season = 1 AND g.status = 'complete'
+            GROUP BY pgs.player_id
+        ) st ON st.player_id = pl.id
+        WHERE pl.id = :pid
+    """),
+            {"pid": player_id},
+        )
+    ).mappings().one_or_none()
+    if row is None:
+        raise HTTPException(status_code=404, detail="Player not found")
+    d = dict(row)
+    d.update(_generate_bio(player_id, d["position"]))
+    return PlayerDetail.model_validate(d)

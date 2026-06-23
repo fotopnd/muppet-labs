@@ -12,6 +12,7 @@ import NafcaLeaderboard from '@/pages/NafcaLeaderboard'
 import NafcaStats from '@/pages/NafcaStats'
 import ProgramDetail from '@/pages/ProgramDetail'
 import Gamecast from '@/pages/Gamecast'
+import PlayerPage from '@/pages/PlayerPage'
 
 export default function App() {
   return (
@@ -23,6 +24,7 @@ export default function App() {
           <Route path="/" element={<Home />} />
           <Route path="/conference/:code" element={<ConferenceLayout />}>
             <Route index element={<ConferencePage />} />
+            <Route path="schedule" element={<ConferenceSchedule />} />
             <Route path="schedule/week/:week" element={<ConferenceSchedule />} />
             <Route path="standings" element={<ConferenceStandings />} />
             <Route path="programs" element={<ConferencePrograms />} />
@@ -32,6 +34,7 @@ export default function App() {
           <Route path="/stats" element={<NafcaStats />} />
           <Route path="/leaderboard" element={<NafcaLeaderboard />} />
           <Route path="/games/:gameId" element={<Gamecast />} />
+          <Route path="/players/:playerId" element={<PlayerPage />} />
           {/* legacy redirects */}
           <Route path="/standings" element={<Navigate to="/" replace />} />
           <Route path="/schedule/*" element={<Navigate to="/" replace />} />

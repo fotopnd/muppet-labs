@@ -1,79 +1,57 @@
-# Reviewer Output — Year Zero Game
+# Reviewer Output — gridiron: play_log Multi-Player Attribution
 
-**Sequence:** `new-project-full` | **Role:** reviewer | **Step:** 7 of 9  
-**Date:** 2026-06-15  
-**Reads:** `implementer/output/output.md`, `typescript-conventions.md`, all source files
+**Role:** reviewer
+**Sequence:** add-feature
+**Date:** 2026-06-23
 
 ---
 
 ## Summary
 
-Build is clean: 0 TypeScript errors, 11/11 tests pass, `vite build` succeeds. The game logic (reducer transitions, bar movement, upgrade trigger, game-over detection) is correct and well-structured. Two data-quality findings worth addressing before production: calibration accuracy is always 0 in the session record (finding 1), and `apiFetch<void>` will throw on a true 204 No Content response (finding 2). No blocking correctness issues.
+Implementation is correct and complete. All 6 success criteria from the brief are verified by a live game run. One pre-existing description bug in the TFL play type is flagged (minor, pre-dates this sprint). One minor double-pick on fumble plays is noted but semantically correct. Both tracked files pass ruff. Ready to ship.
 
 ---
 
 ## Correctness
 
-**1. Calibration accuracy always 0 in `PATCH /sessions` — WARNING**  
-`Game.tsx:83–86` — `patchSession` computes `calibDecisions` by filtering `state.pendingDecisions` for `isCalibration`. But `pendingDecisions` holds only the current day's decisions; it's cleared in `DAY_ACKNOWLEDGED` (`pendingDecisions: []`). Game over always fires during a SWIPE mid-day (never from `day_end`). So by the time game over happens (anytime after Day 1), the calibration decisions have been batch-submitted and cleared. Result: `calibration_decisions: 0, calibration_accuracy: 0` in every session record except games that end on Day 1.
+**C1 — OL players loading correctly (confirmed):** `POSITION_GROUPS["OL"]` activates 16 OL players per sample program. `build_roster_map` returns `"OL": 3 players` (top by snap weight). `ol_player_id` is non-null on all RUSH and PASS plays in the live game run. No issue.
 
-Fix: add `calibDecisions: number` and `calibCorrect: number` to `GameState`, increment both in the SWIPE case when `state.isCalibration === true`. Reference these in the `patchSession` call instead of filtering `pendingDecisions`.
+**C2 — TURNOVER_FUMBLE double-pick on DL (minor, intentional):** On a fumble play, `dl_defender` is pre-picked from `defense.get("DL", [])`, and then `def_slot` is picked again from `defense.get("DL", []) or defense.get("LB", [])`. Both draws are from the same pool. The fumble recoverer (`def_slot`) is semantically independent from the pre-play DL attribution (`dl_defender`), so the double-pick is correct. But they could be the same player in both slots if the pool is small — `dl_player_id` and `tackler_player_id` could point to the same row. This is fine for the query use cases in the brief.
 
-**2. `apiFetch<void>` unconditionally calls `res.json()` — WARNING**  
-`api/client.ts:9` — if `PATCH /sessions/{id}` returns HTTP 204 with no response body, `res.json()` throws `SyntaxError: Unexpected end of JSON input`. The test mock returns `HttpResponse.json(null, { status: 204 })` which has a `"null"` body, so tests pass. Real FastAPI behaviour depends on the router implementation (not reviewed in this pass).
+**C3 — Pre-existing TFL description bug (not introduced here, minor):** `play_resolver.py` TACKLE_FOR_LOSS returns `primary_player_id = rusher.player_id` and `description = _desc("TACKLE_FOR_LOSS", r_name, ...)` where `r_name = rusher.last_name`. The template is `"{player} stops the runner in the backfield"` — so the runner's name is placed where the tackler's name should go. This is a pre-existing bug, not introduced by this sprint. Logged for a follow-up fix but not blocking.
 
-Fix: `if (res.status === 204) return undefined as T` before calling `res.json()`.
+**C4 — RUSH picks placed after yards roll (correct, note only):** The `ol_blocker`, `dl_defender`, `lb_defender` picks occur after `yards = round(random.gauss(...))`. Ordering is fine — yards and picks are independent — but a reader might wonder why picks appear mid-function. The existing pattern of picks-before-branch is slightly violated here (picks are after the gauss call but before the branches). This is a clarity concern only, not a bug.
 
-**3. `StartScreen` "Begin Intake" button dispatches a no-op — MINOR**  
-`Game.tsx:143` — `onStart={() => dispatch({ type: 'RESET' })}`. When `phase === 'start'`, RESET returns to `'start'` — no change. The game advances automatically via the `gameStarted` effect once `sessionId` + `calibCards` resolve. The StartScreen functions as a loading screen and the button does nothing. The UX reads as "press to start" but start is automatic.
-
-**4. `handleReturn` setTimeout can leak after unmount — MINOR**  
-`Game.tsx:127–130` — `setTimeout(() => { sessionStarted.current = false; createSession.mutate(undefined) }, 50)` is not cancelled on unmount. If the user navigates to `/analytics` within 50ms of pressing Return, the timer fires on a detached closure. TanStack Query handles stale mutations gracefully (no crash), but the ref mutation and `mutate` call are technically side-effects on an unmounted component.
+**C5 — All success criteria verified:**
+- PASS_COMPLETE rows: `secondary_player_id` (QB) ✅, `ol_player_id` ✅, `dl_player_id` ✅
+- RUSH rows: `tackler_player_id` ✅, `ol_player_id` ✅, `dl_player_id` ✅, `lb_player_id` ✅
+- SACK rows: `secondary_player_id` (QB) ✅, `ol_player_id` (missed block) ✅
 
 ---
 
 ## Style
 
-**5. `interface` for shape types — MINOR**  
-`types/index.ts` — `BarState`, `Card`, `PendingDecision`, `CategoryAccuracy`, `GameState` are declared as `interface`. Convention: use `type` for shapes and unions; `interface` only when declaration merging is intentional. None of these are extended or merged.
+Both tracked files pass `ruff check` + `ruff format --check` after auto-fix. Engine files (gitignored) are not ruff-checked per project policy. No style issues on tracked files.
 
-**6. Relative imports instead of `@/` alias — MINOR**  
-All cross-directory imports use relative paths (`'../types'`, `'../game/constants'`). Convention calls for `@/` path alias. One-level-up traversals are technically permitted by the "no `../../` climbing" rule, but the spirit is `@/` throughout.
-
-**7. `SECTOR_LABELS` is a dead export — MINOR**  
-`game/constants.ts` — defined but never imported by any component. Remove or use it.
+**S1 — Migration uses `sa.ForeignKey()` inline in `op.add_column` (matches convention):** Consistent with how `primary_player_id` was defined in `d4e5f6a7b8c9`. Correct.
 
 ---
 
 ## Tests
 
-**8. Upgrade trigger path untested**  
-Neither `upgradePending` being set after 8 correct in a category, nor the `UPGRADE_ACKNOWLEDGED` reducer transition, nor `UpgradeScreen` rendering, are tested. The upgrade path gates tier progression which affects `categoryTiers` in the session record.
+The engine files are gitignored and not in the test suite by policy. No existing tests cover `play_resolver.py` or `game.py`. The live game run (`_run_game_sync`) serves as the integration test — the verifier confirms all columns populated per spec.
 
-**9. `onUnhandledRequest: 'warn'` weakens coverage**  
-`test/setup.ts` — changed from `'error'` to `'warn'`. Since `MockEventSource` is a stub that never makes real network requests, there's no actual unhandled `/analytics/stream` request. Safe to restore `'error'` — the current setting would silently swallow any real missing mock handlers.
+**T1 — No unit test for `PlayOutcome` slot extension:** If a future change accidentally removes a slot name, there's no test to catch it. Could be a one-liner assert in a `__main__` block. Not blocking — engine is gitignored.
 
-**10. Non-null assertion in test — MINOR**  
-`game/useGameState.test.ts:42` — `dec!.playerCorrect`. Convention says avoid `!`; narrow with `expect(dec).toBeDefined()` first.
+**T2 — No test for OL group in `POSITION_GROUPS`:** A trivial test would assert `"OL" in POSITION_GROUPS`. Worth adding to the existing test suite if one exists. Not blocking.
 
 ---
 
 ## Refactor Candidates
 
-**R1. Calibration stats in reducer state**  
-Add `calibDecisions: number` and `calibCorrect: number` to `GameState` (starts 0, increments in SWIPE when `isCalibration`). Fixes finding 1 and removes the brittle `pendingDecisions.filter(isCalibration)` in `Game.tsx`.
+**R1 — RUSH picks ordering:** Move `ol_blocker`, `dl_defender`, `lb_defender` picks to immediately after `r_name =` (line 164), before the yards computation. This groups "all picks happen here" visually, matching the pass block pattern where `ol_blocker` and `dl_rusher` are picked before the probability roll. Minor clarity win.
 
-**R2. `apiFetch` 204 guard**  
-One-line: `if (res.status === 204) return undefined as T` in `client.ts`. Required before the real backend is exercised.
-
-**R3. `API_BASE` as env var**  
-`api/client.ts:1` — hardcoded `http://localhost:8005`. Before Hetzner: `import.meta.env.VITE_API_BASE ?? 'http://localhost:8005'` + `.env.example` entry per conventions.
-
-**R4. `handleReturn` session re-init**  
-Replace `setTimeout(50)` with a state-driven flag: `needsNewSession: boolean` in `GameState` (set by RESET, cleared by START_SESSION). The `sessionStarted` effect watches this flag. Eliminates the race window.
-
-**R5. `StartScreen` button intent**  
-Gate the `gameStarted` effect on a `userReadyToStart: boolean` ref (set by the button click), or rename the button to "Loading…" if auto-advance is intentional.
+**R2 — SACK `dl_player_id` comment:** The `ponytail: mirrors primary — query convenience` comment is correct and helpful. No change needed.
 
 ---
 
@@ -81,18 +59,14 @@ Gate the `gameStarted` effect on a `userReadyToStart: boolean` ref (set by the b
 
 **PASS WITH NOTES**
 
-No blocking issues. The calibration accuracy bug (finding 1) corrupts session telemetry but doesn't affect gameplay. Recommend fixing R1 and R2 in an implementer pass before the first real data collection. R3 is required before Hetzner deploy.
+No blocking issues. C3 (TFL description bug) is pre-existing and out of scope. C4 is a style note, not a bug. All attribution columns populate correctly per the success criteria.
 
 ---
 
 ## Handoff
 
-Next role: retro (step 8 of 9)  
-Reads: this file + all implementer outputs + planner output  
-Produces: session retrospective — what worked, what didn't, what to carry forward to the deploy pass.
+No next role required. Human can proceed to retro.
 
-Items for next implementer pass before production data collection:
-- R1: calibration accuracy zero (15 min)
-- R2: apiFetch 204 guard (2 min)
-- Finding 9: restore `onUnhandledRequest: 'error'` (1 line)
-- R3: VITE_API_BASE env var (5 min, required for Hetzner deploy)
+Notes for retro:
+- TFL description bug (`rusher.last_name` used as tackler name in template) is worth a 1-line fix in a follow-up pass
+- R1 (picks ordering in RUSH block) is a cosmetic cleanup worth batching with a future engine edit

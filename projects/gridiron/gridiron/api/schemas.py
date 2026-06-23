@@ -81,6 +81,43 @@ class PlayerRoster(BaseModel):
     jersey_num: int
 
 
+class PlayerDetail(BaseModel):
+    player_id: int
+    first_name: str
+    last_name: str
+    position: str
+    year: int
+    jersey_num: int
+    height_ft: int
+    height_in: int
+    weight_lbs: int
+    hometown: str
+    state: str
+    program_id: int
+    program_name: str
+    program_emoji: str
+    conglomerate_code: str
+    pass_attempts: int = 0
+    pass_completions: int = 0
+    pass_yards: int = 0
+    pass_tds: int = 0
+    interceptions: int = 0
+    rush_attempts: int = 0
+    rush_yards: int = 0
+    rush_tds: int = 0
+    targets: int = 0
+    receptions: int = 0
+    receiving_yards: int = 0
+    receiving_tds: int = 0
+    tackles: int = 0
+    sacks: int = 0
+    ints_def: int = 0
+    forced_fumbles: int = 0
+    fg_attempts: int = 0
+    fg_made: int = 0
+    games_played: int = 0
+
+
 class StatLeader(BaseModel):
     player_id: int
     name: str

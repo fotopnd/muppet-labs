@@ -10,6 +10,8 @@ import StatusBadge from '@/components/StatusBadge'
 
 type Tab = 'schedule' | 'roster' | 'stats'
 
+const YEAR_CLASS = ['', 'Freshman', 'Sophomore', 'Junior', 'Senior'] as const
+
 export default function ProgramDetail() {
   const { programId: idParam } = useParams<{ programId: string }>()
   const programId = parseInt(idParam ?? '0', 10)
@@ -154,8 +156,12 @@ function RosterTab({ programId }: { programId: number }) {
               {players.map((p) => (
                 <tr key={p.player_id} className="border-b border-border/30">
                   <td className="py-1 pr-3 text-text-muted">{p.jersey_num}</td>
-                  <td className="py-1 pr-3">{p.first_name} {p.last_name}</td>
-                  <td className="py-1 text-text-muted">{p.year}</td>
+                  <td className="py-1 pr-3">
+                    <Link to={`/players/${p.player_id}`} className="hover:text-accent transition-colors">
+                      {p.first_name} {p.last_name}
+                    </Link>
+                  </td>
+                  <td className="py-1 text-text-muted">{YEAR_CLASS[p.year] ?? p.year}</td>
                 </tr>
               ))}
             </tbody>

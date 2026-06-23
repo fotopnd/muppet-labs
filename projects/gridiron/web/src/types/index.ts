@@ -2,6 +2,43 @@
 
 export type GameStatus = 'scheduled' | 'live' | 'complete'
 
+export type PlayerDetail = {
+  player_id: number
+  first_name: string
+  last_name: string
+  position: string
+  year: number
+  jersey_num: number
+  height_ft: number
+  height_in: number
+  weight_lbs: number
+  hometown: string
+  state: string
+  program_id: number
+  program_name: string
+  program_emoji: string
+  conglomerate_code: string
+  pass_attempts: number
+  pass_completions: number
+  pass_yards: number
+  pass_tds: number
+  interceptions: number
+  rush_attempts: number
+  rush_yards: number
+  rush_tds: number
+  targets: number
+  receptions: number
+  receiving_yards: number
+  receiving_tds: number
+  tackles: number
+  sacks: number
+  ints_def: number
+  forced_fumbles: number
+  fg_attempts: number
+  fg_made: number
+  games_played: number
+}
+
 export type ConglomerateOut = {
   id: number
   code: string

@@ -1,13 +1,10 @@
-import { useState } from 'react'
 import { useParams, Link } from 'react-router-dom'
 import {
   useAllConglomerates,
   useConglomerateStandings,
   useCurrentSchedule,
   useTickerGameState,
-  useTickerScoreboard,
 } from '@/api/hooks'
-import GameCard from '@/components/GameCard'
 import ScoreboardWidget from '@/components/ScoreboardWidget'
 import type { ScheduleGame } from '@/types'
 
@@ -21,8 +18,6 @@ export default function ConferencePage() {
   })
   const { data: schedule } = useCurrentSchedule()
   const tickerState = useTickerGameState()
-  const scoreboard = useTickerScoreboard()
-  const [revealedGames, setRevealedGames] = useState<Set<number>>(new Set())
 
   if (confLoading) return <div className="p-6 text-text-muted">Loading...</div>
   if (!conglomerate) return <div className="p-6 text-text-muted">Conference not found.</div>
@@ -42,13 +37,8 @@ export default function ConferencePage() {
   const tier1Games = conferenceGames.filter(g => gameTier(g) === 1)
   const tier2Games = conferenceGames.filter(g => gameTier(g) === 2)
 
-  function reveal(gameId: number) {
-    setRevealedGames(prev => new Set([...prev, gameId]))
-  }
-
   return (
     <div className="pb-8">
-      {/* Conference header */}
       <div
         className="px-4 md:px-6 py-5"
         style={{ backgroundColor: conglomerate.primary_color }}
@@ -63,22 +53,8 @@ export default function ConferencePage() {
       </div>
 
       <div className="p-4 md:p-6 max-w-5xl mx-auto space-y-8">
-        <TierSection
-          title="Tier 1"
-          games={tier1Games}
-          tickerState={tickerState}
-          scoreboard={scoreboard}
-          revealedGames={revealedGames}
-          onReveal={reveal}
-        />
-        <TierSection
-          title="Tier 2"
-          games={tier2Games}
-          tickerState={tickerState}
-          scoreboard={scoreboard}
-          revealedGames={revealedGames}
-          onReveal={reveal}
-        />
+        <TierSection title="Tier 1" games={tier1Games} tickerState={tickerState} />
+        <TierSection title="Tier 2" games={tier2Games} tickerState={tickerState} />
 
         <div className="flex gap-4 text-sm text-text-muted pt-2 border-t border-border">
           <Link to={`/conference/${code}/standings`} className="hover:text-text-primary transition-colors">→ Full Standings</Link>
@@ -90,52 +66,26 @@ export default function ConferencePage() {
 }
 
 function TierSection({
-  title, games, tickerState, scoreboard, revealedGames, onReveal,
+  title, games, tickerState,
 }: {
   title: string
   games: ScheduleGame[]
   tickerState: Map<number, import('@/types').SsePlayEvent>
-  scoreboard: Map<number, import('@/types').LiveScore>
-  revealedGames: Set<number>
-  onReveal: (id: number) => void
 }) {
   if (games.length === 0) return null
-
-  const liveGames = games.filter(g => g.status === 'live')
-  const otherGames = games.filter(g => g.status !== 'live')
 
   return (
     <section>
       <h2 className="text-xs font-semibold uppercase tracking-widest text-text-muted mb-3">{title}</h2>
-
-      {liveGames.length > 0 && (
-        <div className="mb-4">
-          <p className="text-[10px] uppercase tracking-wider text-accent mb-2">Live Now</p>
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-            {liveGames.map(g => (
-              <ScoreboardWidget
-                key={g.game_id}
-                game={g}
-                liveState={tickerState.get(g.game_id)}
-              />
-            ))}
-          </div>
-        </div>
-      )}
-
-      {otherGames.length > 0 && (
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-          {otherGames.map(g => (
-            <GameCard
-              key={g.game_id}
-              game={g}
-              liveScore={scoreboard.get(g.game_id)}
-              revealed={g.status !== 'complete' || revealedGames.has(g.game_id)}
-              onReveal={() => onReveal(g.game_id)}
-            />
-          ))}
-        </div>
-      )}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+        {games.map(g => (
+          <ScoreboardWidget
+            key={g.game_id}
+            game={g}
+            liveState={tickerState.get(g.game_id)}
+          />
+        ))}
+      </div>
     </section>
   )
 }

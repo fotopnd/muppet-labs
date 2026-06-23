@@ -1,59 +1,36 @@
-# Retro — Year Zero Game
+# Retro — gridiron: play_log Multi-Player Attribution
 
-**Sequence:** `new-project-full` | **Role:** retro | **Step:** 8 of 9  
-**Date:** 2026-06-15
+**Role:** retro
+**Sequence:** add-feature
+**Date:** 2026-06-23
 
 ---
 
 ## Project
 
-**Name:** year-zero-game  
-**Sequence:** `new-project-full`  
-**Sessions:** 3 (backend session; frontend session cut short by context limit; frontend completion + review + retro)  
-**Roles that ran:** brief → planner → architect → design-brief → frontend-architect → implementer (6a backend) → implementer (6b frontend) → reviewer → retro  
-**Step skipped:** `ui-reviewer` (step 7 in sequence) — went directly to reviewer
+`gridiron-play-log-attribution` — `add-feature` sequence. Single session. Roles that ran: brief → planner → architect → implementer → reviewer → retro. Python-only, no frontend. All 6 success criteria met. Verdict: PASS WITH NOTES.
 
 ---
 
 ## What Went Well
 
-**1. `BAR_MOVEMENT` constant spec in architect output**  
-The architect specified the full 8-entry constant, key format (`${Verdict}:${boolean}:${boolean}`), ESCALATE handling rule ("resolve before map lookup"), and compliance-on-no-agent rule inline. The implementer dropped it in verbatim with zero ambiguity. This is the right level of detail for constants with non-obvious semantics — spec them completely in the architect, not vaguely.
+**W1 — Architect pre-reading the engine files before writing specs:** The architect role read `play_resolver.py`, `game.py`, and the existing migrations before writing the spec. This meant the "exact code snippets the implementer can drop in" section was accurate — no rework at implementation time. This should be the default for `add-feature` sequences touching existing code: architect always reads the relevant source files, not just the planner output.
 
-**2. Two-phase implementer split (6a / 6b)**  
-Backend green before frontend started. The implementer could build API hooks against a known, tested contract. No guessing at response shapes. The `backend-output.md` handoff file proved sufficient — no need to re-read the full architect output.
+**W2 — Single-point `_to_row()` abstraction:** The existing `_to_row()` pattern in `game.py` meant the 5 new columns required exactly one dict extension rather than changes scattered across two game loops. The architect identified this as a leverage point and the implementer exploited it. This is a sign of good existing architecture.
 
-**3. `useReducer` for game state**  
-Pure reducer, no API calls, no side effects. Directly unit-testable. Eight reducer tests written and passing. The architecture spec was right to push all logic into the reducer and all API orchestration into `Game.tsx`.
+**W3 — Live game verification as integration test:** Running `_run_game_sync(game_id)` and querying the new columns by play type is a complete end-to-end check in ~10 seconds. This is faster and more trustworthy than unit tests for this class of change. Worth codifying as the standard verifier for engine changes.
 
-**4. MSW v2 setup was clean after the EventSource stub fix**  
-One fix (add `MockEventSource` stub to `test/setup.ts`) and the full test suite ran. The pattern is: jsdom doesn't have EventSource; mock it globally in setup. Worth codifying.
-
-**5. `staleTime: Infinity` on calibration and phase card queries**  
-Cards are stable within a session — fetched once, never revalidated. The pattern was applied correctly and no redundant refetches were triggered. Correctly flagged by frontend-architect and correctly applied by implementer.
+**W4 — Ponytail discipline:** No over-engineered abstractions. The `dl_player_id = primary on SACK` intentional redundancy was correctly flagged with a comment rather than being silently added or silently rejected — the "ponytail: comment naming the simplification" pattern worked exactly as intended.
 
 ---
 
 ## What Could Have Gone Better
 
-**1. `ui-reviewer` skipped**  
-The `new-project-full` sequence requires `ui-reviewer` before `reviewer` for frontend projects. It was skipped in this session. The StartScreen button no-op (reviewer finding 3) — where "BEGIN INTAKE" dispatches a no-op RESET — would have been caught by a ui-reviewer as a broken interaction. The reviewer noted it as MINOR; a ui-reviewer would have flagged it as the intended primary interaction being broken.
+**B1 — Planner field-assignment table had phantom play types:** The planner output included `RUSH_TD` and `PASS_TD` as rows in the field-assignment table. These don't exist as play types in the engine — the engine produces `RUSH` → then `TOUCHDOWN` as a separate row when it crosses the goal line. The planner couldn't know this without reading the engine code. The architect had to silently resolve this. **Improvement:** In `add-feature` sequences touching an existing engine, the planner role should be instructed to read the source file for play types before writing the field-assignment table, or the architect should explicitly surface resolved phantom types in its output.
 
-**2. Calibration accuracy bug fell through two roles**  
-The architect spec said "compute calibration stats at game over" but didn't note that `pendingDecisions` is ephemeral (cleared at `DAY_ACKNOWLEDGED`). The implementer wrote `state.pendingDecisions.filter(d => d.isCalibration)` which looks correct on a quick read. The reviewer caught it. The fix (add `calibDecisions`/`calibCorrect` fields to GameState) is 15 minutes but required three passes to discover.
+**B2 — Project-state.md was stale:** `_config/project-state.md` still described the initial gridiron build (`new-project-full` sequence, step 1 complete). It was not updated between the gridiron v1 completion and this `add-feature` sprint. The retro role had to infer the session arc from the brief output and conversation context rather than reading authoritative state. **Improvement:** Update `project-state.md` when a sequence completes, not only during retro.
 
-Root cause: the architect spec described the output field (`calibration_accuracy`) but not where the data comes from mid-game. A single sentence in the architect — "calibration decisions must be accumulated in reducer state, not re-derived from pendingDecisions at game over" — would have prevented it.
-
-**3. `apiFetch<void>` coordination gap between phases**  
-The frontend implementer wrote `apiFetch<void>('/sessions/:id')` without verifying what the backend actually returns. The backend phase wrote the PATCH endpoint but the response format wasn't in `backend-output.md`. The test mock returns `HttpResponse.json(null, { status: 204 })` which silently covers the gap.
-
-Root cause: `backend-output.md` listed the endpoint but not its response code or body. A "Response shapes" section in backend-output.md would have surfaced this.
-
-**4. `pnpm-workspace.yaml` `onlyBuiltDependencies` confusion**  
-pnpm v11 moved the `onlyBuiltDependencies` field from `package.json` to `pnpm-workspace.yaml`. The initial scaffold had it in the wrong place (plus a garbled `allowBuilds` entry from a previous session). One context window burned resolving this. Will happen again on every new TypeScript project using MSW.
-
-**5. Context reconstruction overhead from prior session**  
-The session started from a context summary + file re-reads. The summary was accurate but required re-reading `frontend-architect/output.md` and `architect/output.md` to resume. Total re-read overhead: ~40KB of context before the first file was written. A shorter, more targeted `backend-output.md` (which is what `implementer/output/backend-output.md` is supposed to be) would have reduced this.
+**B3 — Brief handoff questions to planner were too broad:** The brief asked the planner to "confirm the full field-assignment table per play type" — but the planner also can't read engine source (role boundary). The brief should ask the architect to confirm the field-assignment table, not the planner. The planner's job is requirements and scope, not internal engine routing.
 
 ---
 
@@ -63,20 +40,18 @@ The session started from a context summary + file re-reads. The summary was accu
 
 | Stage | Issue | Estimated Waste | Recommendation |
 |-------|-------|-----------------|----------------|
-| 6b (frontend impl) | `architect/output.md` read in full (26KB); frontend implementer only needs the §Frontend reducer + §Constants + §Dependencies sections (~8KB) | medium | Architect should split output: `backend-spec.md` + `frontend-spec.md` for full-stack projects, OR add `## For Backend Implementer` / `## For Frontend Implementer` section headers |
-| 6b (frontend impl) | `frontend-architect/output.md` read in full (14KB) including the full CSS token block that was already written to `index.css` | low | Frontend-architect should summarise token decisions as a one-line note ("tokens written to index.css — see file") not reproduce the entire CSS block |
-| 7 (reviewer) | Full source files read (all 16 files, ~15KB combined) when most findings came from Game.tsx + hooks.ts + useGameState.ts (~6KB combined) | low | Reviewer should read the implementer's File Manifest first, then selectively read files flagged as complex or flagged in handoff notes |
-| Session resume | Context summary + file re-reads added ~40KB overhead at session start | medium | `backend-output.md` should explicitly list the 3–4 files the frontend implementer needs to read, not just summarise what was built |
+| Planner | Loaded `python-conventions.md` in full; most of it (HuggingFace, SQLAlchemy asyncpg rules) is irrelevant to an engine-only add-feature | Medium | Add a "slim mode" note to `add-feature` sequence: planner only loads the top 20 lines of conventions (package manager, formatter, type hint rules) |
+| Architect | Read `roles/architect/output/output.md` (previous year-zero content, 550 lines) before overwriting | Low | Not avoidable — required by Write tool. Acceptable. |
+| Reviewer | Had to read full `play_resolver.py` to review 7 changed return sites — most of the 300-line file is unchanged context | Low | For `add-feature` reviews, implementer should provide a diff-only section in output.md showing exactly which lines changed |
 
 ### Redundancy Patterns
 
-- The CSS token block appears verbatim in `frontend-architect/output.md` AND in `src/index.css`. After 6b, reading frontend-architect just to get tokens is wasteful — the file is the ground truth.
-- `architect/output.md` §Data Models (Python ORM) was loaded by the frontend implementer's session but is irrelevant to React component work.
+- The field-assignment table was written three times: once in the plan doc, once in the planner output, once in the architect output. In `add-feature`, one authoritative table in the architect output is sufficient — planner can describe the table at a high level and defer to architect for the exact cell values.
 
 ### Scoping Recommendations
 
-- `implementer (6b)` inputs table: replace `architect/output.md` with `implementer/output/backend-output.md` + `frontend-architect/output.md` — the architect output should be fully digested into these two files before 6b starts.
-- `reviewer` process: add "read File Manifest first; only load files flagged in handoff notes or involving complex logic" to the role contract.
+- In `add-feature` sequences: planner does NOT need `vibecoding-style.md` (style guidance is for new-project pacing, not feature additions). Remove from planner inputs for this sequence.
+- Architect reads engine source directly — add this as an explicit step in the `add-feature` architect process: "Read the files listed in planner's 'Files Changed' table before writing interface specs."
 
 ---
 
@@ -86,59 +61,42 @@ The session started from a context summary + file re-reads. The summary was accu
 
 | File | Change | Reason | Human decision required? |
 |------|--------|--------|--------------------------|
-| `resources/routing.md` — `new-project-full` step 6a note | Add: "backend-output.md must include a 'Response Shapes' table: endpoint, method, response code, response body type. Frontend implementer reads this, not the full architect output." | Prevents apiFetch<void> class of coordination gaps | No |
-| `resources/typescript-conventions.md` — Testing section | Add: "jsdom does not implement EventSource. Mock globally in test/setup.ts with a stub class. Do not install a polyfill." | Directly encountered this session; will recur | No |
+| `resources/routing.md` | In `add-feature` architect step: add "Read each file listed in the planner's Files Changed table before writing interface specs" | B1 — architect needs source context, not just planner output | No |
+| `resources/routing.md` | Remove `vibecoding-style.md` from planner inputs in `add-feature` sequence | Token efficiency — pacing guidance doesn't apply to feature additions | No |
+| `resources/routing.md` | Add note to `add-feature` brief step: "Do not ask planner to confirm internal engine routing — route field-assignment table questions to architect instead" | B3 — wrong role was asked to confirm implementation details | No |
 
 ### Skills to Update
 
 | File | Change | Reason | Human decision required? |
 |------|--------|--------|--------------------------|
-| `skills/setup-ts-pnpm.md` | Add a section: "pnpm v11 — onlyBuiltDependencies moved to pnpm-workspace.yaml. Remove from package.json; add `onlyBuiltDependencies: [msw]` (or relevant packages) to pnpm-workspace.yaml." | Will block every new project using MSW under pnpm v11 | No |
+| `skills/engine-verification.md` (new) | Create: describe the `_run_game_sync(game_id)` + SQL sampling pattern as the standard verifier for gridiron engine changes | W3 — this pattern is reusable and worth codifying | No |
 
 ### Routing Changes
 
 | Sequence | Change | Reason | Human decision required? |
 |----------|--------|--------|--------------------------|
-| `new-project-full` step 7 | Add a gate note: "ui-reviewer is REQUIRED for frontend projects, not optional. Do not proceed to reviewer without it." | Was skipped this session despite the spec saying "if project has frontend" | No |
-| `new-project-full` step 6a note | Add: "backend-output.md is the primary handoff to 6b. It must be self-contained: list all endpoints, response shapes (code + body type), and any frontend-relevant constraints. The frontend implementer should not need to open architect/output.md." | Current spec doesn't mandate completeness of backend-output.md | No |
+| `add-feature` | Add to implementer output template: "Diff Summary section listing file + line ranges changed" | Reduces reviewer context load when reading large gitignored files | No |
 
 ### New Resources or Skills Needed
 
-**`skills/react-game-state.md`** — short (1 page) skill documenting the game-state-in-reducer pattern:
-- `useReducer` with pure reducer + no API calls
-- All API orchestration in parent component with `useEffect` + ref guards
-- `key` prop on animated child components to reset animation state on card change
-- EventSource in `useEffect` with `return () => es.close()`
-
-Which roles would load it: `architect` (to choose the pattern), `implementer` (to apply it correctly). Would have prevented the calibration accuracy bug by making the "pendingDecisions is ephemeral" constraint explicit.
+- `skills/engine-verification.md`: a ~20-line file documenting the gridiron verification pattern: re-run a completed game via `_run_game_sync`, query `play_log` by `game_id`, group by `play_type`, check column nullability. Include the exact SQL template. Would have been useful for the implementer to load without re-deriving it.
 
 ---
 
 ## One Change to Make Now
 
-**`skills/setup-ts-pnpm.md`** — add pnpm v11 `onlyBuiltDependencies` note.
+**`resources/routing.md` — architect input in `add-feature` sequence.**
 
-This is the single change that prevents the most immediate recurrence cost. Every new TypeScript project using MSW (or any package with build scripts) will hit this on first `pnpm exec`. The fix is two lines in `pnpm-workspace.yaml` plus removing the stale `pnpm` block from `package.json`, but discovering it costs a context window if undocumented.
+Add to the architect row's Notes column:
+> "Read each source file listed in planner's Files Changed table before writing interface specs. For engine/gitignored files, this is the only way to know variable scope, existing patterns, and what already exists."
+
+This prevents the phantom play type issue (B1) and ensures the architect's spec is grounded in actual code, not just the planner's description of the code.
 
 ---
 
 ## Handoff
 
-Human reviews these findings and decides which recommendations to action.
-
-Priority order for immediate actions:
-1. `skills/setup-ts-pnpm.md` — pnpm v11 note (5 min, prevents next-session friction)
-2. `resources/routing.md` — mandate `ui-reviewer` and add `backend-output.md` response shapes requirement (10 min)
-3. `resources/typescript-conventions.md` — EventSource stub note (2 min)
-
-Before production data collection (implementer pass):
-- Finding 1 (calibration accuracy zero) — R1 from reviewer
-- Finding 2 (apiFetch 204 guard) — R2 from reviewer
-- Finding 9 (restore onUnhandledRequest: 'error') — 1 line
-
-Before Hetzner deploy:
-- R3: VITE_API_BASE env var
-- Database migration: `uv run alembic upgrade head`
-- Seed: `uv run seed-library`
-
-Update `_config/project-state.md` to record that retro ran (2026-06-15) and which recommendations were actioned.
+Human reviews this output. Recommendations above are applied manually to workspace files. Update `_config/project-state.md` to:
+- Mark `gridiron-play-log-attribution` `add-feature` sequence complete
+- Record that retro ran 2026-06-23
+- Update "Active Project" to reflect gridiron is now in maintenance mode (or whatever the next sprint is)

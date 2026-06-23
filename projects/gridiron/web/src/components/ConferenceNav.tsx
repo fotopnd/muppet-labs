@@ -2,7 +2,7 @@ import { NavLink, useParams } from 'react-router-dom'
 
 const SUB_LINKS = [
   { suffix: '', label: 'Scoreboard', end: true },
-  { suffix: '/schedule/week/1', label: 'Schedule', end: false },
+  { suffix: '/schedule', label: 'Schedule', end: false },
   { suffix: '/standings', label: 'Standings', end: false },
   { suffix: '/programs', label: 'Programs', end: false },
   { suffix: '/stats', label: 'Stats', end: false },

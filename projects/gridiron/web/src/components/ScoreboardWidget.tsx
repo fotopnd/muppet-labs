@@ -1,7 +1,6 @@
 import { Link } from 'react-router-dom'
 import type { ScheduleGame, SsePlayEvent } from '@/types'
 
-// Copied from Gamecast.tsx — maps field_pos 0–100 to SVG x 10–90
 function fx(pos: number): number { return 10 + pos * 0.8 }
 
 function schoolColor(id: number): string {
@@ -41,27 +40,38 @@ function derivedClock(play_number: number, quarter: number): string {
 
 const ORDINALS = ['', '1st', '2nd', '3rd', '4th']
 
+function formatSlot(slot: string): string {
+  return slot.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase())
+}
+
 function FieldStrip({
-  homeProgramId, awayProgramId, liveState,
+  homeProgramId, awayProgramId, ballPos, possession,
 }: {
   homeProgramId: number
   awayProgramId: number
-  liveState?: SsePlayEvent | undefined
+  ballPos: number | null
+  possession?: string | undefined
 }) {
   const homeEz = ezColor(homeProgramId)
   const awayEz = ezColor(awayProgramId)
-  const ballX = liveState ? fx(liveState.field_pos_after ?? 50) : null
-  const goingRight = liveState?.possession === 'home'
-  const AS = 1.2
+  const ballX = ballPos != null ? fx(ballPos) : null
+  const goingRight = possession === 'home'
 
   return (
-    <svg viewBox="0 0 100 10" style={{ width: '100%', height: '12px', display: 'block' }}>
-      <rect x="0"  y="0" width="10"  height="10" fill={homeEz} />
-      <rect x="90" y="0" width="10"  height="10" fill={awayEz} />
-      <rect x="10" y="0" width="80"  height="10" fill="#2d6a4f" />
-      <line x1={fx(0)}   y1="0" x2={fx(0)}   y2="10" stroke="white" strokeOpacity="0.5" strokeWidth="0.5" />
-      <line x1={fx(50)}  y1="0" x2={fx(50)}  y2="10" stroke="white" strokeOpacity="0.4" strokeWidth="0.4" />
+    <svg viewBox="0 0 100 14" style={{ width: '100%', height: '16px', display: 'block' }}>
+      {/* End zones */}
+      <rect x="0"  y="0" width="10" height="10" fill={homeEz} />
+      <rect x="90" y="0" width="10" height="10" fill={awayEz} />
+      {/* Field */}
+      <rect x="10" y="0" width="80" height="10" fill="#2d6a4f" />
+      {/* Hash marks */}
+      <line x1={fx(0)}  y1="0" x2={fx(0)}  y2="10" stroke="white" strokeOpacity="0.5" strokeWidth="0.5" />
+      <line x1={fx(50)} y1="0" x2={fx(50)} y2="10" stroke="white" strokeOpacity="0.4" strokeWidth="0.4" />
       <line x1={fx(100)} y1="0" x2={fx(100)} y2="10" stroke="white" strokeOpacity="0.5" strokeWidth="0.5" />
+      {/* HOME / AWAY labels inside end zones */}
+      <text x="5" y="6.5" fontSize="3" textAnchor="middle" fill="white" fillOpacity="0.65">HOME</text>
+      <text x="95" y="6.5" fontSize="3" textAnchor="middle" fill="white" fillOpacity="0.65">AWAY</text>
+      {/* Ball */}
       {ballX != null && (
         <>
           <circle cx={ballX} cy="5" r="1.5" fill="white" />
@@ -81,49 +91,67 @@ export default function ScoreboardWidget({
   game: ScheduleGame
   liveState?: SsePlayEvent | undefined
 }) {
-  const href = `/games/${game.game_id}`
-  const homeScore = liveState ? liveState.score_home : game.home_score
-  const awayScore = liveState ? liveState.score_away : game.away_score
+  const isLive = game.status === 'live' && !!liveState
+  const isComplete = game.status === 'complete'
 
-  const statusLine = (() => {
-    if (game.status === 'live' && liveState) {
-      const clock = derivedClock(liveState.play_number, liveState.quarter)
-      const downDist = liveState.down != null && liveState.distance != null
-        ? `${ORDINALS[liveState.down] ?? `${liveState.down}th`} & ${liveState.distance}`
-        : null
-      const desc = liveState.description.length > 38
-        ? `${liveState.description.slice(0, 38)}…`
-        : liveState.description
-      return [clock, downDist, desc].filter(Boolean).join(' · ')
-    }
-    if (game.status === 'complete') return 'FINAL'
-    return game.broadcast_slot.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase())
+  const homeScore = isLive ? liveState!.score_home : (isComplete ? game.home_score : null)
+  const awayScore = isLive ? liveState!.score_away : (isComplete ? game.away_score : null)
+  const scoreStr = (s: number | null) => s == null ? '—' : String(s)
+
+  const statusLabel = isLive ? '● LIVE' : isComplete ? 'FINAL' : formatSlot(game.broadcast_slot)
+  const statusCls = isLive ? 'text-accent font-semibold' : 'text-text-muted'
+
+  const infoLine = (() => {
+    if (!isLive || !liveState) return null
+    const clock = derivedClock(liveState.play_number, liveState.quarter)
+    const possName = liveState.possession === 'home'
+      ? game.home_name.split(' ')[0]
+      : game.away_name.split(' ')[0]
+    const downDist = liveState.down != null && liveState.distance != null
+      ? `${ORDINALS[liveState.down] ?? `${liveState.down}th`} & ${liveState.distance}`
+      : null
+    return [possName ? `${possName} BALL` : null, downDist, clock].filter(Boolean).join(' · ')
   })()
+
+  const ballPos = liveState?.field_pos_after ?? null
 
   return (
     <Link
-      to={href}
+      to={`/games/${game.game_id}`}
       className="block bg-surface border border-border rounded-lg overflow-hidden hover:border-accent/40 transition-colors"
     >
+      {/* Header row */}
+      <div className="px-3 pt-2 pb-1 flex items-center justify-between gap-2">
+        <span className={`text-[10px] ${statusCls}`}>{statusLabel}</span>
+        <span className="text-[10px] text-text-muted">Wk {game.week}</span>
+      </div>
+
+      {/* Team rows */}
+      <div className="px-3 pb-1 space-y-0.5">
+        <div className="flex items-center gap-2 text-sm">
+          <span>{game.home_emoji}</span>
+          <span className="flex-1 truncate">{game.home_name}</span>
+          <span className="tabular-nums font-bold shrink-0">{scoreStr(homeScore)}</span>
+        </div>
+        <div className="flex items-center gap-2 text-sm">
+          <span>{game.away_emoji}</span>
+          <span className="flex-1 truncate">{game.away_name}</span>
+          <span className="tabular-nums font-bold shrink-0">{scoreStr(awayScore)}</span>
+        </div>
+      </div>
+
+      {/* Info line (live only) */}
+      {infoLine && (
+        <div className="px-3 pb-1 text-[10px] text-text-muted truncate">{infoLine}</div>
+      )}
+
+      {/* Field strip */}
       <FieldStrip
         homeProgramId={game.home_program_id}
         awayProgramId={game.away_program_id}
-        liveState={liveState}
+        ballPos={ballPos}
+        possession={liveState?.possession}
       />
-      <div className="px-3 py-2">
-        <div className="flex items-center justify-between gap-2 text-sm">
-          <span className="truncate">
-            <span className="mr-1">{game.home_emoji}</span>
-            <span className="text-xs text-text-muted">{game.home_name.slice(0, 12)}</span>
-          </span>
-          <span className="tabular-nums font-bold shrink-0">{homeScore} – {awayScore}</span>
-          <span className="truncate text-right">
-            <span className="text-xs text-text-muted">{game.away_name.slice(0, 12)}</span>
-            <span className="ml-1">{game.away_emoji}</span>
-          </span>
-        </div>
-        <div className="text-[10px] text-text-muted mt-1 truncate">{statusLine}</div>
-      </div>
     </Link>
   )
 }

@@ -11,6 +11,7 @@ import type {
   ProgramDetail,
   ProgramScheduleGame,
   PlayerRoster,
+  PlayerDetail,
   ProgramStats,
   ConglomerateOut,
   ConglomerateStandings,
@@ -28,10 +29,11 @@ export function useCurrentSchedule() {
   })
 }
 
-export function useWeekSchedule(week: number) {
+export function useWeekSchedule(week: number, options?: { enabled?: boolean }) {
   return useQuery({
     queryKey: ['schedule', 'week', week],
     queryFn: () => apiFetch<WeekSchedule>(`/schedule/week/${week}`),
+    enabled: options?.enabled !== false,
   })
 }
 
@@ -90,6 +92,13 @@ export function useProgramStats(programId: number) {
   return useQuery({
     queryKey: ['program', programId, 'stats'],
     queryFn: () => apiFetch<ProgramStats>(`/programs/${programId}/stats`),
+  })
+}
+
+export function usePlayer(playerId: number) {
+  return useQuery({
+    queryKey: ['player', playerId],
+    queryFn: () => apiFetch<PlayerDetail>(`/players/${playerId}`),
   })
 }
 

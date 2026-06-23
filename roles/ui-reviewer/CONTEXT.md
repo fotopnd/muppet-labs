@@ -25,6 +25,8 @@ list of violations with file references and the exact rule each one breaks.
 
 ## Process
 
+0. **Environment pre-flight (gridiron only):** Before opening the browser, confirm which port `pnpm dev` is running on (check startup output). Verify that port appears in `gridiron/api/main.py` `allow_origins`. If missing, add it and restart the API (`uv run uvicorn gridiron.api.main:app --host 127.0.0.1 --port 8006 --reload`). VS Code often holds 5177/5178, pushing the dev server to 5179+; missing this causes silent CORS failures that look like data-loading bugs.
+
 1. Read `frontend-architect/output.md` to understand intended token choices, layout
    structure, and component specs.
 2. Read `design-brief/output.md` to retrieve the done criteria checklist.
