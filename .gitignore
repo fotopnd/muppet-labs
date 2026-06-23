@@ -61,7 +61,8 @@ Thumbs.db
 # ==========================================
 _config/
 .claude/
-resources/
+resources/*
+!resources/routing.md
 BUILDOUT.md
 
 # Project-level resources/ directories are tracked (override above)
