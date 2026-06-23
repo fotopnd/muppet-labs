@@ -1,4 +1,4 @@
-# Brief — gridiron: play_log Multi-Player Attribution
+# Brief — gridiron: Defensive Position Expansion + Pass Rush Pre-Picks
 
 **Role:** brief
 **Sequence:** add-feature
@@ -7,58 +7,64 @@
 ---
 
 ## Project Name
-`gridiron-play-log-attribution`
+`gridiron-defensive-positions`
 
 ## Description
-Extend the `play_log` table and simulation engine to record the full cast of players involved in each play — QB, tackler, OL blocker, DL defender, and LB — enabling tackle leaders, OL grades, DL pressure stats, and complete pass attribution to be queried directly from `play_log`.
+
+Expand the defensive position taxonomy from 4 generic codes (OLB, MLB, CB, S) to 7 specific codes (LOLB, MLB, ROLB, CB, DB, SS, FS), migrate existing players, and restructure `POSITION_GROUPS` so the engine can address each defensive unit independently. Add LB and secondary pre-picks to pass plays in `play_resolver.py`. This lays the foundation for zone-based defensive formation matchups in a future sprint.
 
 ## Language(s)
-Python (SQLAlchemy migration + engine changes) — no frontend changes in scope.
+Python (Alembic migration + seed_roster.py update + engine constants + play_resolver change) — no frontend changes.
 
 ## Success Criteria
 
 Done when:
-1. Alembic migration adds 5 nullable FK columns to `play_log`: `secondary_player_id`, `tackler_player_id`, `ol_player_id`, `dl_player_id`, `lb_player_id`
-2. `POSITION_GROUPS` in `constants.py` includes `"OL": ["LT", "LG", "C", "RG", "RT"]` — activating 2,080 OL players currently dropped by the roster loader
-3. `PlayOutcome` carries all 5 new fields
-4. `play_resolver.py` picks OL/DL/LB players on every run and pass play and assigns them to the correct `PlayOutcome` fields
-5. `game.py` writes all 5 new columns to the `play_log` INSERT
-6. After a game runs, a sample SQL query confirms:
-   - `PASS_COMPLETE` rows: `secondary_player_id` = QB, `ol_player_id` non-null, `dl_player_id` non-null
-   - `RUSH` rows: `tackler_player_id`, `ol_player_id`, `dl_player_id`, `lb_player_id` non-null
-   - `SACK` rows: `secondary_player_id` = QB, `ol_player_id` = missed blocker
+1. Alembic migration reassigns existing players: `OLB` split evenly → `LOLB` / `ROLB` (by player_id parity); `S` split evenly → `SS` / `FS` (by player_id parity); existing `CB` and `MLB` unchanged.
+2. `seed_roster.py` `POSITION_DISTRIBUTION` updated to use new codes: `LOLB`, `ROLB`, `MLB`, `CB`, `DB`, `SS`, `FS`. New template still sums to 85. `JERSEY_RANGES` updated for all new codes.
+3. `POSITION_GROUPS` in `constants.py` updated:
+   - `"LB": ["LOLB", "MLB", "ROLB"]`
+   - `"DB": ["CB", "DB"]` (CB = corners; DB = nickel/slot)
+   - `"S":  ["SS", "FS"]`
+4. `PlayOutcome` in `play_resolver.py` carries `lb_player_id` and `s_player_id` (nullable) in addition to existing `tackler_player_id`, `ol_player_id`, `dl_player_id`.
+5. PASS block in `play_resolver.py` pre-picks `lb_rusher = _pick(defense.get("LB", []))` and `s_coverage = _pick(defense.get("S", []))` alongside existing `dl_rusher` and `ol_blocker`.
+6. `lb_player_id` populated on PASS plays where LB is involved (SACK if sacker is LB, PASS_COMPLETE as secondary coverage, PASS_INCOMPLETE/DEFLECTION as pass rusher).
+7. `s_player_id` populated on deep pass plays (PASS_COMPLETE, TURNOVER_INTERCEPTION) as the deep coverage player.
+8. Alembic migration adds `s_player_id` column to `play_log` (joining the 5 from previous sprint).
+9. After migration + one game run: `SELECT position, COUNT(*) FROM players GROUP BY position` shows LOLB, ROLB, SS, FS, CB, DB (if seeded), MLB rows. `play_log` shows non-null `lb_player_id` on SACK rows and non-null `s_player_id` on PASS_COMPLETE rows.
 
 ## Constraints
 
 - Engine files (`gridiron/engine/`) are gitignored — changes are disk-only, never committed
-- Existing 25k play_log rows are NOT backfilled (new columns stay NULL for old rows)
-- Must not break the live simulation loop — changes are additive only
-- `player_game_stats` table is NOT extended in this sprint (aggregation deferred)
-- No new API endpoints or frontend changes in scope
+- `seed_roster.py` and Alembic migrations ARE tracked — commit them
+- Migration must be additive/safe: split is deterministic (player_id parity), no data loss
+- `player_game_stats` NOT extended in this sprint
+- No frontend changes
+- The 85-player roster template must still sum to 85 after position code changes
+- `DB` (nickel/slot) is a NEW position code — no existing players have it post-migration; it will appear in future seeded rosters only
 
 ## Out of Scope
 
-- Backfilling historical play_log rows
-- New `player_game_stats` columns for OL blocks, DL pressures, LB tackles
-- Frontend stat displays consuming the new columns
-- New API routes exposing per-play attribution data
-- PAT / TWO_POINT_CONVERSION play attribution
+- Zone-based formation grid (3×3 field zones) — future sprint
+- Formation definitions that shift player zone weights — future sprint
+- New `player_game_stats` columns for LB pressures, S coverage grades, DB targets
+- Any changes to OL, DL, QB, RB, WR, K, P position codes
 
 ## Assumptions
 
-- OL snap-weight scoring uses same formula as other groups: `sigma * 0.4 + alpha * 0.3 + psi * 0.3`, top 3 by score, weights `[0.65, 0.225, 0.125]`
-- For RUSH plays: `tackler_player_id` = `dl_defender or lb_defender`; TURNOVER_FUMBLE overrides tackler with `def_slot` (existing fumble recoverer)
-- For SACK: `primary_player_id` remains the sacker; `secondary_player_id` = QB; `ol_player_id` = OL who missed block; `dl_player_id` = same as primary (intentional redundancy for query convenience)
-- `lb_player_id` populated on RUSH plays only
-- CB/DB coverage on PASS_COMPLETE captured via `tackler_player_id` (DB who closes after catch)
+- OLB split: player_id % 2 == 0 → LOLB, player_id % 2 == 1 → ROLB
+- S split: player_id % 2 == 0 → SS, player_id % 2 == 1 → FS
+- `DB` nickel/slot position code: 0 existing players (new code for future rosters); add to POSITION_DISTRIBUTION with count=1 in reserve slot, replacing one "CB" reserve
+- New roster distribution: LOLB=3, ROLB=3, MLB=4, CB=6, DB=1, SS=3, FS=3 (total def secondary/LB = 23, same as before: OLB=6→LOLB3+ROLB3, MLB=4, CB=7→CB6+DB1, S=6→SS3+FS3)
+- `lb_rusher` and `s_coverage` are new pre-picks; existing `tackler_player_id` on PASS_COMPLETE (DB closer) is renamed to `db_player_id` for consistency — this is a `play_log` column rename requiring a new migration step
+- SACK attribution: if sacker came from LB pool, `lb_player_id` = sacker, `dl_player_id` = NULL; if from DL pool, existing behaviour. Since pre-sprint SACK picks from `DL or LB` pool without knowing which, post-sprint SACK pre-picks DL and LB separately: dl_sacker is pre-picked, lb_sacker is pre-picked, primary_player_id = whichever has higher snap_weight (or dl_sacker if both non-null by convention)
 
 ## Handoff
 
 **Next role:** planner
 
 Planner should:
-1. Confirm the full field-assignment table per play type (which player slot → which `PlayOutcome` field for each of the ~10 play types)
-2. Confirm snap-weight approach for OL — same formula as skill positions, or separate blocking-grade score?
-3. Flag any play types where the same player ends up in two slots (e.g. SACK: sacker = `primary_player_id` AND `dl_player_id`) and decide whether to keep or deduplicate
-4. Define exact order of `_pick()` calls within `resolve_play()` to minimise redundant roster sampling
-5. Draft the `accumulate_stats` extension design for the follow-up sprint so the implementer can see where this is heading
+1. Confirm the exact position counts in the new POSITION_DISTRIBUTION (must sum to 85)
+2. Decide whether the `tackler_player_id` rename to `db_player_id` is worth the migration cost, or whether keeping the existing name is less disruptive
+3. Confirm the SACK attribution approach — pre-pick both DL and LB, winner = dl_sacker by convention, lb_player_id = lb_sacker always
+4. Confirm `s_player_id` column naming and which play types it populates
+5. Map all play types to all attribution columns (the full field-assignment table, updated)

@@ -1,4 +1,4 @@
-# Retro — gridiron: play_log Multi-Player Attribution
+# Retro — gridiron: Defensive Position Expansion + Pass Rush Pre-Picks
 
 **Role:** retro
 **Sequence:** add-feature
@@ -8,29 +8,27 @@
 
 ## Project
 
-`gridiron-play-log-attribution` — `add-feature` sequence. Single session. Roles that ran: brief → planner → architect → implementer → reviewer → retro. Python-only, no frontend. All 6 success criteria met. Verdict: PASS WITH NOTES.
+`gridiron-defensive-positions` — `add-feature` sequence. Single session. Roles: brief → planner → architect → implementer → reviewer → retro. Python-only, no frontend. All success criteria met. Verdict: PASS WITH NOTES.
 
 ---
 
 ## What Went Well
 
-**W1 — Architect pre-reading the engine files before writing specs:** The architect role read `play_resolver.py`, `game.py`, and the existing migrations before writing the spec. This meant the "exact code snippets the implementer can drop in" section was accurate — no rework at implementation time. This should be the default for `add-feature` sequences touching existing code: architect always reads the relevant source files, not just the planner output.
+**W1 — Architect source-reading rule eliminated phantom types:** The routing.md rule added in the previous retro ("architect must read source files before writing specs") was enforced. The architect read `play_resolver.py`, `game.py`, `seed_roster.py`, and the previous migration before writing specs. Result: no phantom play types, no incorrect variable scope assumptions, no rework at implementation time. The rule is paying off.
 
-**W2 — Single-point `_to_row()` abstraction:** The existing `_to_row()` pattern in `game.py` meant the 5 new columns required exactly one dict extension rather than changes scattered across two game loops. The architect identified this as a leverage point and the implementer exploited it. This is a sign of good existing architecture.
+**W2 — Clean deterministic migration design:** `player_id % 2` split is deterministic, reversible, and produces roughly equal pools (LOLB=371, ROLB=409, SS=395, FS=385). No randomness, no state to preserve. This is the right pattern for position-code migrations.
 
-**W3 — Live game verification as integration test:** Running `_run_game_sync(game_id)` and querying the new columns by play type is a complete end-to-end check in ~10 seconds. This is faster and more trustworthy than unit tests for this class of change. Worth codifying as the standard verifier for engine changes.
+**W3 — `_pick()` None-safety held across all new groups:** `s_coverage = _pick(defense.get("S", []))` returns None cleanly if the S group is empty (e.g. old games run before migration, or DB group lookup mismatch). No guard code needed. The existing `if sacker else None` pattern handles it uniformly across all 6 attribution fields.
 
-**W4 — Ponytail discipline:** No over-engineered abstractions. The `dl_player_id = primary on SACK` intentional redundancy was correctly flagged with a comment rather than being silently added or silently rejected — the "ponytail: comment naming the simplification" pattern worked exactly as intended.
+**W4 — Single INSERT site minimised game.py surface:** Only one SQL string to update for `s_player_id` (OT drive feeds the same `plays` list). `_to_row()` is a clean abstraction — one dict key addition covered all paths.
 
 ---
 
 ## What Could Have Gone Better
 
-**B1 — Planner field-assignment table had phantom play types:** The planner output included `RUSH_TD` and `PASS_TD` as rows in the field-assignment table. These don't exist as play types in the engine — the engine produces `RUSH` → then `TOUCHDOWN` as a separate row when it crosses the goal line. The planner couldn't know this without reading the engine code. The architect had to silently resolve this. **Improvement:** In `add-feature` sequences touching an existing engine, the planner role should be instructed to read the source file for play types before writing the field-assignment table, or the architect should explicitly surface resolved phantom types in its output.
+**B1 — Verification ran on an already-complete game (game 13) first:** The implementer's first attempt ran `game 13` which was already complete. This produced duplicate play_log rows (282 total vs expected ~142) and gave misleading 50% attribution rates. The issue was caught and corrected by running game 19 (a scheduled game), which showed 100% attribution. **Fix:** Add to the engine verification pattern: always query `status='scheduled'` before running a game. If no scheduled games exist, document that explicitly.
 
-**B2 — Project-state.md was stale:** `_config/project-state.md` still described the initial gridiron build (`new-project-full` sequence, step 1 complete). It was not updated between the gridiron v1 completion and this `add-feature` sprint. The retro role had to infer the session arc from the brief output and conversation context rather than reading authoritative state. **Improvement:** Update `project-state.md` when a sequence completes, not only during retro.
-
-**B3 — Brief handoff questions to planner were too broad:** The brief asked the planner to "confirm the full field-assignment table per play type" — but the planner also can't read engine source (role boundary). The brief should ask the architect to confirm the field-assignment table, not the planner. The planner's job is requirements and scope, not internal engine routing.
+**B2 — SACK `dl_player_id` semantic shift not documented in code:** The previous sprint had `dl_player_id = def_slot.player_id` on SACK rows (intentionally mirroring primary — query convenience). This sprint changed SACK to use pre-picked `dl_rusher` separately from `lb_rusher`, so `dl_player_id` is now NULL when DL pool is empty (rare but possible). Any query assuming `dl_player_id = primary_player_id` on SACK rows may need to union with `lb_player_id`. Worth a ponytail comment in the SACK branch and a note in `project-state.md`.
 
 ---
 
@@ -40,18 +38,16 @@
 
 | Stage | Issue | Estimated Waste | Recommendation |
 |-------|-------|-----------------|----------------|
-| Planner | Loaded `python-conventions.md` in full; most of it (HuggingFace, SQLAlchemy asyncpg rules) is irrelevant to an engine-only add-feature | Medium | Add a "slim mode" note to `add-feature` sequence: planner only loads the top 20 lines of conventions (package manager, formatter, type hint rules) |
-| Architect | Read `roles/architect/output/output.md` (previous year-zero content, 550 lines) before overwriting | Low | Not avoidable — required by Write tool. Acceptable. |
-| Reviewer | Had to read full `play_resolver.py` to review 7 changed return sites — most of the 300-line file is unchanged context | Low | For `add-feature` reviews, implementer should provide a diff-only section in output.md showing exactly which lines changed |
+| Architect | Read `game.py` in full (594 lines) to find `_to_row()` and the INSERT site | Low | Acceptable — necessary to verify there’s only one INSERT. On larger files, architect could load only the relevant function range. |
+| Retro | Previous retro output (400+ lines) loaded as "existing" before being overwritten | Low | Not avoidable — atomic write requires reading first. Acceptable. |
 
 ### Redundancy Patterns
 
-- The field-assignment table was written three times: once in the plan doc, once in the planner output, once in the architect output. In `add-feature`, one authoritative table in the architect output is sufficient — planner can describe the table at a high level and defer to architect for the exact cell values.
+- Field-assignment table appeared in brief output, planner output, AND architect output. Planner’s version was the most detailed and served as the definitive spec — architect re-stated it cleanly. The brief version was too high-level to be useful downstream. In future: brief describes the table shape, planner owns the authoritative table, architect confirms it.
 
 ### Scoping Recommendations
 
-- In `add-feature` sequences: planner does NOT need `vibecoding-style.md` (style guidance is for new-project pacing, not feature additions). Remove from planner inputs for this sequence.
-- Architect reads engine source directly — add this as an explicit step in the `add-feature` architect process: "Read the files listed in planner's 'Files Changed' table before writing interface specs."
+- In `add-feature` verify step: explicitly filter for `status='scheduled'` games. Add this to the engine-verification skill if one is created.
 
 ---
 
@@ -61,42 +57,38 @@
 
 | File | Change | Reason | Human decision required? |
 |------|--------|--------|--------------------------|
-| `resources/routing.md` | In `add-feature` architect step: add "Read each file listed in the planner's Files Changed table before writing interface specs" | B1 — architect needs source context, not just planner output | No |
-| `resources/routing.md` | Remove `vibecoding-style.md` from planner inputs in `add-feature` sequence | Token efficiency — pacing guidance doesn't apply to feature additions | No |
-| `resources/routing.md` | Add note to `add-feature` brief step: "Do not ask planner to confirm internal engine routing — route field-assignment table questions to architect instead" | B3 — wrong role was asked to confirm implementation details | No |
+| `_config/project-state.md` | Update `play_log attribution` section: note that `dl_player_id` on SACK rows is no longer guaranteed to mirror `primary_player_id` (changed in this sprint) | B2 — query writers need to know this | No |
+| `_config/project-state.md` | Add sprint summary: defensive-positions complete, 7-code taxonomy, `s_player_id` added, LB/DB/S independently addressable | Track completion | No |
 
 ### Skills to Update
 
 | File | Change | Reason | Human decision required? |
 |------|--------|--------|--------------------------|
-| `skills/engine-verification.md` (new) | Create: describe the `_run_game_sync(game_id)` + SQL sampling pattern as the standard verifier for gridiron engine changes | W3 — this pattern is reusable and worth codifying | No |
+| (none yet) | If/when `skills/engine-verification.md` is created (recommended by prior retro), add note: "Always query `status='scheduled'` before running a verification game; completed games produce duplicate play_log rows" | B1 | No |
 
 ### Routing Changes
 
 | Sequence | Change | Reason | Human decision required? |
 |----------|--------|--------|--------------------------|
-| `add-feature` | Add to implementer output template: "Diff Summary section listing file + line ranges changed" | Reduces reviewer context load when reading large gitignored files | No |
+| `add-feature` | No changes needed — current sequence worked cleanly | — | — |
 
 ### New Resources or Skills Needed
 
-- `skills/engine-verification.md`: a ~20-line file documenting the gridiron verification pattern: re-run a completed game via `_run_game_sync`, query `play_log` by `game_id`, group by `play_type`, check column nullability. Include the exact SQL template. Would have been useful for the implementer to load without re-deriving it.
+- The `skills/engine-verification.md` skill recommended in the previous retro is still not created. It would have prevented the game 13 duplicate-row issue. Worth creating before the next engine sprint.
 
 ---
 
 ## One Change to Make Now
 
-**`resources/routing.md` — architect input in `add-feature` sequence.**
+**Update `_config/project-state.md`** to record the completed sprint and the SACK `dl_player_id` semantic change.
 
-Add to the architect row's Notes column:
-> "Read each source file listed in planner's Files Changed table before writing interface specs. For engine/gitignored files, this is the only way to know variable scope, existing patterns, and what already exists."
-
-This prevents the phantom play type issue (B1) and ensures the architect's spec is grounded in actual code, not just the planner's description of the code.
+Specific additions:
+1. Under completed sprints: add `gridiron-defensive-positions` row
+2. Under play_log attribution section: add note that `dl_player_id` on SACK rows is set from `dl_rusher` (pre-pick), not from the sacker directly. If DL pool empty, `dl_player_id=NULL` and `lb_player_id=primary_player_id` on that play.
+3. Record the new POSITION_GROUPS: LB=[LOLB,MLB,ROLB], DB=[CB,DB], S=[SS,FS]
 
 ---
 
 ## Handoff
 
-Human reviews this output. Recommendations above are applied manually to workspace files. Update `_config/project-state.md` to:
-- Mark `gridiron-play-log-attribution` `add-feature` sequence complete
-- Record that retro ran 2026-06-23
-- Update "Active Project" to reflect gridiron is now in maintenance mode (or whatever the next sprint is)
+Human reviews this output. Update `_config/project-state.md` per the "One Change to Make Now" above. Create `skills/engine-verification.md` if the next sprint touches the engine again.
