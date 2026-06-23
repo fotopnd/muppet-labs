@@ -12,7 +12,7 @@ import json
 import os
 import random
 import sys
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from pathlib import Path
 
 import sqlalchemy as sa
@@ -40,10 +40,13 @@ POSITION_DISTRIBUTION: list[tuple[str, int]] = [
     ("RT", 3),
     ("DE", 5),
     ("DT", 5),
-    ("OLB", 5),
+    ("LOLB", 3),
     ("MLB", 4),
-    ("CB", 7),
-    ("S", 5),
+    ("ROLB", 2),
+    ("CB", 6),
+    ("DB", 1),
+    ("SS", 3),
+    ("FS", 2),
     ("K", 1),
     ("P", 2),
     ("LS", 1),
@@ -52,11 +55,11 @@ POSITION_DISTRIBUTION: list[tuple[str, int]] = [
     ("QB", 1),
     ("RB", 1),
     ("WR", 2),
-    ("OLB", 1),
+    ("ROLB", 1),
     ("CB", 1),
     ("DE", 1),
     ("LT", 1),
-    ("S", 1),
+    ("FS", 1),
     ("ATH", 1),
 ]
 
@@ -69,26 +72,29 @@ assert len(ROSTER_TEMPLATE) == 85, f"Roster template has {len(ROSTER_TEMPLATE)} 
 
 # Jersey number ranges by position group
 JERSEY_RANGES: dict[str, tuple[int, int]] = {
-    "QB":  (1, 19),
-    "RB":  (20, 39),
-    "FB":  (20, 49),
-    "WR":  (1, 19),
-    "TE":  (40, 89),
-    "LT":  (50, 79),
-    "LG":  (50, 79),
-    "C":   (50, 79),
-    "RG":  (50, 79),
-    "RT":  (50, 79),
-    "DE":  (90, 99),
-    "DT":  (90, 99),
-    "OLB": (40, 59),
-    "MLB": (40, 59),
-    "CB":  (20, 49),
-    "S":   (20, 49),
-    "K":   (1, 19),
-    "P":   (1, 19),
-    "LS":  (50, 79),
-    "ATH": (1, 49),
+    "QB":   (1, 19),
+    "RB":   (20, 39),
+    "FB":   (20, 49),
+    "WR":   (1, 19),
+    "TE":   (40, 89),
+    "LT":   (50, 79),
+    "LG":   (50, 79),
+    "C":    (50, 79),
+    "RG":   (50, 79),
+    "RT":   (50, 79),
+    "DE":   (90, 99),
+    "DT":   (90, 99),
+    "LOLB": (40, 59),
+    "ROLB": (40, 59),
+    "MLB":  (40, 59),
+    "CB":   (20, 49),
+    "DB":   (20, 49),
+    "SS":   (20, 49),
+    "FS":   (20, 49),
+    "K":    (1, 19),
+    "P":    (1, 19),
+    "LS":   (50, 79),
+    "ATH":  (1, 49),
 }
 
 # Year weights: skewed toward 1–2 (freshman/sophomore)

@@ -1,4 +1,4 @@
-# Implementer Output — gridiron: play_log Multi-Player Attribution
+# Implementer Output — gridiron: Defensive Position Expansion + Pass Rush Pre-Picks
 
 **Role:** implementer
 **Sequence:** add-feature
@@ -16,10 +16,11 @@ Single-language — Python only. No frontend changes in scope.
 
 | File | Purpose |
 |------|---------|
-| `alembic/versions/a7b8c9d0e1f2_play_log_attribution.py` | Migration: 5 nullable FK columns added to `play_log` |
-| `gridiron/engine/constants.py` | Added `"OL": ["LT", "LG", "C", "RG", "RT"]` to `POSITION_GROUPS` |
-| `gridiron/engine/play_resolver.py` | `PlayOutcome` slots + init + 7 return sites updated (gitignored) |
-| `gridiron/engine/game.py` | `_to_row()` + INSERT SQL extended with 5 new columns (gitignored) |
+| `alembic/versions/b8c9d0e1f2a3_defensive_position_expansion.py` | Migration: OLB→LOLB/ROLB, S→SS/FS (player_id parity), + `s_player_id` FK column on `play_log` |
+| `scripts/seed_roster.py` | Updated `POSITION_DISTRIBUTION` (LOLB/ROLB/CB/DB/SS/FS) and `JERSEY_RANGES` |
+| `gridiron/engine/constants.py` | `POSITION_GROUPS`: LB=[LOLB,MLB,ROLB], DB=[CB,DB], S=[SS,FS] (gitignored) |
+| `gridiron/engine/play_resolver.py` | `PlayOutcome` + `s_player_id` slot; PASS block adds `lb_rusher`/`s_coverage` pre-picks; 5 pass return sites updated (gitignored) |
+| `gridiron/engine/game.py` | `_to_row()` + INSERT SQL extended with `s_player_id` (gitignored) |
 
 ---
 
@@ -33,67 +34,78 @@ None — project already initialised.
 
 ```
 uv run alembic upgrade head
-→ Running upgrade f6a7b8c9d0e1 -> a7b8c9d0e1f2, play_log_attribution
+→ Running upgrade a7b8c9d0e1f2 -> b8c9d0e1f2a3, defensive_position_expansion
 
-uv run ruff check --fix + ruff format  (constants.py + migration)
-→ 7 fixed, 0 remaining. 2 files reformatted.
-
-Game 1308 re-run, new columns sampled:
+SELECT position, COUNT(*) FROM players GROUP BY position:
+  LOLB=371, ROLB=409 (was OLB=780)
+  SS=395, FS=385 (was S=780)
+  CB=1040, MLB=520 unchanged
+  No OLB or S rows remain ✓
 ```
 
-| play_type | secondary | tackler | ol | dl | lb |
-|---|---|---|---|---|---|
-| RUSH | ✅ False | ✅ True | ✅ True | ✅ True | ✅ True |
-| TACKLE_FOR_LOSS | ✅ False | ✅ True | ✅ True | ✅ True | ✅ True |
-| TURNOVER_FUMBLE | ✅ True (rusher) | ✅ True (recoverer) | ✅ True | ✅ True | ✅ True |
-| PASS_COMPLETE | ✅ True (QB) | ✅ True (DB closer) | ✅ True | ✅ True | ✅ False |
-| PASS_INCOMPLETE | ✅ True (QB) | ✅ False | ✅ True | ✅ True | ✅ False |
-| PASS_DEFLECTION | ✅ True (QB) | ✅ False | ✅ True | ✅ True | ✅ False |
-| SACK | ✅ True (QB) | ✅ False | ✅ True (missed block) | ✅ True (=primary) | ✅ False |
-| TURNOVER_INTERCEPTION | ✅ True (QB) | ✅ False | ✅ True | ✅ True | ✅ False |
-| FIELD_GOAL, PAT, PUNT, TOUCHDOWN | ✅ all NULL (expected) | | | | |
+Game 19 (fresh scheduled game) attribution results:
 
-All 6 success criteria from the brief are met.
+| play_type | plays | lb (%) | s (%) |
+|---|---|---|---|
+| PASS_COMPLETE | 38 | 38 (100%) | 38 (100%) |
+| PASS_DEFLECTION | 4 | 4 (100%) | 4 (100%) |
+| PASS_INCOMPLETE | 17 | 17 (100%) | 17 (100%) |
+| TURNOVER_INTERCEPTION | 1 | 1 (100%) | 1 (100%) |
+| SACK | 3 | 3 (100%) | 0 (0%) |
+| RUSH | 35 | 35 (100%) | 0 (0%) |
+| TACKLE_FOR_LOSS | 16 | 16 (100%) | 0 (0%) |
+| TURNOVER_FUMBLE | 2 | 2 (100%) | 0 (0%) |
+| TOUCHDOWN | 4 | 0 (0%) | 0 (0%) |
+| FIELD_GOAL_ATTEMPT | 10 | 0 (0%) | 0 (0%) |
+| PAT/PUNT | — | 0 (0%) | 0 (0%) |
+
+All success criteria from planner met.
+
+Ruff pre-existing errors: 10 E501/E731 violations in seed_roster.py are pre-existing (docstring, SQL strings, lambda in draw_attrs) — none introduced by our changes. Migration file passes clean.
 
 ---
 
 ## Deviations from Architecture
 
-None. Implementation matches architect spec exactly.
+**SACK `dl_player_id` comment removed:** The architect spec noted `# ponytail: mirrors primary` for SACK's `dl_player_id`. The new SACK branch uses `dl_rusher` (which may be None if DL pool is empty) rather than `def_slot` (was always the sacker). So `dl_player_id` no longer necessarily mirrors `primary_player_id`. Comment removed as it no longer applies.
+
+All other changes match architect spec exactly.
 
 ---
 
 ## Known Gaps
 
-- TOUCHDOWN rows (created inline in `game.py` after RUSH/PASS_COMPLETE reaches goal line) have NULL in all 5 new columns. Expected per architect notes — these bypass `resolve_play()`. Documented in architect output.
-- PAT, FG, PUNT rows: all NULL. Expected — special teams out of scope.
-- `player_game_stats` not extended — aggregation deferred to follow-up sprint.
-- No `RUSH_TD` or `PASS_TD` play type exists in the engine — TD outcome is a separate `TOUCHDOWN` row, not a subtype of RUSH/PASS. Field-assignment table for those entries in the planner output is moot.
+- TOUCHDOWN, PAT, PUNT, FIELD_GOAL rows: `lb_player_id` and `s_player_id` are NULL. Expected — these bypass `resolve_play()` per architect spec.
+- `DB` (nickel/slot) position code: 0 players in DB post-migration. Future re-seeds will produce DB players. The DB group (`"DB": ["CB", "DB"]`) has CB players and works correctly now.
+- `player_game_stats` not extended — LB pressures, S coverage grades deferred to follow-up sprint.
+- Pre-existing ruff E501/E731 in seed_roster.py not fixed (not introduced by this sprint).
 
 ---
 
 ## How to Run
 
 ```bash
-# Verify schema
+# Verify position migration
+cd projects/gridiron
 uv run python3 -c "
-import asyncio
-from gridiron.database import engine
-from sqlalchemy import text
-async def main():
-    async with engine.begin() as conn:
-        r = await conn.execute(text('''
-            SELECT play_type,
-                   secondary_player_id IS NOT NULL AS has_secondary,
-                   ol_player_id IS NOT NULL AS has_ol,
-                   dl_player_id IS NOT NULL AS has_dl,
-                   lb_player_id IS NOT NULL AS has_lb
-            FROM play_log WHERE game_id = (SELECT MAX(id) FROM games WHERE status = 'complete')
-            GROUP BY play_type, has_secondary, has_ol, has_dl, has_lb
-            ORDER BY play_type
-        '''))
-        for row in r.mappings(): print(dict(row))
-asyncio.run(main())
+from sqlalchemy import create_engine, text
+engine = create_engine('postgresql+psycopg2://gridiron:gridiron@localhost:5438/gridiron')
+with engine.connect() as conn:
+    for r in conn.execute(text('SELECT position, COUNT(*) FROM players GROUP BY position ORDER BY position')).fetchall():
+        print(r[0], r[1])
+"
+
+# Verify attribution after game run
+uv run python3 -c "
+from sqlalchemy import create_engine, text
+engine = create_engine('postgresql+psycopg2://gridiron:gridiron@localhost:5438/gridiron')
+with engine.connect() as conn:
+    rows = conn.execute(text('''
+        SELECT play_type, COUNT(*) plays, COUNT(lb_player_id) lb, COUNT(s_player_id) s
+        FROM play_log WHERE game_id=(SELECT MAX(id) FROM games WHERE status='complete')
+        GROUP BY play_type ORDER BY play_type
+    ''')).fetchall()
+    for r in rows: print(r[0], r[1], r[2], r[3])
 "
 ```
 
@@ -104,8 +116,8 @@ asyncio.run(main())
 Next role: reviewer.
 
 Reviewer should:
-1. Confirm `POSITION_GROUPS` change activates OL players via `build_roster_map` (verify OL slots are non-empty in a game roster)
-2. Check that `_pick()` is called on `offense.get("OL", [])` — if no OL players loaded, all `ol_player_id` would be NULL even on RUSH plays
-3. Confirm the SACK intentional redundancy (`dl_player_id = primary_player_id`) is the right call — could be dropped if query writers prefer the UNION approach
-4. Verify the migration `downgrade()` is correct (reverse order)
-5. Confirm ruff passes on both tracked files
+1. Confirm `POSITION_GROUPS` now has 3 separate groups for LB/DB/S — verify `defense.get("S", [])` returns SS+FS players via `build_roster_map`
+2. Confirm SACK now uses pre-picked `dl_rusher or lb_rusher` (not a separate pick) — check that `d_name` is from `sacker`, not a discarded `def_slot`
+3. Confirm `POSITION_DISTRIBUTION` sums to 85 (assert runs at import time — will raise if wrong)
+4. Verify TURNOVER_INTERCEPTION and PASS_COMPLETE interceptor/tackler now picks from `DB or S` (expanded vs old `DB`-only)
+5. Note pre-existing ruff errors — not introduced by this sprint, can be fixed in a cleanup sprint
