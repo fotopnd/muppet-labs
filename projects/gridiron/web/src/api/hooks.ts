@@ -13,6 +13,7 @@ import type {
   PlayerRoster,
   PlayerDetail,
   ProgramStats,
+  CoachDetail,
   ConglomerateOut,
   ConglomerateStandings,
   Leaderboards,
@@ -99,6 +100,13 @@ export function usePlayer(playerId: number) {
   return useQuery({
     queryKey: ['player', playerId],
     queryFn: () => apiFetch<PlayerDetail>(`/players/${playerId}`),
+  })
+}
+
+export function useCoach(coachId: number) {
+  return useQuery({
+    queryKey: ['coach', coachId],
+    queryFn: () => apiFetch<CoachDetail>(`/coaches/${coachId}`),
   })
 }
 

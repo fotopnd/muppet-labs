@@ -118,6 +118,35 @@ class PlayerDetail(BaseModel):
     games_played: int = 0
 
 
+class CoachSeasonRow(BaseModel):
+    season: int
+    program_name: str
+    program_emoji: str
+    wins: int
+    losses: int
+    win_pct: float
+    off_yards: int
+    pass_yards: int
+    rush_yards: int
+    def_yards_allowed: int
+    sacks: int
+    interceptions: int
+    games_played: int
+
+
+class CoachDetail(BaseModel):
+    coach_id: int
+    first_name: str
+    last_name: str
+    role: str
+    rating: float
+    program_id: int
+    program_name: str
+    program_emoji: str
+    conglomerate_code: str
+    seasons: list[CoachSeasonRow]
+
+
 class StatLeader(BaseModel):
     player_id: int
     name: str

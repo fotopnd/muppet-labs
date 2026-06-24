@@ -39,6 +39,35 @@ export type PlayerDetail = {
   games_played: number
 }
 
+export type CoachSeasonRow = {
+  season: number
+  program_name: string
+  program_emoji: string
+  wins: number
+  losses: number
+  win_pct: number
+  off_yards: number
+  pass_yards: number
+  rush_yards: number
+  def_yards_allowed: number
+  sacks: number
+  interceptions: number
+  games_played: number
+}
+
+export type CoachDetail = {
+  coach_id: number
+  first_name: string
+  last_name: string
+  role: string
+  rating: number
+  program_id: number
+  program_name: string
+  program_emoji: string
+  conglomerate_code: string
+  seasons: CoachSeasonRow[]
+}
+
 export type ConglomerateOut = {
   id: number
   code: string
