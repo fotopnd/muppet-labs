@@ -35,7 +35,7 @@ Its job is to answer: how do we run this workspace better next time?
 2. Reconstruct the project arc from project-state.md: how many sessions, which roles ran, where blockers occurred, which decisions were reversed.
 3. Assess across four dimensions (see output structure below):
    - **What went well** — patterns to preserve and reinforce
-   - **What could have gone better** — friction points, rework, misalignments between roles
+   - **What could have gone better** — friction points, rework, misalignments between roles. Always check: did the reviewer perform live runtime verification before declaring PASS? If not, flag it.
    - **Token efficiency** — where context was bloated, redundant, or poorly scoped
    - **Workspace improvements** — specific actionable changes to resources/, skills/, or routing.md
 4. For each workspace improvement, specify the exact file to change and what the change is.

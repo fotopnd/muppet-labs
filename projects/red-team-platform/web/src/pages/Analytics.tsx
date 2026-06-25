@@ -17,7 +17,7 @@ import {
 import { StrategyComparison } from '@/pages/StrategyComparison'
 import { ModelComparison } from '@/components/ModelComparison'
 import { ModelCategoryHeatmap } from '@/components/ModelCategoryHeatmap'
-import { TopFailuresTable } from '@/components/TopFailuresTable'
+
 import { categoryColour, labelName } from '@/lib/categoryLabels'
 import type { RunEvent } from '@/types'
 
@@ -502,7 +502,6 @@ export function Analytics() {
           <div className="flex gap-3 text-xs ml-auto">
             <a href="#models" className="text-accent hover:underline">Models ↓</a>
             <a href="#categories" className="text-accent hover:underline">Categories ↓</a>
-            <a href="#failures" className="text-accent hover:underline">Failures ↓</a>
           </div>
         </div>
         <p className="text-xs text-text-muted mb-4">
@@ -520,7 +519,6 @@ export function Analytics() {
           <div className="flex gap-3 text-xs ml-auto">
             <a href="#strategy" className="text-accent hover:underline">↑</a>
             <a href="#categories" className="text-accent hover:underline">Categories ↓</a>
-            <a href="#failures" className="text-accent hover:underline">Failures ↓</a>
           </div>
         </div>
         <p className="text-xs text-text-muted mb-4">
@@ -537,7 +535,6 @@ export function Analytics() {
           <h2 className="text-base font-semibold text-text-primary">Model × Harm Category</h2>
           <div className="flex gap-3 text-xs ml-auto">
             <a href="#models" className="text-accent hover:underline">↑</a>
-            <a href="#failures" className="text-accent hover:underline">Failures ↓</a>
           </div>
         </div>
         <p className="text-xs text-text-muted mb-4">
@@ -548,28 +545,6 @@ export function Analytics() {
         </div>
       </div>
 
-      <hr className="border-border mx-4" />
-
-      {/* Top Failures */}
-      <div id="failures" className="p-4 mt-2">
-        <div className="flex items-center gap-4 mb-1">
-          <h2 className="text-base font-semibold text-text-primary">Top Failures</h2>
-          <div className="flex gap-3 text-xs ml-auto">
-            <a href="#categories" className="text-accent hover:underline">↑</a>
-          </div>
-        </div>
-        <p className="text-xs text-text-muted mb-4">
-          Highest-confidence jailbreak successes — the attacks where the model most fully complied.
-          Click any row to see the full prompt and model response.
-        </p>
-        <TopFailuresTable />
-        <div className="mt-4 bg-surface border border-border rounded-lg px-4 py-3 text-xs text-text-muted">
-          <span className="font-semibold text-text-secondary">Data provenance · </span>
-          11,688 runs collected June 2026 · 13 strategies × 3,900 unique prompts × 3 models ·
-          harm categories assigned via RoBERTa-base taxonomy classifier (WildGuard) · jailbreak
-          success judged by <span className="font-mono">claude-haiku-4-5</span> at 0.5 threshold
-        </div>
-      </div>
     </div>
   )
 }

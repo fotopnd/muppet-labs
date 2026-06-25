@@ -25,5 +25,140 @@
       "_config/project-state.md"
     ],
     "project": "\u2014"
+  },
+  {
+    "ts": "2026-06-23T21:39:56.963752+00:00",
+    "tool": "transition_role",
+    "action": "archive",
+    "files_affected": [
+      "roles/planner/archive/2026-06-23-gridiron-defensive-positions-output.md"
+    ],
+    "from_role": "planner",
+    "to_role": "architect",
+    "project": "gridiron-defensive-positions"
+  },
+  {
+    "ts": "2026-06-23T21:44:09.621791+00:00",
+    "tool": "atomic_write_feature",
+    "action": "write",
+    "files_affected": [
+      "roles/architect/output/output.md"
+    ],
+    "manifest_note": "Architect output for gridiron-defensive-positions sprint"
+  },
+  {
+    "ts": "2026-06-23T21:44:16.477605+00:00",
+    "tool": "transition_role",
+    "action": "archive",
+    "files_affected": [
+      "roles/architect/archive/2026-06-23-gridiron-defensive-positions-output.md"
+    ],
+    "from_role": "architect",
+    "to_role": "implementer",
+    "project": "gridiron-defensive-positions"
+  },
+  {
+    "ts": "2026-06-23T21:49:15.394340+00:00",
+    "tool": "atomic_write_feature",
+    "action": "write",
+    "files_affected": [
+      "roles/implementer/output/output.md"
+    ],
+    "manifest_note": "Implementer output for gridiron-defensive-positions sprint"
+  },
+  {
+    "ts": "2026-06-23T21:49:31.669119+00:00",
+    "tool": "transition_role",
+    "action": "archive",
+    "files_affected": [
+      "roles/implementer/archive/2026-06-23-gridiron-defensive-positions-output.md"
+    ],
+    "from_role": "implementer",
+    "to_role": "reviewer",
+    "project": "gridiron-defensive-positions"
+  },
+  {
+    "ts": "2026-06-23T21:50:54.512979+00:00",
+    "tool": "atomic_write_feature",
+    "action": "write",
+    "files_affected": [
+      "roles/reviewer/output/output.md"
+    ],
+    "manifest_note": "Reviewer output for gridiron-defensive-positions sprint"
+  },
+  {
+    "ts": "2026-06-23T21:51:00.449931+00:00",
+    "tool": "transition_role",
+    "action": "archive",
+    "files_affected": [
+      "roles/reviewer/archive/2026-06-23-gridiron-defensive-positions-output.md"
+    ],
+    "from_role": "reviewer",
+    "to_role": "retro",
+    "project": "gridiron-defensive-positions"
+  },
+  {
+    "ts": "2026-06-23T21:51:53.087252+00:00",
+    "tool": "atomic_write_feature",
+    "action": "write",
+    "files_affected": [
+      "roles/retro/output/output.md"
+    ],
+    "manifest_note": "Retro output for gridiron-defensive-positions sprint"
+  },
+  {
+    "ts": "2026-06-24T15:41:51.026613+00:00",
+    "tool": "transition_role",
+    "action": "archive",
+    "files_affected": [
+      "roles/brief/archive/2026-06-24-gridiron-coaches-pages-output.md"
+    ],
+    "from_role": "brief",
+    "to_role": "planner",
+    "project": "gridiron-coaches-pages"
+  },
+  {
+    "ts": "2026-06-24T15:42:25.667339+00:00",
+    "tool": "transition_role",
+    "action": "archive",
+    "files_affected": [
+      "roles/planner/archive/2026-06-24-gridiron-coaches-pages-output.md"
+    ],
+    "from_role": "planner",
+    "to_role": "architect",
+    "project": "gridiron-coaches-pages"
+  },
+  {
+    "ts": "2026-06-24T15:43:17.347670+00:00",
+    "tool": "transition_role",
+    "action": "archive",
+    "files_affected": [
+      "roles/architect/archive/2026-06-24-gridiron-coaches-pages-output.md"
+    ],
+    "from_role": "architect",
+    "to_role": "implementer",
+    "project": "gridiron-coaches-pages"
+  },
+  {
+    "ts": "2026-06-24T15:53:32.778758+00:00",
+    "tool": "transition_role",
+    "action": "archive",
+    "files_affected": [
+      "roles/implementer/archive/2026-06-24-gridiron-coaches-pages-output.md"
+    ],
+    "from_role": "implementer",
+    "to_role": "reviewer",
+    "project": "gridiron-coaches-pages"
+  },
+  {
+    "ts": "2026-06-24T15:54:29.097298+00:00",
+    "tool": "transition_role",
+    "action": "archive",
+    "files_affected": [
+      "roles/reviewer/archive/2026-06-24-gridiron-coaches-pages-output.md"
+    ],
+    "from_role": "reviewer",
+    "to_role": "retro",
+    "project": "gridiron-coaches-pages"
   }
 ]

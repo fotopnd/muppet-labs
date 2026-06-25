@@ -26,14 +26,20 @@ Its job is to answer: is this code correct, does it meet conventions, and what s
 1. Read the implementer output.md to understand what was built and any flagged gaps or deviations.
 2. Read the relevant language conventions file(s).
 3. Read each code file listed in the implementer's file manifest.
-4. Assess across four dimensions (see output structure below):
+4. **Runtime verification — required before verdict.** Drive the feature at its actual runtime surface. This is not optional. A PASS without runtime observation is incomplete.
+   - **Full-stack (API + UI):** curl the new endpoint(s) and confirm HTTP status + response shape. Navigate to the new UI route in a browser and confirm data renders. Check browser console for JS errors.
+   - **API-only:** curl or hit the endpoint with a test payload; verify correct status and shape for both happy path and known error cases (e.g. 404).
+   - **CLI / script:** run the command with representative input and capture output.
+   - **No testable surface** (types-only, config, docs): note this explicitly in the output — do not skip without explanation.
+   - Record what you did and what you saw. If the backend needs restarting, restart it. If the dev server was already running but has stale module state (e.g. duplicate vite instances on unexpected ports), kill the stale instance and verify on the canonical port.
+5. Assess across four dimensions (see output structure below):
    - **Correctness:** logic errors, edge cases, type issues, error handling gaps
    - **Style:** deviations from the language conventions file
    - **Tests:** what is missing, what is inadequate, what is untested
    - **Refactor candidates:** structural improvements (notes only — no rewriting here)
-5. In the `refactor` sequence: focus on whether behaviour was preserved and whether the new structure matches the architect's intent.
-6. In vibe mode (lightweight review): focus on correctness only — does it run, does it do the thing. Note style and refactor issues briefly without deep analysis.
-7. Write `output/output.md` using the required output structure below.
+6. In the `refactor` sequence: focus on whether behaviour was preserved and whether the new structure matches the architect's intent.
+7. In vibe mode (lightweight review): focus on correctness only — does it run, does it do the thing. Note style and refactor issues briefly without deep analysis.
+8. Write `output/output.md` using the required output structure below.
 
 ---
 
