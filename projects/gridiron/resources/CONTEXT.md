@@ -30,6 +30,7 @@ Portfolio piece demonstrating live SSE streaming, event-driven analytics, and re
 - Backend: Python / FastAPI / SQLAlchemy async / PostgreSQL
 - Frontend: React 19 / TypeScript / Tailwind v4 / Vite
 - Streaming: SSE (in-process asyncio queue, single uvicorn worker)
+- Analytics: dbt-postgres / `analytics` schema in PostgreSQL (run with `--python 3.12`)
 - Ports: backend 8006 · DB 5438 · frontend dev 5177
 - Deploy: Hetzner CX23 (systemd) + Cloudflare Pages
 
@@ -161,9 +162,9 @@ Single uvicorn worker constraint maintained (in-process state).
 
 _Update this section at the end of each session._
 
-**Last session:** 2026-06-20 — NAFCA brand guide and 130-team roster incorporated; all 5 conglomerate names, network identities, and brand palettes locked; UNIVERSE-SEEDING.md rebuilt with full team assignments; writing-voice.md updated with brand palettes
-**Blocked on:** UAC Tier 1 placeholder (1 team slot needs replacement); secret player attributes (TBD); fictional team names / relocated cities pass; player/coach data scrape
-**Next action:** Resolve UAC placeholder → fictional naming pass → roster scrape → run planner role
+**Last session:** 2026-06-25 — dbt analytics layer built (`analytics/`): 4 staging views, 3 intermediate views, 3 materialised mart tables (program_standings, player_leaderboard, rivalry_records). All 10 models + 12 source tests passing. README written.
+**Blocked on:** No games completed yet (sim not run against production DB) — marts will populate on first slate.
+**Next action:** Write frontend brief → planner → architect → implementer.
 
 ---
 
