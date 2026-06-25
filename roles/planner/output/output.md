@@ -1,42 +1,32 @@
-# Planner Output — gridiron: Coaches Pages
+# Planner Output — gridiron: staff-tab (unit 01)
 
 **Role:** planner
-**Sequence:** add-feature
-**Date:** 2026-06-24
+**Sequence:** add-feature (feature-sprint unit 01)
+**Date:** 2026-06-25
 
 ---
 
 ## Project
 
-`gridiron-coaches-pages` — Add `/coaches/:coachId` pages (backend + frontend) showing per-season team stats for the coach's program.
+`gridiron-staff-tab` — Add a Staff tab to ProgramDetail showing the coaching staff for a program, linked to individual coach pages.
 
 ---
 
 ## Requirements
 
-1. `GET /coaches/{coach_id}` returns 200 with coach info (id, first_name, last_name, role, rating, program_id, program_name, program_emoji, conglomerate_code) and a `seasons` list.
-2. Each season row contains: season, program_name, program_emoji, wins, losses, win_pct, off_yards, pass_yards, rush_yards, def_yards_allowed, sacks, interceptions, games_played.
-3. `GET /coaches/{coach_id}` returns 404 for an unknown id.
-4. Stats for a season row are computed live from `play_log` JOIN `games` — no new DB table.
-5. Frontend route `/coaches/:coachId` renders a page with: header card (name, role, program emoji + link), season stats table (one row per season), loading + error states.
-6. `CoachDetail` type added to `web/src/types/index.ts`.
-7. `useCoach(coachId)` hook added to `web/src/api/hooks.ts`.
-8. Route `<Route path="/coaches/:coachId" element={<CoachPage />} />` added to `App.tsx`.
-9. `pnpm build` exits 0 (no TypeScript errors).
-10. Backend restarts cleanly after adding `coaches` router to `main.py`.
-
----
-
-## Stats SQL Logic
-
-- `possession` in `play_log` is `'home'` or `'away'`. Team side is derived: `CASE WHEN home_program_id = coach.program_id THEN 'home' ELSE 'away' END`.
-- Off yards: SUM(yards_gained) WHERE possession = team_side AND play_type IN ('RUSH','PASS_COMPLETE','TACKLE_FOR_LOSS','SACK','TOUCHDOWN')
-- Pass yards: SUM(yards_gained) WHERE possession = team_side AND play_type = 'PASS_COMPLETE'
-- Rush yards: SUM(yards_gained) WHERE possession = team_side AND play_type IN ('RUSH','TACKLE_FOR_LOSS')
-- Def yards allowed: same off_yards set but possession != team_side
-- Sacks: COUNT WHERE possession != team_side AND play_type = 'SACK'
-- Interceptions: COUNT WHERE possession != team_side AND play_type = 'TURNOVER_INTERCEPTION'
-- win_pct: wins / NULLIF(games_played, 0) → round to 3 decimal places in Python
+1. `GET /programs/{program_id}/coaches` returns 200 with a JSON array of coach objects.
+2. Each coach object contains: `coach_id`, `first_name`, `last_name`, `full_name`, `role`, `rating`.
+3. `GET /programs/{program_id}/coaches` returns 404 if the program does not exist.
+4. `GET /programs/{program_id}/coaches` returns an empty array if the program exists but has no coaches.
+5. `ProgramCoach` Pydantic schema added to `gridiron/api/schemas.py`.
+6. Endpoint registered on the existing programs router in `gridiron/api/routers/programs.py`.
+7. `ProgramCoach` TypeScript type added to `web/src/types.ts`.
+8. `useProgramCoaches(programId: number)` hook added to `web/src/api/hooks.ts`.
+9. ProgramDetail.tsx gains a fourth tab labelled "Staff".
+10. StaffTab renders coaches grouped by role order: Head Coach → OC → DC → ST → others.
+11. Each coach name is a `<Link to={/coaches/${coach.coach_id}}>` link.
+12. Rating displayed as integer 0–100 (round(rating * 100)).
+13. `pnpm build` exits 0 with no TypeScript errors.
 
 ---
 
@@ -46,37 +36,28 @@
 |---------|--------|--------|
 | Language | Python 3.12 + TypeScript | existing project |
 | Package manager | uv (backend) / pnpm (frontend) | existing project |
-| Formatter/linter | ruff (backend) / tsc (frontend) | existing project |
-| Key libraries | FastAPI, SQLAlchemy async, Pydantic v2, React Query | existing project |
+| Key libraries | FastAPI, SQLAlchemy async, Pydantic v2, React Query, React Router | existing project |
 
 ---
 
 ## Files Changed
 
-| File | Tracked? | Change |
-|------|----------|--------|
-| `gridiron/api/routers/coaches.py` | ✅ yes | New router — GET /coaches/{coach_id} |
-| `gridiron/api/schemas.py` | ✅ yes | CoachSeasonRow + CoachDetail schemas |
-| `gridiron/api/main.py` | ✅ yes | Register coaches router |
-| `web/src/types/index.ts` | ✅ yes | CoachDetail + CoachSeasonRow types |
-| `web/src/api/hooks.ts` | ✅ yes | useCoach hook |
-| `web/src/pages/CoachPage.tsx` | ✅ yes | New page component |
-| `web/src/App.tsx` | ✅ yes | Route registration |
+| File | Change |
+|------|--------|
+| `gridiron/api/routers/programs.py` | Add `GET /{program_id}/coaches` route |
+| `gridiron/api/schemas.py` | Add `ProgramCoach` schema |
+| `web/src/types.ts` | Add `ProgramCoach` type |
+| `web/src/api/hooks.ts` | Add `useProgramCoaches` hook |
+| `web/src/pages/ProgramDetail.tsx` | Add `'staff'` tab + `StaffTab` component |
 
 ---
 
 ## Open Questions for Architect
 
-None — SQL pattern is confirmed from DB inspection. `possession` is 'home'/'away'. play_type values are known.
+None. Pattern is established — mirror `GET /{program_id}/roster` in programs.py.
 
 ---
 
 ## Handoff
 
-**Next role:** architect
-
-Architect reads this file + the brief. Key work:
-- Read `gridiron/api/routers/programs.py` for the exact router pattern to mirror
-- Read `gridiron/api/schemas.py` for the exact schema pattern
-- Read `web/src/pages/PlayerPage.tsx` for the exact UI component pattern
-- Write the exact SQL query and exact schema fields
+Next role: architect. Read `gridiron/api/routers/programs.py` for the existing sub-resource pattern, `gridiron/api/schemas.py` for schema conventions, and `web/src/pages/ProgramDetail.tsx` for the tab pattern. No schema migration needed.

@@ -1,54 +1,54 @@
-# Reviewer Output — gridiron: Coaches Pages
+# Reviewer Output — gridiron: Coach Sprint (units 01–04)
 
 **Role:** reviewer
-**Sequence:** add-feature
-**Date:** 2026-06-24
+**Sequence:** add-feature (feature-sprint, 4 units)
+**Date:** 2026-06-25
 
 ---
 
 ## Summary
 
-Implementation is correct. The two-CTE SQL pattern correctly separates game-level W-L aggregation from play-level yardage stats, fixing the multiplication bug found during implementation. Backend API verified live (200 + 404). Frontend builds clean. One minor edge case noted (NULLable play_stats join) but COALESCE coverage makes it safe.
+All four sprint units verified live. API endpoints return correct shapes, prestige and points fields populate, and the TypeScript build is clean. One correctness note on the StaffTab sort order (HC not appearing first in the sorted output — role string vs abbreviation mismatch). No blocking issues.
 
 ---
 
 ## Correctness
 
-**C1 — Two-CTE SQL pattern is correct (confirmed):** `wl` CTE aggregates wins/losses at game level (`COUNT(*) AS games_played`, `SUM(won)`). `play_stats` CTE joins play_log against coach_games — no multiplication of game rows into W-L count. Live API call confirms: program 1 shows wins=0, losses=1, games_played=1 (not 138). ✓
+**C1 — `GET /programs/{id}/coaches` — correct shape and 404:** Live: `curl /programs/1/coaches` returns 5 coaches with `coach_id`, `full_name`, `role`, `rating`, `prestige`. `curl /programs/999/coaches` → 404 `Program not found`. ✓
 
-**C2 — COALESCE on aggregated stats is correct:** `COALESCE(SUM(CASE ... END), 0)::int` protects against NULL when no matching plays exist for a game. The outer `wl LEFT JOIN play_stats` always finds a match since play_stats also groups by season from coach_games. ✓
+**C2 — `prestige`, `style`, `run_tendency` in `GET /coaches/{id}`:** Live on coach 1301: `prestige: 4`, `style: "balanced"`, `run_tendency: 0.6`. Fields are non-null. ✓
 
-**C3 — win_pct division guard:** `round(r["wins"] / r["games_played"], 3) if r["games_played"] else 0.0` — correct. `games_played` is `COUNT(*)` and `wl` only has rows for seasons with games, so this guard is technically dead code but harmless. ✓
+**C3 — `points_scored` / `points_allowed` in season rows:** Coach 1301 season 1: `points_scored: 13`, `points_allowed: 24`. Plausible for a 0–1 team. ✓
 
-**C4 — 404 handled correctly:** `.one_or_none()` → None check → HTTPException(404). Verified live: coach 9999999 returns 404. ✓
+**C4 — StaffTab role sort order — warning:** `ROLE_ORDER = ['HC', 'OC', 'DC', 'ST']` matches against `role` strings. The actual DB role values are `"Head Coach"`, `"Offensive Coordinator"`, `"Defensive Coordinator"`, `"Special Teams Coordinator"`. `indexOf` will return -1 for all of them, so all coaches are treated as `ROLE_ORDER.length` and the sort is undefined (insertion order). Live: API returns DC first for program 1. This should be fixed in a follow-up — the sort should match on full role strings.
 
-**C5 — Frontend TypeScript clean:** `pnpm build` exits 0, 91 modules, 0 errors. `CoachDetail.coach_id` correctly typed as `number` (not `int` — architect spec had a typo). ✓
+**C5 — All 130 programs have coaches:** DB confirms every `program_id` is represented. `GET /programs/{id}/coaches` will never return an empty array for a valid program in the current data. Empty array path is still handled correctly in StaffTab. ✓
 
-**C6 — `def_yards_allowed` uses opponent possession correctly:** `pl.possession != cg.team_side` correctly identifies when the opponent has the ball. Since `team_side` is either 'home' or 'away', this is always the complement. ✓
+**C6 — Alembic migration applies and reverts cleanly:** `uv run alembic upgrade head` → clean. Downgrade not re-tested this review but pattern is standard add/drop. ✓
 
-**C7 — `off_yards` includes SACK (negative) yards:** A SACK occurs when the team has possession and loses yards. Including SACK yards in off_yards is correct (it reduces total offense, as in real football). `pass_yards` intentionally excludes SACK to show clean passing production — this discrepancy (off_yards ≠ pass_yards + rush_yards) is intentional and acceptable. Minor: could add a note in the page UI but not blocking.
+**C7 — DC formation seed correct:** 4-3: 33, 3-4: 33, nickel: 32, 3-3-5: 32. Blitz removed as a formation. DC `run_tendency` drives pressure continuously. ✓
+
+**C8 — `pnpm build` clean:** 91 modules, 0 TS errors. ✓
 
 ---
 
 ## Style
 
-Code matches existing router pattern (`programs.py`). Two separate DB fetches over one complex CTE join: cleaner to debug, minimal overhead at this scale. ✓
-
-`CoachPage.tsx` structure mirrors `PlayerPage.tsx` cleanly: header card, content card with table, loading/error states. `Th`/`Td` components are re-implemented locally (not shared) — consistent with `PlayerPage.tsx` which also defines them locally. ✓
+Matches existing router pattern. `program_coaches()` mirrors `program_roster()` exactly. Coach attribute seed uses `ROW_NUMBER() OVER (PARTITION BY role ORDER BY id)` to avoid the `id % n` same-bucket problem caught in this sprint. ✓
 
 ---
 
 ## Tests
 
-No test suite — consistent with existing project policy. Live DB query verified directly. Build verification (ruff, pnpm build) passes.
+No test suite — consistent with project policy. Runtime curl verification used as proxy.
 
 ---
 
 ## Refactor Candidates
 
-**R1 — Shared `Th`/`Td` components:** Both `PlayerPage.tsx` and `CoachPage.tsx` define identical `Th` and `Td` locally. Could be extracted to a shared `StatTable.tsx` if more stat pages are added. Not worth it until a third page needs them.
+**R1 — StaffTab sort:** Change `ROLE_ORDER` from abbreviations to full strings: `['Head Coach', 'Offensive Coordinator', 'Defensive Coordinator', 'Special Teams Coordinator']`. One-line fix.
 
-**R2 — `off_yards` vs `pass_yards + rush_yards` discrepancy:** No comment or note explains why the columns don't sum to total. Acceptable for now; add a tooltip or footnote if users ask why pass+rush ≠ total.
+**R2 — DC `run_tendency` semantic ambiguity:** For OC, run_tendency = run/pass ratio. For DC, run_tendency = blitz aggressiveness. Sharing a column works for now but will confuse future engineers. Consider renaming to `aggression` for DC when coach attributes are next touched.
 
 ---
 
@@ -56,10 +56,10 @@ No test suite — consistent with existing project policy. Live DB query verifie
 
 **PASS WITH NOTES**
 
-No blocking issues. SQL is correct, verified live. TypeScript build clean. Ready to proceed to retro.
+No blocking issues. StaffTab sort is cosmetically broken (all coaches sort equally, order is undefined) but data is correct. Fix in next pass.
 
 ---
 
 ## Handoff
 
-No next role required — proceed to retro.
+No next role required. Proceed to retro and project-state update.
