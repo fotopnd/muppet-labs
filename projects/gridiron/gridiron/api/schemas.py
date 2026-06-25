@@ -149,6 +149,9 @@ class CoachDetail(BaseModel):
     last_name: str
     role: str
     rating: float
+    run_tendency: float
+    style: str
+    prestige: int
     program_id: int
     program_name: str
     program_emoji: str

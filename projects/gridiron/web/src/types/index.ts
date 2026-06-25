@@ -61,6 +61,9 @@ export type CoachDetail = {
   last_name: string
   role: string
   rating: number
+  run_tendency: number
+  style: string
+  prestige: number
   program_id: number
   program_name: string
   program_emoji: string

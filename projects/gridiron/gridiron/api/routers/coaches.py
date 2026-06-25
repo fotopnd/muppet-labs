@@ -16,6 +16,7 @@ async def get_coach(coach_id: int, db: AsyncSession = Depends(get_db)) -> CoachD
         await db.execute(
             text("""
         SELECT c.id AS coach_id, c.first_name, c.last_name, c.role, c.rating,
+               c.run_tendency, c.style, c.prestige,
                c.program_id, p.name AS program_name, p.emoji AS program_emoji,
                cg.code AS conglomerate_code
         FROM coaches c
@@ -117,6 +118,9 @@ async def get_coach(coach_id: int, db: AsyncSession = Depends(get_db)) -> CoachD
         last_name=coach_row["last_name"],
         role=coach_row["role"],
         rating=coach_row["rating"],
+        run_tendency=coach_row["run_tendency"],
+        style=coach_row["style"],
+        prestige=coach_row["prestige"],
         program_id=coach_row["program_id"],
         program_name=coach_row["program_name"],
         program_emoji=coach_row["program_emoji"],
