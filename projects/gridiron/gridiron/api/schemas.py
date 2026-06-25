@@ -88,6 +88,7 @@ class ProgramCoach(BaseModel):
     full_name: str
     role: str
     rating: float
+    prestige: int
 
 
 class PlayerDetail(BaseModel):
@@ -141,6 +142,8 @@ class CoachSeasonRow(BaseModel):
     sacks: int
     interceptions: int
     games_played: int
+    points_scored: int = 0
+    points_allowed: int = 0
 
 
 class CoachDetail(BaseModel):

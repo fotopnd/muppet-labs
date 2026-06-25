@@ -263,6 +263,10 @@ function StaffTab({ programId }: { programId: number }) {
               <Link to={`/coaches/${c.coach_id}`} className="hover:text-accent transition-colors">
                 {c.full_name}
               </Link>
+              <span className="ml-1.5 text-xs select-none">
+                <span className="text-yellow-400">{'★'.repeat(c.prestige)}</span>
+                <span className="text-text-muted">{'☆'.repeat(5 - c.prestige)}</span>
+              </span>
             </td>
             <td className="py-2 text-right tabular-nums">{Math.round(c.rating * 100)}</td>
           </tr>

@@ -27,6 +27,8 @@ function SeasonRow({ s }: { s: CoachSeasonRow }) {
       <Td>{s.def_yards_allowed.toLocaleString()}</Td>
       <Td>{s.sacks}</Td>
       <Td>{s.interceptions}</Td>
+      <Td>{s.points_scored}</Td>
+      <Td>{s.points_allowed}</Td>
     </tr>
   )
 }
@@ -55,6 +57,10 @@ export default function CoachPage() {
             >
               {coach.program_emoji} {coach.program_name}
             </Link>
+            <div className="mt-1 text-base tracking-tight select-none">
+              <span className="text-yellow-400">{'★'.repeat(coach.prestige)}</span>
+              <span className="text-text-muted">{'☆'.repeat(5 - coach.prestige)}</span>
+            </div>
           </div>
           <span className="text-4xl select-none">{coach.program_emoji}</span>
         </div>
@@ -85,6 +91,8 @@ export default function CoachPage() {
                   <Th>Def Yds</Th>
                   <Th>Sacks</Th>
                   <Th>INT</Th>
+                  <Th>Pts</Th>
+                  <Th>PA</Th>
                 </tr>
               </thead>
               <tbody>

@@ -82,11 +82,23 @@ async def get_coach(coach_id: int, db: AsyncSession = Depends(get_db)) -> CoachD
             FROM coach_games cg
             LEFT JOIN play_log pl ON pl.game_id = cg.game_id
             GROUP BY cg.season
+        ),
+        points_cte AS (
+            SELECT cg.season,
+                SUM(CASE WHEN cg.team_side = 'home' THEN g.home_score ELSE g.away_score END)::int AS points_scored,
+                SUM(CASE WHEN cg.team_side = 'home' THEN g.away_score ELSE g.home_score END)::int AS points_allowed
+            FROM coach_games cg
+            JOIN games g ON g.id = cg.game_id
+            GROUP BY cg.season
         )
         SELECT wl.season, wl.wins, wl.losses, wl.games_played,
                ps.off_yards, ps.pass_yards, ps.rush_yards,
-               ps.def_yards_allowed, ps.sacks, ps.interceptions
-        FROM wl LEFT JOIN play_stats ps ON ps.season = wl.season
+               ps.def_yards_allowed, ps.sacks, ps.interceptions,
+               COALESCE(pt.points_scored, 0) AS points_scored,
+               COALESCE(pt.points_allowed, 0) AS points_allowed
+        FROM wl
+        LEFT JOIN play_stats ps ON ps.season = wl.season
+        LEFT JOIN points_cte pt ON pt.season = wl.season
         ORDER BY wl.season
     """),
             {"pid": pid},
@@ -108,6 +120,8 @@ async def get_coach(coach_id: int, db: AsyncSession = Depends(get_db)) -> CoachD
             sacks=r["sacks"],
             interceptions=r["interceptions"],
             games_played=r["games_played"],
+            points_scored=r["points_scored"],
+            points_allowed=r["points_allowed"],
         )
         for r in season_rows
     ]

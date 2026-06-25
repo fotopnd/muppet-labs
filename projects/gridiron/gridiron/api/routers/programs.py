@@ -238,7 +238,7 @@ async def program_coaches(
             await db.execute(
                 text("""
         SELECT id AS coach_id, first_name, last_name,
-               first_name || ' ' || last_name AS full_name, role, rating
+               first_name || ' ' || last_name AS full_name, role, rating, prestige
         FROM coaches
         WHERE program_id = :pid
         ORDER BY role

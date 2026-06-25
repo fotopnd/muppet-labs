@@ -53,6 +53,8 @@ export type CoachSeasonRow = {
   sacks: number
   interceptions: number
   games_played: number
+  points_scored: number
+  points_allowed: number
 }
 
 export type CoachDetail = {
@@ -154,6 +156,7 @@ export type ProgramCoach = {
   full_name: string
   role: string
   rating: number
+  prestige: number
 }
 
 export type StatLeader = {
