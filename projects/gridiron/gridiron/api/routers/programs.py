@@ -9,6 +9,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from gridiron.api.schemas import (
     PlayerDetail,
     PlayerRoster,
+    ProgramCoach,
     ProgramDetail,
     ProgramScheduleGame,
     ProgramStats,
@@ -219,6 +220,36 @@ async def program_roster(
         .all()
     )
     return [PlayerRoster.model_validate(dict(r)) for r in rows]
+
+
+@router.get("/programs/{program_id}/coaches", response_model=list[ProgramCoach])
+async def program_coaches(
+    program_id: int,
+    db: AsyncSession = Depends(get_db),
+) -> list[ProgramCoach]:
+    exists = (
+        await db.execute(text("SELECT 1 FROM programs WHERE id = :pid"), {"pid": program_id})
+    ).scalar()
+    if not exists:
+        raise HTTPException(status_code=404, detail="Program not found")
+
+    rows = (
+        (
+            await db.execute(
+                text("""
+        SELECT id AS coach_id, first_name, last_name,
+               first_name || ' ' || last_name AS full_name, role, rating
+        FROM coaches
+        WHERE program_id = :pid
+        ORDER BY role
+    """),
+                {"pid": program_id},
+            )
+        )
+        .mappings()
+        .all()
+    )
+    return [ProgramCoach.model_validate(dict(r)) for r in rows]
 
 
 @router.get("/programs/{program_id}/stats", response_model=ProgramStats)

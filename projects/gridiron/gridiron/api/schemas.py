@@ -81,6 +81,15 @@ class PlayerRoster(BaseModel):
     jersey_num: int
 
 
+class ProgramCoach(BaseModel):
+    coach_id: int
+    first_name: str
+    last_name: str
+    full_name: str
+    role: str
+    rating: float
+
+
 class PlayerDetail(BaseModel):
     player_id: int
     first_name: str

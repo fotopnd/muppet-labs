@@ -11,6 +11,7 @@ import type {
   ProgramDetail,
   ProgramScheduleGame,
   PlayerRoster,
+  ProgramCoach,
   PlayerDetail,
   ProgramStats,
   CoachDetail,
@@ -93,6 +94,13 @@ export function useProgramStats(programId: number) {
   return useQuery({
     queryKey: ['program', programId, 'stats'],
     queryFn: () => apiFetch<ProgramStats>(`/programs/${programId}/stats`),
+  })
+}
+
+export function useProgramCoaches(programId: number) {
+  return useQuery({
+    queryKey: ['program', programId, 'coaches'],
+    queryFn: () => apiFetch<ProgramCoach[]>(`/programs/${programId}/coaches`),
   })
 }
 

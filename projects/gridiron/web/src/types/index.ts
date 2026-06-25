@@ -144,6 +144,15 @@ export type PlayerRoster = {
   jersey_num: number
 }
 
+export type ProgramCoach = {
+  coach_id: number
+  first_name: string
+  last_name: string
+  full_name: string
+  role: string
+  rating: number
+}
+
 export type StatLeader = {
   player_id: number
   name: string

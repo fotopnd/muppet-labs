@@ -5,10 +5,11 @@ import {
   useProgramSchedule,
   useProgramRoster,
   useProgramStats,
+  useProgramCoaches,
 } from '@/api/hooks'
 import StatusBadge from '@/components/StatusBadge'
 
-type Tab = 'schedule' | 'roster' | 'stats'
+type Tab = 'schedule' | 'roster' | 'stats' | 'staff'
 
 const YEAR_CLASS = ['', 'Freshman', 'Sophomore', 'Junior', 'Senior'] as const
 
@@ -49,7 +50,7 @@ export default function ProgramDetail() {
 
       {/* Tabs */}
       <div className="flex gap-1 border-b border-border mb-4">
-        {(['schedule', 'roster', 'stats'] as Tab[]).map((t) => (
+        {(['schedule', 'roster', 'stats', 'staff'] as Tab[]).map((t) => (
           <button
             key={t}
             onClick={() => setTab(t)}
@@ -67,6 +68,7 @@ export default function ProgramDetail() {
       {tab === 'schedule' && <ScheduleTab programId={programId} />}
       {tab === 'roster' && <RosterTab programId={programId} />}
       {tab === 'stats' && <StatsTab programId={programId} />}
+      {tab === 'staff' && <StaffTab programId={programId} />}
     </div>
   )
 }
@@ -226,5 +228,46 @@ function StatGroup({
         </tbody>
       </table>
     </div>
+  )
+}
+
+const ROLE_ORDER = ['HC', 'OC', 'DC', 'ST']
+
+function StaffTab({ programId }: { programId: number }) {
+  const { data, isLoading } = useProgramCoaches(programId)
+  if (isLoading) return <div className="text-text-muted">Loading...</div>
+  if (!data?.length) return <div className="text-text-muted">No coaching staff found.</div>
+
+  const sorted = [...data].sort((a, b) => {
+    const ai = ROLE_ORDER.indexOf(a.role)
+    const bi = ROLE_ORDER.indexOf(b.role)
+    const aOrder = ai === -1 ? ROLE_ORDER.length : ai
+    const bOrder = bi === -1 ? ROLE_ORDER.length : bi
+    return aOrder - bOrder
+  })
+
+  return (
+    <table className="w-full text-sm">
+      <thead>
+        <tr className="text-text-muted text-xs border-b border-border">
+          <th className="text-left py-2 pr-3">Role</th>
+          <th className="text-left py-2 pr-3">Name</th>
+          <th className="text-right py-2">Rating</th>
+        </tr>
+      </thead>
+      <tbody>
+        {sorted.map((c) => (
+          <tr key={c.coach_id} className="border-b border-border/30">
+            <td className="py-2 pr-3 text-text-muted">{c.role}</td>
+            <td className="py-2 pr-3">
+              <Link to={`/coaches/${c.coach_id}`} className="hover:text-accent transition-colors">
+                {c.full_name}
+              </Link>
+            </td>
+            <td className="py-2 text-right tabular-nums">{Math.round(c.rating * 100)}</td>
+          </tr>
+        ))}
+      </tbody>
+    </table>
   )
 }
