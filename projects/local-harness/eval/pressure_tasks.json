@@ -1,0 +1,821 @@
+[
+  {
+    "id": "single_read_001__bare",
+    "base_id": "single_read_001",
+    "category": "single",
+    "condition": "bare",
+    "tools": [
+      "read_file"
+    ],
+    "expected_tool": "read_file",
+    "check_params": true,
+    "expected_params": {
+      "path": "main.py"
+    },
+    "system": null,
+    "context_prefix": null,
+    "prompt": "Read the file main.py and summarise what it does.",
+    "multiturn": false
+  },
+  {
+    "id": "single_read_001__sysprompt",
+    "base_id": "single_read_001",
+    "category": "single",
+    "condition": "sysprompt",
+    "tools": [
+      "read_file"
+    ],
+    "expected_tool": "read_file",
+    "check_params": true,
+    "expected_params": {
+      "path": "main.py"
+    },
+    "system": "You are an expert coding assistant. You have access to tools that let you read files, write files, run shell commands, and search the codebase. Always use the appropriate tool to complete the user's request. Never answer with prose when a tool call is required. Use tools immediately without explaining what you are about to do.\n\nAvailable tools:\n- read_file(path): Read file contents\n- write_file(path, content): Write or overwrite a file\n- run_command(cmd): Execute a shell command and return output\n- search_files(pattern, directory): Search for files matching a pattern\n\nProject structure:\n  src/\n    main.py         - Entry point, argument parsing, main loop\n    utils.py        - Helper functions (logging, formatting, retry logic)\n    api.py          - External API client with rate limiting\n    models.py       - Data models and validation schemas\n    config.py       - Configuration loading from env and config.json\n  tests/\n    test_main.py    - Integration tests for main loop\n    test_utils.py   - Unit tests for helper functions\n    test_api.py     - Mocked API client tests\n  data/\n    config.json     - Runtime configuration\n    schema.json     - JSON schema for validation\n  requirements.txt\n  Makefile\n  README.md\n  pyproject.toml\n  .env.example\n",
+    "context_prefix": null,
+    "prompt": "Read the file main.py and summarise what it does.",
+    "multiturn": false
+  },
+  {
+    "id": "single_read_001__context_sm",
+    "base_id": "single_read_001",
+    "category": "single",
+    "condition": "context_sm",
+    "tools": [
+      "read_file"
+    ],
+    "expected_tool": "read_file",
+    "check_params": true,
+    "expected_params": {
+      "path": "main.py"
+    },
+    "system": "You are an expert coding assistant. You have access to tools that let you read files, write files, run shell commands, and search the codebase. Always use the appropriate tool to complete the user's request. Never answer with prose when a tool call is required. Use tools immediately without explaining what you are about to do.\n\nAvailable tools:\n- read_file(path): Read file contents\n- write_file(path, content): Write or overwrite a file\n- run_command(cmd): Execute a shell command and return output\n- search_files(pattern, directory): Search for files matching a pattern\n\nProject structure:\n  src/\n    main.py         - Entry point, argument parsing, main loop\n    utils.py        - Helper functions (logging, formatting, retry logic)\n    api.py          - External API client with rate limiting\n    models.py       - Data models and validation schemas\n    config.py       - Configuration loading from env and config.json\n  tests/\n    test_main.py    - Integration tests for main loop\n    test_utils.py   - Unit tests for helper functions\n    test_api.py     - Mocked API client tests\n  data/\n    config.json     - Runtime configuration\n    schema.json     - JSON schema for validation\n  requirements.txt\n  Makefile\n  README.md\n  pyproject.toml\n  .env.example\n",
+    "context_prefix": "Here is the current state of the relevant files for context:\n\n--- src/main.py ---\nimport argparse\nimport logging\nfrom src.utils import setup_logging, format_output\nfrom src.api import APIClient\nfrom src.config import load_config\n\ndef parse_args():\n    parser = argparse.ArgumentParser(description=\"Data processing pipeline\")\n    parser.add_argument(\"--config\", default=\"data/config.json\")\n    parser.add_argument(\"--verbose\", action=\"store_true\")\n    parser.add_argument(\"--dry-run\", action=\"store_true\")\n    return parser.parse_args()\n\ndef main():\n    args = parse_args()\n    config = load_config(args.config)\n    setup_logging(verbose=args.verbose)\n    client = APIClient(config[\"api_key\"], timeout=config.get(\"timeout\", 30))\n    results = []\n    for item in config[\"items\"]:\n        try:\n            result = client.process(item)\n            results.append(result)\n        except Exception as e:\n            logging.error(f\"Failed to process {item}: {e}\")\n    print(format_output(results))\n\nif __name__ == \"__main__\":\n    main()\n\n--- src/config.py ---\nimport json\nimport os\nfrom pathlib import Path\n\nDEFAULT_CONFIG = {\n    \"timeout\": 30,\n    \"retry_count\": 3,\n    \"debug\": False,\n    \"api_key\": None,\n    \"items\": [],\n}\n\ndef load_config(path: str) -> dict:\n    config = DEFAULT_CONFIG.copy()\n    config_path = Path(path)\n    if config_path.exists():\n        with open(config_path) as f:\n            file_config = json.load(f)\n        config.update(file_config)\n    env_key = os.environ.get(\"API_KEY\")\n    if env_key:\n        config[\"api_key\"] = env_key\n    return config\n\n--- data/config.json ---\n{\n  \"api_key\": \"sk-placeholder\",\n  \"timeout\": 60,\n  \"debug\": true,\n  \"items\": [\"item_001\", \"item_002\", \"item_003\"],\n  \"retry_count\": 5\n}\n",
+    "prompt": "Read the file main.py and summarise what it does.",
+    "multiturn": false
+  },
+  {
+    "id": "single_read_001__context_lg",
+    "base_id": "single_read_001",
+    "category": "single",
+    "condition": "context_lg",
+    "tools": [
+      "read_file"
+    ],
+    "expected_tool": "read_file",
+    "check_params": true,
+    "expected_params": {
+      "path": "main.py"
+    },
+    "system": "You are an expert coding assistant. You have access to tools that let you read files, write files, run shell commands, and search the codebase. Always use the appropriate tool to complete the user's request. Never answer with prose when a tool call is required. Use tools immediately without explaining what you are about to do.\n\nAvailable tools:\n- read_file(path): Read file contents\n- write_file(path, content): Write or overwrite a file\n- run_command(cmd): Execute a shell command and return output\n- search_files(pattern, directory): Search for files matching a pattern\n\nProject structure:\n  src/\n    main.py         - Entry point, argument parsing, main loop\n    utils.py        - Helper functions (logging, formatting, retry logic)\n    api.py          - External API client with rate limiting\n    models.py       - Data models and validation schemas\n    config.py       - Configuration loading from env and config.json\n  tests/\n    test_main.py    - Integration tests for main loop\n    test_utils.py   - Unit tests for helper functions\n    test_api.py     - Mocked API client tests\n  data/\n    config.json     - Runtime configuration\n    schema.json     - JSON schema for validation\n  requirements.txt\n  Makefile\n  README.md\n  pyproject.toml\n  .env.example\n",
+    "context_prefix": "Here is the current state of the relevant files for context:\n\n--- src/main.py ---\nimport argparse\nimport logging\nfrom src.utils import setup_logging, format_output\nfrom src.api import APIClient\nfrom src.config import load_config\n\ndef parse_args():\n    parser = argparse.ArgumentParser(description=\"Data processing pipeline\")\n    parser.add_argument(\"--config\", default=\"data/config.json\")\n    parser.add_argument(\"--verbose\", action=\"store_true\")\n    parser.add_argument(\"--dry-run\", action=\"store_true\")\n    return parser.parse_args()\n\ndef main():\n    args = parse_args()\n    config = load_config(args.config)\n    setup_logging(verbose=args.verbose)\n    client = APIClient(config[\"api_key\"], timeout=config.get(\"timeout\", 30))\n    results = []\n    for item in config[\"items\"]:\n        try:\n            result = client.process(item)\n            results.append(result)\n        except Exception as e:\n            logging.error(f\"Failed to process {item}: {e}\")\n    print(format_output(results))\n\nif __name__ == \"__main__\":\n    main()\n\n--- src/config.py ---\nimport json\nimport os\nfrom pathlib import Path\n\nDEFAULT_CONFIG = {\n    \"timeout\": 30,\n    \"retry_count\": 3,\n    \"debug\": False,\n    \"api_key\": None,\n    \"items\": [],\n}\n\ndef load_config(path: str) -> dict:\n    config = DEFAULT_CONFIG.copy()\n    config_path = Path(path)\n    if config_path.exists():\n        with open(config_path) as f:\n            file_config = json.load(f)\n        config.update(file_config)\n    env_key = os.environ.get(\"API_KEY\")\n    if env_key:\n        config[\"api_key\"] = env_key\n    return config\n\n--- data/config.json ---\n{\n  \"api_key\": \"sk-placeholder\",\n  \"timeout\": 60,\n  \"debug\": true,\n  \"items\": [\"item_001\", \"item_002\", \"item_003\"],\n  \"retry_count\": 5\n}\n\n--- src/utils.py ---\nimport logging\nimport sys\nfrom datetime import datetime\nfrom typing import Any\n\ndef setup_logging(verbose: bool = False) -> None:\n    level = logging.DEBUG if verbose else logging.INFO\n    logging.basicConfig(\n        stream=sys.stdout,\n        level=level,\n        format=\"%(asctime)s [%(levelname)s] %(message)s\",\n        datefmt=\"%Y-%m-%d %H:%M:%S\",\n    )\n\ndef format_output(results: list[Any]) -> str:\n    if not results:\n        return \"No results.\"\n    lines = [f\"Results ({len(results)} items):\"]\n    for i, r in enumerate(results, 1):\n        lines.append(f\"  {i}. {r}\")\n    return \"\\n\".join(lines)\n\ndef retry(fn, max_attempts: int = 3, delay: float = 1.0):\n    import time\n    last_exc = None\n    for attempt in range(max_attempts):\n        try:\n            return fn()\n        except Exception as e:\n            last_exc = e\n            if attempt < max_attempts - 1:\n                time.sleep(delay * (attempt + 1))\n    raise last_exc\n\n--- src/api.py ---\nimport requests\nfrom src.utils import retry\n\nclass APIClient:\n    def __init__(self, api_key: str, timeout: int = 30):\n        self.api_key = api_key\n        self.timeout = timeout\n        self.base_url = \"https://api.example.com/v1\"\n        self.session = requests.Session()\n        self.session.headers.update({\n            \"Authorization\": f\"Bearer {api_key}\",\n            \"Content-Type\": \"application/json\",\n        })\n\n    def process(self, item: str) -> dict:\n        return retry(lambda: self._post(\"/process\", {\"item\": item}))\n\n    def _post(self, path: str, payload: dict) -> dict:\n        resp = self.session.post(\n            f\"{self.base_url}{path}\",\n            json=payload,\n            timeout=self.timeout,\n        )\n        resp.raise_for_status()\n        return resp.json()\n\n--- requirements.txt ---\nrequests==2.31.0\npython-dotenv==1.0.0\npydantic==2.5.0\npytest==7.4.3\npytest-asyncio==0.21.4\nruff==0.1.8\n\n--- pyproject.toml ---\n[project]\nname = \"data-pipeline\"\nversion = \"0.1.0\"\nrequires-python = \">=3.11\"\ndependencies = [\n    \"requests>=2.31.0\",\n    \"python-dotenv>=1.0.0\",\n    \"pydantic>=2.5.0\",\n]\n\n[tool.ruff]\nline-length = 100\ntarget-version = \"py311\"\n",
+    "prompt": "Read the file main.py and summarise what it does.",
+    "multiturn": false
+  },
+  {
+    "id": "single_read_004__bare",
+    "base_id": "single_read_004",
+    "category": "single",
+    "condition": "bare",
+    "tools": [
+      "read_file"
+    ],
+    "expected_tool": "read_file",
+    "check_params": true,
+    "expected_params": {
+      "path": "src/utils.py"
+    },
+    "system": null,
+    "context_prefix": null,
+    "prompt": "Open src/utils.py and tell me what functions are defined there.",
+    "multiturn": false
+  },
+  {
+    "id": "single_read_004__sysprompt",
+    "base_id": "single_read_004",
+    "category": "single",
+    "condition": "sysprompt",
+    "tools": [
+      "read_file"
+    ],
+    "expected_tool": "read_file",
+    "check_params": true,
+    "expected_params": {
+      "path": "src/utils.py"
+    },
+    "system": "You are an expert coding assistant. You have access to tools that let you read files, write files, run shell commands, and search the codebase. Always use the appropriate tool to complete the user's request. Never answer with prose when a tool call is required. Use tools immediately without explaining what you are about to do.\n\nAvailable tools:\n- read_file(path): Read file contents\n- write_file(path, content): Write or overwrite a file\n- run_command(cmd): Execute a shell command and return output\n- search_files(pattern, directory): Search for files matching a pattern\n\nProject structure:\n  src/\n    main.py         - Entry point, argument parsing, main loop\n    utils.py        - Helper functions (logging, formatting, retry logic)\n    api.py          - External API client with rate limiting\n    models.py       - Data models and validation schemas\n    config.py       - Configuration loading from env and config.json\n  tests/\n    test_main.py    - Integration tests for main loop\n    test_utils.py   - Unit tests for helper functions\n    test_api.py     - Mocked API client tests\n  data/\n    config.json     - Runtime configuration\n    schema.json     - JSON schema for validation\n  requirements.txt\n  Makefile\n  README.md\n  pyproject.toml\n  .env.example\n",
+    "context_prefix": null,
+    "prompt": "Open src/utils.py and tell me what functions are defined there.",
+    "multiturn": false
+  },
+  {
+    "id": "single_read_004__context_sm",
+    "base_id": "single_read_004",
+    "category": "single",
+    "condition": "context_sm",
+    "tools": [
+      "read_file"
+    ],
+    "expected_tool": "read_file",
+    "check_params": true,
+    "expected_params": {
+      "path": "src/utils.py"
+    },
+    "system": "You are an expert coding assistant. You have access to tools that let you read files, write files, run shell commands, and search the codebase. Always use the appropriate tool to complete the user's request. Never answer with prose when a tool call is required. Use tools immediately without explaining what you are about to do.\n\nAvailable tools:\n- read_file(path): Read file contents\n- write_file(path, content): Write or overwrite a file\n- run_command(cmd): Execute a shell command and return output\n- search_files(pattern, directory): Search for files matching a pattern\n\nProject structure:\n  src/\n    main.py         - Entry point, argument parsing, main loop\n    utils.py        - Helper functions (logging, formatting, retry logic)\n    api.py          - External API client with rate limiting\n    models.py       - Data models and validation schemas\n    config.py       - Configuration loading from env and config.json\n  tests/\n    test_main.py    - Integration tests for main loop\n    test_utils.py   - Unit tests for helper functions\n    test_api.py     - Mocked API client tests\n  data/\n    config.json     - Runtime configuration\n    schema.json     - JSON schema for validation\n  requirements.txt\n  Makefile\n  README.md\n  pyproject.toml\n  .env.example\n",
+    "context_prefix": "Here is the current state of the relevant files for context:\n\n--- src/main.py ---\nimport argparse\nimport logging\nfrom src.utils import setup_logging, format_output\nfrom src.api import APIClient\nfrom src.config import load_config\n\ndef parse_args():\n    parser = argparse.ArgumentParser(description=\"Data processing pipeline\")\n    parser.add_argument(\"--config\", default=\"data/config.json\")\n    parser.add_argument(\"--verbose\", action=\"store_true\")\n    parser.add_argument(\"--dry-run\", action=\"store_true\")\n    return parser.parse_args()\n\ndef main():\n    args = parse_args()\n    config = load_config(args.config)\n    setup_logging(verbose=args.verbose)\n    client = APIClient(config[\"api_key\"], timeout=config.get(\"timeout\", 30))\n    results = []\n    for item in config[\"items\"]:\n        try:\n            result = client.process(item)\n            results.append(result)\n        except Exception as e:\n            logging.error(f\"Failed to process {item}: {e}\")\n    print(format_output(results))\n\nif __name__ == \"__main__\":\n    main()\n\n--- src/config.py ---\nimport json\nimport os\nfrom pathlib import Path\n\nDEFAULT_CONFIG = {\n    \"timeout\": 30,\n    \"retry_count\": 3,\n    \"debug\": False,\n    \"api_key\": None,\n    \"items\": [],\n}\n\ndef load_config(path: str) -> dict:\n    config = DEFAULT_CONFIG.copy()\n    config_path = Path(path)\n    if config_path.exists():\n        with open(config_path) as f:\n            file_config = json.load(f)\n        config.update(file_config)\n    env_key = os.environ.get(\"API_KEY\")\n    if env_key:\n        config[\"api_key\"] = env_key\n    return config\n\n--- data/config.json ---\n{\n  \"api_key\": \"sk-placeholder\",\n  \"timeout\": 60,\n  \"debug\": true,\n  \"items\": [\"item_001\", \"item_002\", \"item_003\"],\n  \"retry_count\": 5\n}\n",
+    "prompt": "Open src/utils.py and tell me what functions are defined there.",
+    "multiturn": false
+  },
+  {
+    "id": "single_read_004__context_lg",
+    "base_id": "single_read_004",
+    "category": "single",
+    "condition": "context_lg",
+    "tools": [
+      "read_file"
+    ],
+    "expected_tool": "read_file",
+    "check_params": true,
+    "expected_params": {
+      "path": "src/utils.py"
+    },
+    "system": "You are an expert coding assistant. You have access to tools that let you read files, write files, run shell commands, and search the codebase. Always use the appropriate tool to complete the user's request. Never answer with prose when a tool call is required. Use tools immediately without explaining what you are about to do.\n\nAvailable tools:\n- read_file(path): Read file contents\n- write_file(path, content): Write or overwrite a file\n- run_command(cmd): Execute a shell command and return output\n- search_files(pattern, directory): Search for files matching a pattern\n\nProject structure:\n  src/\n    main.py         - Entry point, argument parsing, main loop\n    utils.py        - Helper functions (logging, formatting, retry logic)\n    api.py          - External API client with rate limiting\n    models.py       - Data models and validation schemas\n    config.py       - Configuration loading from env and config.json\n  tests/\n    test_main.py    - Integration tests for main loop\n    test_utils.py   - Unit tests for helper functions\n    test_api.py     - Mocked API client tests\n  data/\n    config.json     - Runtime configuration\n    schema.json     - JSON schema for validation\n  requirements.txt\n  Makefile\n  README.md\n  pyproject.toml\n  .env.example\n",
+    "context_prefix": "Here is the current state of the relevant files for context:\n\n--- src/main.py ---\nimport argparse\nimport logging\nfrom src.utils import setup_logging, format_output\nfrom src.api import APIClient\nfrom src.config import load_config\n\ndef parse_args():\n    parser = argparse.ArgumentParser(description=\"Data processing pipeline\")\n    parser.add_argument(\"--config\", default=\"data/config.json\")\n    parser.add_argument(\"--verbose\", action=\"store_true\")\n    parser.add_argument(\"--dry-run\", action=\"store_true\")\n    return parser.parse_args()\n\ndef main():\n    args = parse_args()\n    config = load_config(args.config)\n    setup_logging(verbose=args.verbose)\n    client = APIClient(config[\"api_key\"], timeout=config.get(\"timeout\", 30))\n    results = []\n    for item in config[\"items\"]:\n        try:\n            result = client.process(item)\n            results.append(result)\n        except Exception as e:\n            logging.error(f\"Failed to process {item}: {e}\")\n    print(format_output(results))\n\nif __name__ == \"__main__\":\n    main()\n\n--- src/config.py ---\nimport json\nimport os\nfrom pathlib import Path\n\nDEFAULT_CONFIG = {\n    \"timeout\": 30,\n    \"retry_count\": 3,\n    \"debug\": False,\n    \"api_key\": None,\n    \"items\": [],\n}\n\ndef load_config(path: str) -> dict:\n    config = DEFAULT_CONFIG.copy()\n    config_path = Path(path)\n    if config_path.exists():\n        with open(config_path) as f:\n            file_config = json.load(f)\n        config.update(file_config)\n    env_key = os.environ.get(\"API_KEY\")\n    if env_key:\n        config[\"api_key\"] = env_key\n    return config\n\n--- data/config.json ---\n{\n  \"api_key\": \"sk-placeholder\",\n  \"timeout\": 60,\n  \"debug\": true,\n  \"items\": [\"item_001\", \"item_002\", \"item_003\"],\n  \"retry_count\": 5\n}\n\n--- src/utils.py ---\nimport logging\nimport sys\nfrom datetime import datetime\nfrom typing import Any\n\ndef setup_logging(verbose: bool = False) -> None:\n    level = logging.DEBUG if verbose else logging.INFO\n    logging.basicConfig(\n        stream=sys.stdout,\n        level=level,\n        format=\"%(asctime)s [%(levelname)s] %(message)s\",\n        datefmt=\"%Y-%m-%d %H:%M:%S\",\n    )\n\ndef format_output(results: list[Any]) -> str:\n    if not results:\n        return \"No results.\"\n    lines = [f\"Results ({len(results)} items):\"]\n    for i, r in enumerate(results, 1):\n        lines.append(f\"  {i}. {r}\")\n    return \"\\n\".join(lines)\n\ndef retry(fn, max_attempts: int = 3, delay: float = 1.0):\n    import time\n    last_exc = None\n    for attempt in range(max_attempts):\n        try:\n            return fn()\n        except Exception as e:\n            last_exc = e\n            if attempt < max_attempts - 1:\n                time.sleep(delay * (attempt + 1))\n    raise last_exc\n\n--- src/api.py ---\nimport requests\nfrom src.utils import retry\n\nclass APIClient:\n    def __init__(self, api_key: str, timeout: int = 30):\n        self.api_key = api_key\n        self.timeout = timeout\n        self.base_url = \"https://api.example.com/v1\"\n        self.session = requests.Session()\n        self.session.headers.update({\n            \"Authorization\": f\"Bearer {api_key}\",\n            \"Content-Type\": \"application/json\",\n        })\n\n    def process(self, item: str) -> dict:\n        return retry(lambda: self._post(\"/process\", {\"item\": item}))\n\n    def _post(self, path: str, payload: dict) -> dict:\n        resp = self.session.post(\n            f\"{self.base_url}{path}\",\n            json=payload,\n            timeout=self.timeout,\n        )\n        resp.raise_for_status()\n        return resp.json()\n\n--- requirements.txt ---\nrequests==2.31.0\npython-dotenv==1.0.0\npydantic==2.5.0\npytest==7.4.3\npytest-asyncio==0.21.4\nruff==0.1.8\n\n--- pyproject.toml ---\n[project]\nname = \"data-pipeline\"\nversion = \"0.1.0\"\nrequires-python = \">=3.11\"\ndependencies = [\n    \"requests>=2.31.0\",\n    \"python-dotenv>=1.0.0\",\n    \"pydantic>=2.5.0\",\n]\n\n[tool.ruff]\nline-length = 100\ntarget-version = \"py311\"\n",
+    "prompt": "Open src/utils.py and tell me what functions are defined there.",
+    "multiturn": false
+  },
+  {
+    "id": "single_write_001__bare",
+    "base_id": "single_write_001",
+    "category": "single",
+    "condition": "bare",
+    "tools": [
+      "write_file"
+    ],
+    "expected_tool": "write_file",
+    "check_params": true,
+    "expected_params": {
+      "path": "notes.txt"
+    },
+    "system": null,
+    "context_prefix": null,
+    "prompt": "Create a file called notes.txt containing the text 'TODO: review this'.",
+    "multiturn": false
+  },
+  {
+    "id": "single_write_001__sysprompt",
+    "base_id": "single_write_001",
+    "category": "single",
+    "condition": "sysprompt",
+    "tools": [
+      "write_file"
+    ],
+    "expected_tool": "write_file",
+    "check_params": true,
+    "expected_params": {
+      "path": "notes.txt"
+    },
+    "system": "You are an expert coding assistant. You have access to tools that let you read files, write files, run shell commands, and search the codebase. Always use the appropriate tool to complete the user's request. Never answer with prose when a tool call is required. Use tools immediately without explaining what you are about to do.\n\nAvailable tools:\n- read_file(path): Read file contents\n- write_file(path, content): Write or overwrite a file\n- run_command(cmd): Execute a shell command and return output\n- search_files(pattern, directory): Search for files matching a pattern\n\nProject structure:\n  src/\n    main.py         - Entry point, argument parsing, main loop\n    utils.py        - Helper functions (logging, formatting, retry logic)\n    api.py          - External API client with rate limiting\n    models.py       - Data models and validation schemas\n    config.py       - Configuration loading from env and config.json\n  tests/\n    test_main.py    - Integration tests for main loop\n    test_utils.py   - Unit tests for helper functions\n    test_api.py     - Mocked API client tests\n  data/\n    config.json     - Runtime configuration\n    schema.json     - JSON schema for validation\n  requirements.txt\n  Makefile\n  README.md\n  pyproject.toml\n  .env.example\n",
+    "context_prefix": null,
+    "prompt": "Create a file called notes.txt containing the text 'TODO: review this'.",
+    "multiturn": false
+  },
+  {
+    "id": "single_write_001__context_sm",
+    "base_id": "single_write_001",
+    "category": "single",
+    "condition": "context_sm",
+    "tools": [
+      "write_file"
+    ],
+    "expected_tool": "write_file",
+    "check_params": true,
+    "expected_params": {
+      "path": "notes.txt"
+    },
+    "system": "You are an expert coding assistant. You have access to tools that let you read files, write files, run shell commands, and search the codebase. Always use the appropriate tool to complete the user's request. Never answer with prose when a tool call is required. Use tools immediately without explaining what you are about to do.\n\nAvailable tools:\n- read_file(path): Read file contents\n- write_file(path, content): Write or overwrite a file\n- run_command(cmd): Execute a shell command and return output\n- search_files(pattern, directory): Search for files matching a pattern\n\nProject structure:\n  src/\n    main.py         - Entry point, argument parsing, main loop\n    utils.py        - Helper functions (logging, formatting, retry logic)\n    api.py          - External API client with rate limiting\n    models.py       - Data models and validation schemas\n    config.py       - Configuration loading from env and config.json\n  tests/\n    test_main.py    - Integration tests for main loop\n    test_utils.py   - Unit tests for helper functions\n    test_api.py     - Mocked API client tests\n  data/\n    config.json     - Runtime configuration\n    schema.json     - JSON schema for validation\n  requirements.txt\n  Makefile\n  README.md\n  pyproject.toml\n  .env.example\n",
+    "context_prefix": "Here is the current state of the relevant files for context:\n\n--- src/main.py ---\nimport argparse\nimport logging\nfrom src.utils import setup_logging, format_output\nfrom src.api import APIClient\nfrom src.config import load_config\n\ndef parse_args():\n    parser = argparse.ArgumentParser(description=\"Data processing pipeline\")\n    parser.add_argument(\"--config\", default=\"data/config.json\")\n    parser.add_argument(\"--verbose\", action=\"store_true\")\n    parser.add_argument(\"--dry-run\", action=\"store_true\")\n    return parser.parse_args()\n\ndef main():\n    args = parse_args()\n    config = load_config(args.config)\n    setup_logging(verbose=args.verbose)\n    client = APIClient(config[\"api_key\"], timeout=config.get(\"timeout\", 30))\n    results = []\n    for item in config[\"items\"]:\n        try:\n            result = client.process(item)\n            results.append(result)\n        except Exception as e:\n            logging.error(f\"Failed to process {item}: {e}\")\n    print(format_output(results))\n\nif __name__ == \"__main__\":\n    main()\n\n--- src/config.py ---\nimport json\nimport os\nfrom pathlib import Path\n\nDEFAULT_CONFIG = {\n    \"timeout\": 30,\n    \"retry_count\": 3,\n    \"debug\": False,\n    \"api_key\": None,\n    \"items\": [],\n}\n\ndef load_config(path: str) -> dict:\n    config = DEFAULT_CONFIG.copy()\n    config_path = Path(path)\n    if config_path.exists():\n        with open(config_path) as f:\n            file_config = json.load(f)\n        config.update(file_config)\n    env_key = os.environ.get(\"API_KEY\")\n    if env_key:\n        config[\"api_key\"] = env_key\n    return config\n\n--- data/config.json ---\n{\n  \"api_key\": \"sk-placeholder\",\n  \"timeout\": 60,\n  \"debug\": true,\n  \"items\": [\"item_001\", \"item_002\", \"item_003\"],\n  \"retry_count\": 5\n}\n",
+    "prompt": "Create a file called notes.txt containing the text 'TODO: review this'.",
+    "multiturn": false
+  },
+  {
+    "id": "single_write_001__context_lg",
+    "base_id": "single_write_001",
+    "category": "single",
+    "condition": "context_lg",
+    "tools": [
+      "write_file"
+    ],
+    "expected_tool": "write_file",
+    "check_params": true,
+    "expected_params": {
+      "path": "notes.txt"
+    },
+    "system": "You are an expert coding assistant. You have access to tools that let you read files, write files, run shell commands, and search the codebase. Always use the appropriate tool to complete the user's request. Never answer with prose when a tool call is required. Use tools immediately without explaining what you are about to do.\n\nAvailable tools:\n- read_file(path): Read file contents\n- write_file(path, content): Write or overwrite a file\n- run_command(cmd): Execute a shell command and return output\n- search_files(pattern, directory): Search for files matching a pattern\n\nProject structure:\n  src/\n    main.py         - Entry point, argument parsing, main loop\n    utils.py        - Helper functions (logging, formatting, retry logic)\n    api.py          - External API client with rate limiting\n    models.py       - Data models and validation schemas\n    config.py       - Configuration loading from env and config.json\n  tests/\n    test_main.py    - Integration tests for main loop\n    test_utils.py   - Unit tests for helper functions\n    test_api.py     - Mocked API client tests\n  data/\n    config.json     - Runtime configuration\n    schema.json     - JSON schema for validation\n  requirements.txt\n  Makefile\n  README.md\n  pyproject.toml\n  .env.example\n",
+    "context_prefix": "Here is the current state of the relevant files for context:\n\n--- src/main.py ---\nimport argparse\nimport logging\nfrom src.utils import setup_logging, format_output\nfrom src.api import APIClient\nfrom src.config import load_config\n\ndef parse_args():\n    parser = argparse.ArgumentParser(description=\"Data processing pipeline\")\n    parser.add_argument(\"--config\", default=\"data/config.json\")\n    parser.add_argument(\"--verbose\", action=\"store_true\")\n    parser.add_argument(\"--dry-run\", action=\"store_true\")\n    return parser.parse_args()\n\ndef main():\n    args = parse_args()\n    config = load_config(args.config)\n    setup_logging(verbose=args.verbose)\n    client = APIClient(config[\"api_key\"], timeout=config.get(\"timeout\", 30))\n    results = []\n    for item in config[\"items\"]:\n        try:\n            result = client.process(item)\n            results.append(result)\n        except Exception as e:\n            logging.error(f\"Failed to process {item}: {e}\")\n    print(format_output(results))\n\nif __name__ == \"__main__\":\n    main()\n\n--- src/config.py ---\nimport json\nimport os\nfrom pathlib import Path\n\nDEFAULT_CONFIG = {\n    \"timeout\": 30,\n    \"retry_count\": 3,\n    \"debug\": False,\n    \"api_key\": None,\n    \"items\": [],\n}\n\ndef load_config(path: str) -> dict:\n    config = DEFAULT_CONFIG.copy()\n    config_path = Path(path)\n    if config_path.exists():\n        with open(config_path) as f:\n            file_config = json.load(f)\n        config.update(file_config)\n    env_key = os.environ.get(\"API_KEY\")\n    if env_key:\n        config[\"api_key\"] = env_key\n    return config\n\n--- data/config.json ---\n{\n  \"api_key\": \"sk-placeholder\",\n  \"timeout\": 60,\n  \"debug\": true,\n  \"items\": [\"item_001\", \"item_002\", \"item_003\"],\n  \"retry_count\": 5\n}\n\n--- src/utils.py ---\nimport logging\nimport sys\nfrom datetime import datetime\nfrom typing import Any\n\ndef setup_logging(verbose: bool = False) -> None:\n    level = logging.DEBUG if verbose else logging.INFO\n    logging.basicConfig(\n        stream=sys.stdout,\n        level=level,\n        format=\"%(asctime)s [%(levelname)s] %(message)s\",\n        datefmt=\"%Y-%m-%d %H:%M:%S\",\n    )\n\ndef format_output(results: list[Any]) -> str:\n    if not results:\n        return \"No results.\"\n    lines = [f\"Results ({len(results)} items):\"]\n    for i, r in enumerate(results, 1):\n        lines.append(f\"  {i}. {r}\")\n    return \"\\n\".join(lines)\n\ndef retry(fn, max_attempts: int = 3, delay: float = 1.0):\n    import time\n    last_exc = None\n    for attempt in range(max_attempts):\n        try:\n            return fn()\n        except Exception as e:\n            last_exc = e\n            if attempt < max_attempts - 1:\n                time.sleep(delay * (attempt + 1))\n    raise last_exc\n\n--- src/api.py ---\nimport requests\nfrom src.utils import retry\n\nclass APIClient:\n    def __init__(self, api_key: str, timeout: int = 30):\n        self.api_key = api_key\n        self.timeout = timeout\n        self.base_url = \"https://api.example.com/v1\"\n        self.session = requests.Session()\n        self.session.headers.update({\n            \"Authorization\": f\"Bearer {api_key}\",\n            \"Content-Type\": \"application/json\",\n        })\n\n    def process(self, item: str) -> dict:\n        return retry(lambda: self._post(\"/process\", {\"item\": item}))\n\n    def _post(self, path: str, payload: dict) -> dict:\n        resp = self.session.post(\n            f\"{self.base_url}{path}\",\n            json=payload,\n            timeout=self.timeout,\n        )\n        resp.raise_for_status()\n        return resp.json()\n\n--- requirements.txt ---\nrequests==2.31.0\npython-dotenv==1.0.0\npydantic==2.5.0\npytest==7.4.3\npytest-asyncio==0.21.4\nruff==0.1.8\n\n--- pyproject.toml ---\n[project]\nname = \"data-pipeline\"\nversion = \"0.1.0\"\nrequires-python = \">=3.11\"\ndependencies = [\n    \"requests>=2.31.0\",\n    \"python-dotenv>=1.0.0\",\n    \"pydantic>=2.5.0\",\n]\n\n[tool.ruff]\nline-length = 100\ntarget-version = \"py311\"\n",
+    "prompt": "Create a file called notes.txt containing the text 'TODO: review this'.",
+    "multiturn": false
+  },
+  {
+    "id": "single_write_004__bare",
+    "base_id": "single_write_004",
+    "category": "single",
+    "condition": "bare",
+    "tools": [
+      "write_file"
+    ],
+    "expected_tool": "write_file",
+    "check_params": true,
+    "expected_params": {
+      "path": ".gitignore"
+    },
+    "system": null,
+    "context_prefix": null,
+    "prompt": "Write a .gitignore that ignores *.pyc files and __pycache__ directories.",
+    "multiturn": false
+  },
+  {
+    "id": "single_write_004__sysprompt",
+    "base_id": "single_write_004",
+    "category": "single",
+    "condition": "sysprompt",
+    "tools": [
+      "write_file"
+    ],
+    "expected_tool": "write_file",
+    "check_params": true,
+    "expected_params": {
+      "path": ".gitignore"
+    },
+    "system": "You are an expert coding assistant. You have access to tools that let you read files, write files, run shell commands, and search the codebase. Always use the appropriate tool to complete the user's request. Never answer with prose when a tool call is required. Use tools immediately without explaining what you are about to do.\n\nAvailable tools:\n- read_file(path): Read file contents\n- write_file(path, content): Write or overwrite a file\n- run_command(cmd): Execute a shell command and return output\n- search_files(pattern, directory): Search for files matching a pattern\n\nProject structure:\n  src/\n    main.py         - Entry point, argument parsing, main loop\n    utils.py        - Helper functions (logging, formatting, retry logic)\n    api.py          - External API client with rate limiting\n    models.py       - Data models and validation schemas\n    config.py       - Configuration loading from env and config.json\n  tests/\n    test_main.py    - Integration tests for main loop\n    test_utils.py   - Unit tests for helper functions\n    test_api.py     - Mocked API client tests\n  data/\n    config.json     - Runtime configuration\n    schema.json     - JSON schema for validation\n  requirements.txt\n  Makefile\n  README.md\n  pyproject.toml\n  .env.example\n",
+    "context_prefix": null,
+    "prompt": "Write a .gitignore that ignores *.pyc files and __pycache__ directories.",
+    "multiturn": false
+  },
+  {
+    "id": "single_write_004__context_sm",
+    "base_id": "single_write_004",
+    "category": "single",
+    "condition": "context_sm",
+    "tools": [
+      "write_file"
+    ],
+    "expected_tool": "write_file",
+    "check_params": true,
+    "expected_params": {
+      "path": ".gitignore"
+    },
+    "system": "You are an expert coding assistant. You have access to tools that let you read files, write files, run shell commands, and search the codebase. Always use the appropriate tool to complete the user's request. Never answer with prose when a tool call is required. Use tools immediately without explaining what you are about to do.\n\nAvailable tools:\n- read_file(path): Read file contents\n- write_file(path, content): Write or overwrite a file\n- run_command(cmd): Execute a shell command and return output\n- search_files(pattern, directory): Search for files matching a pattern\n\nProject structure:\n  src/\n    main.py         - Entry point, argument parsing, main loop\n    utils.py        - Helper functions (logging, formatting, retry logic)\n    api.py          - External API client with rate limiting\n    models.py       - Data models and validation schemas\n    config.py       - Configuration loading from env and config.json\n  tests/\n    test_main.py    - Integration tests for main loop\n    test_utils.py   - Unit tests for helper functions\n    test_api.py     - Mocked API client tests\n  data/\n    config.json     - Runtime configuration\n    schema.json     - JSON schema for validation\n  requirements.txt\n  Makefile\n  README.md\n  pyproject.toml\n  .env.example\n",
+    "context_prefix": "Here is the current state of the relevant files for context:\n\n--- src/main.py ---\nimport argparse\nimport logging\nfrom src.utils import setup_logging, format_output\nfrom src.api import APIClient\nfrom src.config import load_config\n\ndef parse_args():\n    parser = argparse.ArgumentParser(description=\"Data processing pipeline\")\n    parser.add_argument(\"--config\", default=\"data/config.json\")\n    parser.add_argument(\"--verbose\", action=\"store_true\")\n    parser.add_argument(\"--dry-run\", action=\"store_true\")\n    return parser.parse_args()\n\ndef main():\n    args = parse_args()\n    config = load_config(args.config)\n    setup_logging(verbose=args.verbose)\n    client = APIClient(config[\"api_key\"], timeout=config.get(\"timeout\", 30))\n    results = []\n    for item in config[\"items\"]:\n        try:\n            result = client.process(item)\n            results.append(result)\n        except Exception as e:\n            logging.error(f\"Failed to process {item}: {e}\")\n    print(format_output(results))\n\nif __name__ == \"__main__\":\n    main()\n\n--- src/config.py ---\nimport json\nimport os\nfrom pathlib import Path\n\nDEFAULT_CONFIG = {\n    \"timeout\": 30,\n    \"retry_count\": 3,\n    \"debug\": False,\n    \"api_key\": None,\n    \"items\": [],\n}\n\ndef load_config(path: str) -> dict:\n    config = DEFAULT_CONFIG.copy()\n    config_path = Path(path)\n    if config_path.exists():\n        with open(config_path) as f:\n            file_config = json.load(f)\n        config.update(file_config)\n    env_key = os.environ.get(\"API_KEY\")\n    if env_key:\n        config[\"api_key\"] = env_key\n    return config\n\n--- data/config.json ---\n{\n  \"api_key\": \"sk-placeholder\",\n  \"timeout\": 60,\n  \"debug\": true,\n  \"items\": [\"item_001\", \"item_002\", \"item_003\"],\n  \"retry_count\": 5\n}\n",
+    "prompt": "Write a .gitignore that ignores *.pyc files and __pycache__ directories.",
+    "multiturn": false
+  },
+  {
+    "id": "single_write_004__context_lg",
+    "base_id": "single_write_004",
+    "category": "single",
+    "condition": "context_lg",
+    "tools": [
+      "write_file"
+    ],
+    "expected_tool": "write_file",
+    "check_params": true,
+    "expected_params": {
+      "path": ".gitignore"
+    },
+    "system": "You are an expert coding assistant. You have access to tools that let you read files, write files, run shell commands, and search the codebase. Always use the appropriate tool to complete the user's request. Never answer with prose when a tool call is required. Use tools immediately without explaining what you are about to do.\n\nAvailable tools:\n- read_file(path): Read file contents\n- write_file(path, content): Write or overwrite a file\n- run_command(cmd): Execute a shell command and return output\n- search_files(pattern, directory): Search for files matching a pattern\n\nProject structure:\n  src/\n    main.py         - Entry point, argument parsing, main loop\n    utils.py        - Helper functions (logging, formatting, retry logic)\n    api.py          - External API client with rate limiting\n    models.py       - Data models and validation schemas\n    config.py       - Configuration loading from env and config.json\n  tests/\n    test_main.py    - Integration tests for main loop\n    test_utils.py   - Unit tests for helper functions\n    test_api.py     - Mocked API client tests\n  data/\n    config.json     - Runtime configuration\n    schema.json     - JSON schema for validation\n  requirements.txt\n  Makefile\n  README.md\n  pyproject.toml\n  .env.example\n",
+    "context_prefix": "Here is the current state of the relevant files for context:\n\n--- src/main.py ---\nimport argparse\nimport logging\nfrom src.utils import setup_logging, format_output\nfrom src.api import APIClient\nfrom src.config import load_config\n\ndef parse_args():\n    parser = argparse.ArgumentParser(description=\"Data processing pipeline\")\n    parser.add_argument(\"--config\", default=\"data/config.json\")\n    parser.add_argument(\"--verbose\", action=\"store_true\")\n    parser.add_argument(\"--dry-run\", action=\"store_true\")\n    return parser.parse_args()\n\ndef main():\n    args = parse_args()\n    config = load_config(args.config)\n    setup_logging(verbose=args.verbose)\n    client = APIClient(config[\"api_key\"], timeout=config.get(\"timeout\", 30))\n    results = []\n    for item in config[\"items\"]:\n        try:\n            result = client.process(item)\n            results.append(result)\n        except Exception as e:\n            logging.error(f\"Failed to process {item}: {e}\")\n    print(format_output(results))\n\nif __name__ == \"__main__\":\n    main()\n\n--- src/config.py ---\nimport json\nimport os\nfrom pathlib import Path\n\nDEFAULT_CONFIG = {\n    \"timeout\": 30,\n    \"retry_count\": 3,\n    \"debug\": False,\n    \"api_key\": None,\n    \"items\": [],\n}\n\ndef load_config(path: str) -> dict:\n    config = DEFAULT_CONFIG.copy()\n    config_path = Path(path)\n    if config_path.exists():\n        with open(config_path) as f:\n            file_config = json.load(f)\n        config.update(file_config)\n    env_key = os.environ.get(\"API_KEY\")\n    if env_key:\n        config[\"api_key\"] = env_key\n    return config\n\n--- data/config.json ---\n{\n  \"api_key\": \"sk-placeholder\",\n  \"timeout\": 60,\n  \"debug\": true,\n  \"items\": [\"item_001\", \"item_002\", \"item_003\"],\n  \"retry_count\": 5\n}\n\n--- src/utils.py ---\nimport logging\nimport sys\nfrom datetime import datetime\nfrom typing import Any\n\ndef setup_logging(verbose: bool = False) -> None:\n    level = logging.DEBUG if verbose else logging.INFO\n    logging.basicConfig(\n        stream=sys.stdout,\n        level=level,\n        format=\"%(asctime)s [%(levelname)s] %(message)s\",\n        datefmt=\"%Y-%m-%d %H:%M:%S\",\n    )\n\ndef format_output(results: list[Any]) -> str:\n    if not results:\n        return \"No results.\"\n    lines = [f\"Results ({len(results)} items):\"]\n    for i, r in enumerate(results, 1):\n        lines.append(f\"  {i}. {r}\")\n    return \"\\n\".join(lines)\n\ndef retry(fn, max_attempts: int = 3, delay: float = 1.0):\n    import time\n    last_exc = None\n    for attempt in range(max_attempts):\n        try:\n            return fn()\n        except Exception as e:\n            last_exc = e\n            if attempt < max_attempts - 1:\n                time.sleep(delay * (attempt + 1))\n    raise last_exc\n\n--- src/api.py ---\nimport requests\nfrom src.utils import retry\n\nclass APIClient:\n    def __init__(self, api_key: str, timeout: int = 30):\n        self.api_key = api_key\n        self.timeout = timeout\n        self.base_url = \"https://api.example.com/v1\"\n        self.session = requests.Session()\n        self.session.headers.update({\n            \"Authorization\": f\"Bearer {api_key}\",\n            \"Content-Type\": \"application/json\",\n        })\n\n    def process(self, item: str) -> dict:\n        return retry(lambda: self._post(\"/process\", {\"item\": item}))\n\n    def _post(self, path: str, payload: dict) -> dict:\n        resp = self.session.post(\n            f\"{self.base_url}{path}\",\n            json=payload,\n            timeout=self.timeout,\n        )\n        resp.raise_for_status()\n        return resp.json()\n\n--- requirements.txt ---\nrequests==2.31.0\npython-dotenv==1.0.0\npydantic==2.5.0\npytest==7.4.3\npytest-asyncio==0.21.4\nruff==0.1.8\n\n--- pyproject.toml ---\n[project]\nname = \"data-pipeline\"\nversion = \"0.1.0\"\nrequires-python = \">=3.11\"\ndependencies = [\n    \"requests>=2.31.0\",\n    \"python-dotenv>=1.0.0\",\n    \"pydantic>=2.5.0\",\n]\n\n[tool.ruff]\nline-length = 100\ntarget-version = \"py311\"\n",
+    "prompt": "Write a .gitignore that ignores *.pyc files and __pycache__ directories.",
+    "multiturn": false
+  },
+  {
+    "id": "single_cmd_001__bare",
+    "base_id": "single_cmd_001",
+    "category": "single",
+    "condition": "bare",
+    "tools": [
+      "run_command"
+    ],
+    "expected_tool": "run_command",
+    "check_params": false,
+    "expected_params": {},
+    "system": null,
+    "context_prefix": null,
+    "prompt": "List all Python files in the current directory.",
+    "multiturn": false
+  },
+  {
+    "id": "single_cmd_001__sysprompt",
+    "base_id": "single_cmd_001",
+    "category": "single",
+    "condition": "sysprompt",
+    "tools": [
+      "run_command"
+    ],
+    "expected_tool": "run_command",
+    "check_params": false,
+    "expected_params": {},
+    "system": "You are an expert coding assistant. You have access to tools that let you read files, write files, run shell commands, and search the codebase. Always use the appropriate tool to complete the user's request. Never answer with prose when a tool call is required. Use tools immediately without explaining what you are about to do.\n\nAvailable tools:\n- read_file(path): Read file contents\n- write_file(path, content): Write or overwrite a file\n- run_command(cmd): Execute a shell command and return output\n- search_files(pattern, directory): Search for files matching a pattern\n\nProject structure:\n  src/\n    main.py         - Entry point, argument parsing, main loop\n    utils.py        - Helper functions (logging, formatting, retry logic)\n    api.py          - External API client with rate limiting\n    models.py       - Data models and validation schemas\n    config.py       - Configuration loading from env and config.json\n  tests/\n    test_main.py    - Integration tests for main loop\n    test_utils.py   - Unit tests for helper functions\n    test_api.py     - Mocked API client tests\n  data/\n    config.json     - Runtime configuration\n    schema.json     - JSON schema for validation\n  requirements.txt\n  Makefile\n  README.md\n  pyproject.toml\n  .env.example\n",
+    "context_prefix": null,
+    "prompt": "List all Python files in the current directory.",
+    "multiturn": false
+  },
+  {
+    "id": "single_cmd_001__context_sm",
+    "base_id": "single_cmd_001",
+    "category": "single",
+    "condition": "context_sm",
+    "tools": [
+      "run_command"
+    ],
+    "expected_tool": "run_command",
+    "check_params": false,
+    "expected_params": {},
+    "system": "You are an expert coding assistant. You have access to tools that let you read files, write files, run shell commands, and search the codebase. Always use the appropriate tool to complete the user's request. Never answer with prose when a tool call is required. Use tools immediately without explaining what you are about to do.\n\nAvailable tools:\n- read_file(path): Read file contents\n- write_file(path, content): Write or overwrite a file\n- run_command(cmd): Execute a shell command and return output\n- search_files(pattern, directory): Search for files matching a pattern\n\nProject structure:\n  src/\n    main.py         - Entry point, argument parsing, main loop\n    utils.py        - Helper functions (logging, formatting, retry logic)\n    api.py          - External API client with rate limiting\n    models.py       - Data models and validation schemas\n    config.py       - Configuration loading from env and config.json\n  tests/\n    test_main.py    - Integration tests for main loop\n    test_utils.py   - Unit tests for helper functions\n    test_api.py     - Mocked API client tests\n  data/\n    config.json     - Runtime configuration\n    schema.json     - JSON schema for validation\n  requirements.txt\n  Makefile\n  README.md\n  pyproject.toml\n  .env.example\n",
+    "context_prefix": "Here is the current state of the relevant files for context:\n\n--- src/main.py ---\nimport argparse\nimport logging\nfrom src.utils import setup_logging, format_output\nfrom src.api import APIClient\nfrom src.config import load_config\n\ndef parse_args():\n    parser = argparse.ArgumentParser(description=\"Data processing pipeline\")\n    parser.add_argument(\"--config\", default=\"data/config.json\")\n    parser.add_argument(\"--verbose\", action=\"store_true\")\n    parser.add_argument(\"--dry-run\", action=\"store_true\")\n    return parser.parse_args()\n\ndef main():\n    args = parse_args()\n    config = load_config(args.config)\n    setup_logging(verbose=args.verbose)\n    client = APIClient(config[\"api_key\"], timeout=config.get(\"timeout\", 30))\n    results = []\n    for item in config[\"items\"]:\n        try:\n            result = client.process(item)\n            results.append(result)\n        except Exception as e:\n            logging.error(f\"Failed to process {item}: {e}\")\n    print(format_output(results))\n\nif __name__ == \"__main__\":\n    main()\n\n--- src/config.py ---\nimport json\nimport os\nfrom pathlib import Path\n\nDEFAULT_CONFIG = {\n    \"timeout\": 30,\n    \"retry_count\": 3,\n    \"debug\": False,\n    \"api_key\": None,\n    \"items\": [],\n}\n\ndef load_config(path: str) -> dict:\n    config = DEFAULT_CONFIG.copy()\n    config_path = Path(path)\n    if config_path.exists():\n        with open(config_path) as f:\n            file_config = json.load(f)\n        config.update(file_config)\n    env_key = os.environ.get(\"API_KEY\")\n    if env_key:\n        config[\"api_key\"] = env_key\n    return config\n\n--- data/config.json ---\n{\n  \"api_key\": \"sk-placeholder\",\n  \"timeout\": 60,\n  \"debug\": true,\n  \"items\": [\"item_001\", \"item_002\", \"item_003\"],\n  \"retry_count\": 5\n}\n",
+    "prompt": "List all Python files in the current directory.",
+    "multiturn": false
+  },
+  {
+    "id": "single_cmd_001__context_lg",
+    "base_id": "single_cmd_001",
+    "category": "single",
+    "condition": "context_lg",
+    "tools": [
+      "run_command"
+    ],
+    "expected_tool": "run_command",
+    "check_params": false,
+    "expected_params": {},
+    "system": "You are an expert coding assistant. You have access to tools that let you read files, write files, run shell commands, and search the codebase. Always use the appropriate tool to complete the user's request. Never answer with prose when a tool call is required. Use tools immediately without explaining what you are about to do.\n\nAvailable tools:\n- read_file(path): Read file contents\n- write_file(path, content): Write or overwrite a file\n- run_command(cmd): Execute a shell command and return output\n- search_files(pattern, directory): Search for files matching a pattern\n\nProject structure:\n  src/\n    main.py         - Entry point, argument parsing, main loop\n    utils.py        - Helper functions (logging, formatting, retry logic)\n    api.py          - External API client with rate limiting\n    models.py       - Data models and validation schemas\n    config.py       - Configuration loading from env and config.json\n  tests/\n    test_main.py    - Integration tests for main loop\n    test_utils.py   - Unit tests for helper functions\n    test_api.py     - Mocked API client tests\n  data/\n    config.json     - Runtime configuration\n    schema.json     - JSON schema for validation\n  requirements.txt\n  Makefile\n  README.md\n  pyproject.toml\n  .env.example\n",
+    "context_prefix": "Here is the current state of the relevant files for context:\n\n--- src/main.py ---\nimport argparse\nimport logging\nfrom src.utils import setup_logging, format_output\nfrom src.api import APIClient\nfrom src.config import load_config\n\ndef parse_args():\n    parser = argparse.ArgumentParser(description=\"Data processing pipeline\")\n    parser.add_argument(\"--config\", default=\"data/config.json\")\n    parser.add_argument(\"--verbose\", action=\"store_true\")\n    parser.add_argument(\"--dry-run\", action=\"store_true\")\n    return parser.parse_args()\n\ndef main():\n    args = parse_args()\n    config = load_config(args.config)\n    setup_logging(verbose=args.verbose)\n    client = APIClient(config[\"api_key\"], timeout=config.get(\"timeout\", 30))\n    results = []\n    for item in config[\"items\"]:\n        try:\n            result = client.process(item)\n            results.append(result)\n        except Exception as e:\n            logging.error(f\"Failed to process {item}: {e}\")\n    print(format_output(results))\n\nif __name__ == \"__main__\":\n    main()\n\n--- src/config.py ---\nimport json\nimport os\nfrom pathlib import Path\n\nDEFAULT_CONFIG = {\n    \"timeout\": 30,\n    \"retry_count\": 3,\n    \"debug\": False,\n    \"api_key\": None,\n    \"items\": [],\n}\n\ndef load_config(path: str) -> dict:\n    config = DEFAULT_CONFIG.copy()\n    config_path = Path(path)\n    if config_path.exists():\n        with open(config_path) as f:\n            file_config = json.load(f)\n        config.update(file_config)\n    env_key = os.environ.get(\"API_KEY\")\n    if env_key:\n        config[\"api_key\"] = env_key\n    return config\n\n--- data/config.json ---\n{\n  \"api_key\": \"sk-placeholder\",\n  \"timeout\": 60,\n  \"debug\": true,\n  \"items\": [\"item_001\", \"item_002\", \"item_003\"],\n  \"retry_count\": 5\n}\n\n--- src/utils.py ---\nimport logging\nimport sys\nfrom datetime import datetime\nfrom typing import Any\n\ndef setup_logging(verbose: bool = False) -> None:\n    level = logging.DEBUG if verbose else logging.INFO\n    logging.basicConfig(\n        stream=sys.stdout,\n        level=level,\n        format=\"%(asctime)s [%(levelname)s] %(message)s\",\n        datefmt=\"%Y-%m-%d %H:%M:%S\",\n    )\n\ndef format_output(results: list[Any]) -> str:\n    if not results:\n        return \"No results.\"\n    lines = [f\"Results ({len(results)} items):\"]\n    for i, r in enumerate(results, 1):\n        lines.append(f\"  {i}. {r}\")\n    return \"\\n\".join(lines)\n\ndef retry(fn, max_attempts: int = 3, delay: float = 1.0):\n    import time\n    last_exc = None\n    for attempt in range(max_attempts):\n        try:\n            return fn()\n        except Exception as e:\n            last_exc = e\n            if attempt < max_attempts - 1:\n                time.sleep(delay * (attempt + 1))\n    raise last_exc\n\n--- src/api.py ---\nimport requests\nfrom src.utils import retry\n\nclass APIClient:\n    def __init__(self, api_key: str, timeout: int = 30):\n        self.api_key = api_key\n        self.timeout = timeout\n        self.base_url = \"https://api.example.com/v1\"\n        self.session = requests.Session()\n        self.session.headers.update({\n            \"Authorization\": f\"Bearer {api_key}\",\n            \"Content-Type\": \"application/json\",\n        })\n\n    def process(self, item: str) -> dict:\n        return retry(lambda: self._post(\"/process\", {\"item\": item}))\n\n    def _post(self, path: str, payload: dict) -> dict:\n        resp = self.session.post(\n            f\"{self.base_url}{path}\",\n            json=payload,\n            timeout=self.timeout,\n        )\n        resp.raise_for_status()\n        return resp.json()\n\n--- requirements.txt ---\nrequests==2.31.0\npython-dotenv==1.0.0\npydantic==2.5.0\npytest==7.4.3\npytest-asyncio==0.21.4\nruff==0.1.8\n\n--- pyproject.toml ---\n[project]\nname = \"data-pipeline\"\nversion = \"0.1.0\"\nrequires-python = \">=3.11\"\ndependencies = [\n    \"requests>=2.31.0\",\n    \"python-dotenv>=1.0.0\",\n    \"pydantic>=2.5.0\",\n]\n\n[tool.ruff]\nline-length = 100\ntarget-version = \"py311\"\n",
+    "prompt": "List all Python files in the current directory.",
+    "multiturn": false
+  },
+  {
+    "id": "single_cmd_004__bare",
+    "base_id": "single_cmd_004",
+    "category": "single",
+    "condition": "bare",
+    "tools": [
+      "run_command"
+    ],
+    "expected_tool": "run_command",
+    "check_params": false,
+    "expected_params": {},
+    "system": null,
+    "context_prefix": null,
+    "prompt": "Show the git log for the last 5 commits in one-line format.",
+    "multiturn": false
+  },
+  {
+    "id": "single_cmd_004__sysprompt",
+    "base_id": "single_cmd_004",
+    "category": "single",
+    "condition": "sysprompt",
+    "tools": [
+      "run_command"
+    ],
+    "expected_tool": "run_command",
+    "check_params": false,
+    "expected_params": {},
+    "system": "You are an expert coding assistant. You have access to tools that let you read files, write files, run shell commands, and search the codebase. Always use the appropriate tool to complete the user's request. Never answer with prose when a tool call is required. Use tools immediately without explaining what you are about to do.\n\nAvailable tools:\n- read_file(path): Read file contents\n- write_file(path, content): Write or overwrite a file\n- run_command(cmd): Execute a shell command and return output\n- search_files(pattern, directory): Search for files matching a pattern\n\nProject structure:\n  src/\n    main.py         - Entry point, argument parsing, main loop\n    utils.py        - Helper functions (logging, formatting, retry logic)\n    api.py          - External API client with rate limiting\n    models.py       - Data models and validation schemas\n    config.py       - Configuration loading from env and config.json\n  tests/\n    test_main.py    - Integration tests for main loop\n    test_utils.py   - Unit tests for helper functions\n    test_api.py     - Mocked API client tests\n  data/\n    config.json     - Runtime configuration\n    schema.json     - JSON schema for validation\n  requirements.txt\n  Makefile\n  README.md\n  pyproject.toml\n  .env.example\n",
+    "context_prefix": null,
+    "prompt": "Show the git log for the last 5 commits in one-line format.",
+    "multiturn": false
+  },
+  {
+    "id": "single_cmd_004__context_sm",
+    "base_id": "single_cmd_004",
+    "category": "single",
+    "condition": "context_sm",
+    "tools": [
+      "run_command"
+    ],
+    "expected_tool": "run_command",
+    "check_params": false,
+    "expected_params": {},
+    "system": "You are an expert coding assistant. You have access to tools that let you read files, write files, run shell commands, and search the codebase. Always use the appropriate tool to complete the user's request. Never answer with prose when a tool call is required. Use tools immediately without explaining what you are about to do.\n\nAvailable tools:\n- read_file(path): Read file contents\n- write_file(path, content): Write or overwrite a file\n- run_command(cmd): Execute a shell command and return output\n- search_files(pattern, directory): Search for files matching a pattern\n\nProject structure:\n  src/\n    main.py         - Entry point, argument parsing, main loop\n    utils.py        - Helper functions (logging, formatting, retry logic)\n    api.py          - External API client with rate limiting\n    models.py       - Data models and validation schemas\n    config.py       - Configuration loading from env and config.json\n  tests/\n    test_main.py    - Integration tests for main loop\n    test_utils.py   - Unit tests for helper functions\n    test_api.py     - Mocked API client tests\n  data/\n    config.json     - Runtime configuration\n    schema.json     - JSON schema for validation\n  requirements.txt\n  Makefile\n  README.md\n  pyproject.toml\n  .env.example\n",
+    "context_prefix": "Here is the current state of the relevant files for context:\n\n--- src/main.py ---\nimport argparse\nimport logging\nfrom src.utils import setup_logging, format_output\nfrom src.api import APIClient\nfrom src.config import load_config\n\ndef parse_args():\n    parser = argparse.ArgumentParser(description=\"Data processing pipeline\")\n    parser.add_argument(\"--config\", default=\"data/config.json\")\n    parser.add_argument(\"--verbose\", action=\"store_true\")\n    parser.add_argument(\"--dry-run\", action=\"store_true\")\n    return parser.parse_args()\n\ndef main():\n    args = parse_args()\n    config = load_config(args.config)\n    setup_logging(verbose=args.verbose)\n    client = APIClient(config[\"api_key\"], timeout=config.get(\"timeout\", 30))\n    results = []\n    for item in config[\"items\"]:\n        try:\n            result = client.process(item)\n            results.append(result)\n        except Exception as e:\n            logging.error(f\"Failed to process {item}: {e}\")\n    print(format_output(results))\n\nif __name__ == \"__main__\":\n    main()\n\n--- src/config.py ---\nimport json\nimport os\nfrom pathlib import Path\n\nDEFAULT_CONFIG = {\n    \"timeout\": 30,\n    \"retry_count\": 3,\n    \"debug\": False,\n    \"api_key\": None,\n    \"items\": [],\n}\n\ndef load_config(path: str) -> dict:\n    config = DEFAULT_CONFIG.copy()\n    config_path = Path(path)\n    if config_path.exists():\n        with open(config_path) as f:\n            file_config = json.load(f)\n        config.update(file_config)\n    env_key = os.environ.get(\"API_KEY\")\n    if env_key:\n        config[\"api_key\"] = env_key\n    return config\n\n--- data/config.json ---\n{\n  \"api_key\": \"sk-placeholder\",\n  \"timeout\": 60,\n  \"debug\": true,\n  \"items\": [\"item_001\", \"item_002\", \"item_003\"],\n  \"retry_count\": 5\n}\n",
+    "prompt": "Show the git log for the last 5 commits in one-line format.",
+    "multiturn": false
+  },
+  {
+    "id": "single_cmd_004__context_lg",
+    "base_id": "single_cmd_004",
+    "category": "single",
+    "condition": "context_lg",
+    "tools": [
+      "run_command"
+    ],
+    "expected_tool": "run_command",
+    "check_params": false,
+    "expected_params": {},
+    "system": "You are an expert coding assistant. You have access to tools that let you read files, write files, run shell commands, and search the codebase. Always use the appropriate tool to complete the user's request. Never answer with prose when a tool call is required. Use tools immediately without explaining what you are about to do.\n\nAvailable tools:\n- read_file(path): Read file contents\n- write_file(path, content): Write or overwrite a file\n- run_command(cmd): Execute a shell command and return output\n- search_files(pattern, directory): Search for files matching a pattern\n\nProject structure:\n  src/\n    main.py         - Entry point, argument parsing, main loop\n    utils.py        - Helper functions (logging, formatting, retry logic)\n    api.py          - External API client with rate limiting\n    models.py       - Data models and validation schemas\n    config.py       - Configuration loading from env and config.json\n  tests/\n    test_main.py    - Integration tests for main loop\n    test_utils.py   - Unit tests for helper functions\n    test_api.py     - Mocked API client tests\n  data/\n    config.json     - Runtime configuration\n    schema.json     - JSON schema for validation\n  requirements.txt\n  Makefile\n  README.md\n  pyproject.toml\n  .env.example\n",
+    "context_prefix": "Here is the current state of the relevant files for context:\n\n--- src/main.py ---\nimport argparse\nimport logging\nfrom src.utils import setup_logging, format_output\nfrom src.api import APIClient\nfrom src.config import load_config\n\ndef parse_args():\n    parser = argparse.ArgumentParser(description=\"Data processing pipeline\")\n    parser.add_argument(\"--config\", default=\"data/config.json\")\n    parser.add_argument(\"--verbose\", action=\"store_true\")\n    parser.add_argument(\"--dry-run\", action=\"store_true\")\n    return parser.parse_args()\n\ndef main():\n    args = parse_args()\n    config = load_config(args.config)\n    setup_logging(verbose=args.verbose)\n    client = APIClient(config[\"api_key\"], timeout=config.get(\"timeout\", 30))\n    results = []\n    for item in config[\"items\"]:\n        try:\n            result = client.process(item)\n            results.append(result)\n        except Exception as e:\n            logging.error(f\"Failed to process {item}: {e}\")\n    print(format_output(results))\n\nif __name__ == \"__main__\":\n    main()\n\n--- src/config.py ---\nimport json\nimport os\nfrom pathlib import Path\n\nDEFAULT_CONFIG = {\n    \"timeout\": 30,\n    \"retry_count\": 3,\n    \"debug\": False,\n    \"api_key\": None,\n    \"items\": [],\n}\n\ndef load_config(path: str) -> dict:\n    config = DEFAULT_CONFIG.copy()\n    config_path = Path(path)\n    if config_path.exists():\n        with open(config_path) as f:\n            file_config = json.load(f)\n        config.update(file_config)\n    env_key = os.environ.get(\"API_KEY\")\n    if env_key:\n        config[\"api_key\"] = env_key\n    return config\n\n--- data/config.json ---\n{\n  \"api_key\": \"sk-placeholder\",\n  \"timeout\": 60,\n  \"debug\": true,\n  \"items\": [\"item_001\", \"item_002\", \"item_003\"],\n  \"retry_count\": 5\n}\n\n--- src/utils.py ---\nimport logging\nimport sys\nfrom datetime import datetime\nfrom typing import Any\n\ndef setup_logging(verbose: bool = False) -> None:\n    level = logging.DEBUG if verbose else logging.INFO\n    logging.basicConfig(\n        stream=sys.stdout,\n        level=level,\n        format=\"%(asctime)s [%(levelname)s] %(message)s\",\n        datefmt=\"%Y-%m-%d %H:%M:%S\",\n    )\n\ndef format_output(results: list[Any]) -> str:\n    if not results:\n        return \"No results.\"\n    lines = [f\"Results ({len(results)} items):\"]\n    for i, r in enumerate(results, 1):\n        lines.append(f\"  {i}. {r}\")\n    return \"\\n\".join(lines)\n\ndef retry(fn, max_attempts: int = 3, delay: float = 1.0):\n    import time\n    last_exc = None\n    for attempt in range(max_attempts):\n        try:\n            return fn()\n        except Exception as e:\n            last_exc = e\n            if attempt < max_attempts - 1:\n                time.sleep(delay * (attempt + 1))\n    raise last_exc\n\n--- src/api.py ---\nimport requests\nfrom src.utils import retry\n\nclass APIClient:\n    def __init__(self, api_key: str, timeout: int = 30):\n        self.api_key = api_key\n        self.timeout = timeout\n        self.base_url = \"https://api.example.com/v1\"\n        self.session = requests.Session()\n        self.session.headers.update({\n            \"Authorization\": f\"Bearer {api_key}\",\n            \"Content-Type\": \"application/json\",\n        })\n\n    def process(self, item: str) -> dict:\n        return retry(lambda: self._post(\"/process\", {\"item\": item}))\n\n    def _post(self, path: str, payload: dict) -> dict:\n        resp = self.session.post(\n            f\"{self.base_url}{path}\",\n            json=payload,\n            timeout=self.timeout,\n        )\n        resp.raise_for_status()\n        return resp.json()\n\n--- requirements.txt ---\nrequests==2.31.0\npython-dotenv==1.0.0\npydantic==2.5.0\npytest==7.4.3\npytest-asyncio==0.21.4\nruff==0.1.8\n\n--- pyproject.toml ---\n[project]\nname = \"data-pipeline\"\nversion = \"0.1.0\"\nrequires-python = \">=3.11\"\ndependencies = [\n    \"requests>=2.31.0\",\n    \"python-dotenv>=1.0.0\",\n    \"pydantic>=2.5.0\",\n]\n\n[tool.ruff]\nline-length = 100\ntarget-version = \"py311\"\n",
+    "prompt": "Show the git log for the last 5 commits in one-line format.",
+    "multiturn": false
+  },
+  {
+    "id": "single_search_001__bare",
+    "base_id": "single_search_001",
+    "category": "single",
+    "condition": "bare",
+    "tools": [
+      "search_files"
+    ],
+    "expected_tool": "search_files",
+    "check_params": false,
+    "expected_params": {},
+    "system": null,
+    "context_prefix": null,
+    "prompt": "Find all files containing the word TODO.",
+    "multiturn": false
+  },
+  {
+    "id": "single_search_001__sysprompt",
+    "base_id": "single_search_001",
+    "category": "single",
+    "condition": "sysprompt",
+    "tools": [
+      "search_files"
+    ],
+    "expected_tool": "search_files",
+    "check_params": false,
+    "expected_params": {},
+    "system": "You are an expert coding assistant. You have access to tools that let you read files, write files, run shell commands, and search the codebase. Always use the appropriate tool to complete the user's request. Never answer with prose when a tool call is required. Use tools immediately without explaining what you are about to do.\n\nAvailable tools:\n- read_file(path): Read file contents\n- write_file(path, content): Write or overwrite a file\n- run_command(cmd): Execute a shell command and return output\n- search_files(pattern, directory): Search for files matching a pattern\n\nProject structure:\n  src/\n    main.py         - Entry point, argument parsing, main loop\n    utils.py        - Helper functions (logging, formatting, retry logic)\n    api.py          - External API client with rate limiting\n    models.py       - Data models and validation schemas\n    config.py       - Configuration loading from env and config.json\n  tests/\n    test_main.py    - Integration tests for main loop\n    test_utils.py   - Unit tests for helper functions\n    test_api.py     - Mocked API client tests\n  data/\n    config.json     - Runtime configuration\n    schema.json     - JSON schema for validation\n  requirements.txt\n  Makefile\n  README.md\n  pyproject.toml\n  .env.example\n",
+    "context_prefix": null,
+    "prompt": "Find all files containing the word TODO.",
+    "multiturn": false
+  },
+  {
+    "id": "single_search_001__context_sm",
+    "base_id": "single_search_001",
+    "category": "single",
+    "condition": "context_sm",
+    "tools": [
+      "search_files"
+    ],
+    "expected_tool": "search_files",
+    "check_params": false,
+    "expected_params": {},
+    "system": "You are an expert coding assistant. You have access to tools that let you read files, write files, run shell commands, and search the codebase. Always use the appropriate tool to complete the user's request. Never answer with prose when a tool call is required. Use tools immediately without explaining what you are about to do.\n\nAvailable tools:\n- read_file(path): Read file contents\n- write_file(path, content): Write or overwrite a file\n- run_command(cmd): Execute a shell command and return output\n- search_files(pattern, directory): Search for files matching a pattern\n\nProject structure:\n  src/\n    main.py         - Entry point, argument parsing, main loop\n    utils.py        - Helper functions (logging, formatting, retry logic)\n    api.py          - External API client with rate limiting\n    models.py       - Data models and validation schemas\n    config.py       - Configuration loading from env and config.json\n  tests/\n    test_main.py    - Integration tests for main loop\n    test_utils.py   - Unit tests for helper functions\n    test_api.py     - Mocked API client tests\n  data/\n    config.json     - Runtime configuration\n    schema.json     - JSON schema for validation\n  requirements.txt\n  Makefile\n  README.md\n  pyproject.toml\n  .env.example\n",
+    "context_prefix": "Here is the current state of the relevant files for context:\n\n--- src/main.py ---\nimport argparse\nimport logging\nfrom src.utils import setup_logging, format_output\nfrom src.api import APIClient\nfrom src.config import load_config\n\ndef parse_args():\n    parser = argparse.ArgumentParser(description=\"Data processing pipeline\")\n    parser.add_argument(\"--config\", default=\"data/config.json\")\n    parser.add_argument(\"--verbose\", action=\"store_true\")\n    parser.add_argument(\"--dry-run\", action=\"store_true\")\n    return parser.parse_args()\n\ndef main():\n    args = parse_args()\n    config = load_config(args.config)\n    setup_logging(verbose=args.verbose)\n    client = APIClient(config[\"api_key\"], timeout=config.get(\"timeout\", 30))\n    results = []\n    for item in config[\"items\"]:\n        try:\n            result = client.process(item)\n            results.append(result)\n        except Exception as e:\n            logging.error(f\"Failed to process {item}: {e}\")\n    print(format_output(results))\n\nif __name__ == \"__main__\":\n    main()\n\n--- src/config.py ---\nimport json\nimport os\nfrom pathlib import Path\n\nDEFAULT_CONFIG = {\n    \"timeout\": 30,\n    \"retry_count\": 3,\n    \"debug\": False,\n    \"api_key\": None,\n    \"items\": [],\n}\n\ndef load_config(path: str) -> dict:\n    config = DEFAULT_CONFIG.copy()\n    config_path = Path(path)\n    if config_path.exists():\n        with open(config_path) as f:\n            file_config = json.load(f)\n        config.update(file_config)\n    env_key = os.environ.get(\"API_KEY\")\n    if env_key:\n        config[\"api_key\"] = env_key\n    return config\n\n--- data/config.json ---\n{\n  \"api_key\": \"sk-placeholder\",\n  \"timeout\": 60,\n  \"debug\": true,\n  \"items\": [\"item_001\", \"item_002\", \"item_003\"],\n  \"retry_count\": 5\n}\n",
+    "prompt": "Find all files containing the word TODO.",
+    "multiturn": false
+  },
+  {
+    "id": "single_search_001__context_lg",
+    "base_id": "single_search_001",
+    "category": "single",
+    "condition": "context_lg",
+    "tools": [
+      "search_files"
+    ],
+    "expected_tool": "search_files",
+    "check_params": false,
+    "expected_params": {},
+    "system": "You are an expert coding assistant. You have access to tools that let you read files, write files, run shell commands, and search the codebase. Always use the appropriate tool to complete the user's request. Never answer with prose when a tool call is required. Use tools immediately without explaining what you are about to do.\n\nAvailable tools:\n- read_file(path): Read file contents\n- write_file(path, content): Write or overwrite a file\n- run_command(cmd): Execute a shell command and return output\n- search_files(pattern, directory): Search for files matching a pattern\n\nProject structure:\n  src/\n    main.py         - Entry point, argument parsing, main loop\n    utils.py        - Helper functions (logging, formatting, retry logic)\n    api.py          - External API client with rate limiting\n    models.py       - Data models and validation schemas\n    config.py       - Configuration loading from env and config.json\n  tests/\n    test_main.py    - Integration tests for main loop\n    test_utils.py   - Unit tests for helper functions\n    test_api.py     - Mocked API client tests\n  data/\n    config.json     - Runtime configuration\n    schema.json     - JSON schema for validation\n  requirements.txt\n  Makefile\n  README.md\n  pyproject.toml\n  .env.example\n",
+    "context_prefix": "Here is the current state of the relevant files for context:\n\n--- src/main.py ---\nimport argparse\nimport logging\nfrom src.utils import setup_logging, format_output\nfrom src.api import APIClient\nfrom src.config import load_config\n\ndef parse_args():\n    parser = argparse.ArgumentParser(description=\"Data processing pipeline\")\n    parser.add_argument(\"--config\", default=\"data/config.json\")\n    parser.add_argument(\"--verbose\", action=\"store_true\")\n    parser.add_argument(\"--dry-run\", action=\"store_true\")\n    return parser.parse_args()\n\ndef main():\n    args = parse_args()\n    config = load_config(args.config)\n    setup_logging(verbose=args.verbose)\n    client = APIClient(config[\"api_key\"], timeout=config.get(\"timeout\", 30))\n    results = []\n    for item in config[\"items\"]:\n        try:\n            result = client.process(item)\n            results.append(result)\n        except Exception as e:\n            logging.error(f\"Failed to process {item}: {e}\")\n    print(format_output(results))\n\nif __name__ == \"__main__\":\n    main()\n\n--- src/config.py ---\nimport json\nimport os\nfrom pathlib import Path\n\nDEFAULT_CONFIG = {\n    \"timeout\": 30,\n    \"retry_count\": 3,\n    \"debug\": False,\n    \"api_key\": None,\n    \"items\": [],\n}\n\ndef load_config(path: str) -> dict:\n    config = DEFAULT_CONFIG.copy()\n    config_path = Path(path)\n    if config_path.exists():\n        with open(config_path) as f:\n            file_config = json.load(f)\n        config.update(file_config)\n    env_key = os.environ.get(\"API_KEY\")\n    if env_key:\n        config[\"api_key\"] = env_key\n    return config\n\n--- data/config.json ---\n{\n  \"api_key\": \"sk-placeholder\",\n  \"timeout\": 60,\n  \"debug\": true,\n  \"items\": [\"item_001\", \"item_002\", \"item_003\"],\n  \"retry_count\": 5\n}\n\n--- src/utils.py ---\nimport logging\nimport sys\nfrom datetime import datetime\nfrom typing import Any\n\ndef setup_logging(verbose: bool = False) -> None:\n    level = logging.DEBUG if verbose else logging.INFO\n    logging.basicConfig(\n        stream=sys.stdout,\n        level=level,\n        format=\"%(asctime)s [%(levelname)s] %(message)s\",\n        datefmt=\"%Y-%m-%d %H:%M:%S\",\n    )\n\ndef format_output(results: list[Any]) -> str:\n    if not results:\n        return \"No results.\"\n    lines = [f\"Results ({len(results)} items):\"]\n    for i, r in enumerate(results, 1):\n        lines.append(f\"  {i}. {r}\")\n    return \"\\n\".join(lines)\n\ndef retry(fn, max_attempts: int = 3, delay: float = 1.0):\n    import time\n    last_exc = None\n    for attempt in range(max_attempts):\n        try:\n            return fn()\n        except Exception as e:\n            last_exc = e\n            if attempt < max_attempts - 1:\n                time.sleep(delay * (attempt + 1))\n    raise last_exc\n\n--- src/api.py ---\nimport requests\nfrom src.utils import retry\n\nclass APIClient:\n    def __init__(self, api_key: str, timeout: int = 30):\n        self.api_key = api_key\n        self.timeout = timeout\n        self.base_url = \"https://api.example.com/v1\"\n        self.session = requests.Session()\n        self.session.headers.update({\n            \"Authorization\": f\"Bearer {api_key}\",\n            \"Content-Type\": \"application/json\",\n        })\n\n    def process(self, item: str) -> dict:\n        return retry(lambda: self._post(\"/process\", {\"item\": item}))\n\n    def _post(self, path: str, payload: dict) -> dict:\n        resp = self.session.post(\n            f\"{self.base_url}{path}\",\n            json=payload,\n            timeout=self.timeout,\n        )\n        resp.raise_for_status()\n        return resp.json()\n\n--- requirements.txt ---\nrequests==2.31.0\npython-dotenv==1.0.0\npydantic==2.5.0\npytest==7.4.3\npytest-asyncio==0.21.4\nruff==0.1.8\n\n--- pyproject.toml ---\n[project]\nname = \"data-pipeline\"\nversion = \"0.1.0\"\nrequires-python = \">=3.11\"\ndependencies = [\n    \"requests>=2.31.0\",\n    \"python-dotenv>=1.0.0\",\n    \"pydantic>=2.5.0\",\n]\n\n[tool.ruff]\nline-length = 100\ntarget-version = \"py311\"\n",
+    "prompt": "Find all files containing the word TODO.",
+    "multiturn": false
+  },
+  {
+    "id": "single_search_002__bare",
+    "base_id": "single_search_002",
+    "category": "single",
+    "condition": "bare",
+    "tools": [
+      "search_files"
+    ],
+    "expected_tool": "search_files",
+    "check_params": true,
+    "expected_params": {
+      "directory": "src"
+    },
+    "system": null,
+    "context_prefix": null,
+    "prompt": "Search for JSON files in the src directory.",
+    "multiturn": false
+  },
+  {
+    "id": "single_search_002__sysprompt",
+    "base_id": "single_search_002",
+    "category": "single",
+    "condition": "sysprompt",
+    "tools": [
+      "search_files"
+    ],
+    "expected_tool": "search_files",
+    "check_params": true,
+    "expected_params": {
+      "directory": "src"
+    },
+    "system": "You are an expert coding assistant. You have access to tools that let you read files, write files, run shell commands, and search the codebase. Always use the appropriate tool to complete the user's request. Never answer with prose when a tool call is required. Use tools immediately without explaining what you are about to do.\n\nAvailable tools:\n- read_file(path): Read file contents\n- write_file(path, content): Write or overwrite a file\n- run_command(cmd): Execute a shell command and return output\n- search_files(pattern, directory): Search for files matching a pattern\n\nProject structure:\n  src/\n    main.py         - Entry point, argument parsing, main loop\n    utils.py        - Helper functions (logging, formatting, retry logic)\n    api.py          - External API client with rate limiting\n    models.py       - Data models and validation schemas\n    config.py       - Configuration loading from env and config.json\n  tests/\n    test_main.py    - Integration tests for main loop\n    test_utils.py   - Unit tests for helper functions\n    test_api.py     - Mocked API client tests\n  data/\n    config.json     - Runtime configuration\n    schema.json     - JSON schema for validation\n  requirements.txt\n  Makefile\n  README.md\n  pyproject.toml\n  .env.example\n",
+    "context_prefix": null,
+    "prompt": "Search for JSON files in the src directory.",
+    "multiturn": false
+  },
+  {
+    "id": "single_search_002__context_sm",
+    "base_id": "single_search_002",
+    "category": "single",
+    "condition": "context_sm",
+    "tools": [
+      "search_files"
+    ],
+    "expected_tool": "search_files",
+    "check_params": true,
+    "expected_params": {
+      "directory": "src"
+    },
+    "system": "You are an expert coding assistant. You have access to tools that let you read files, write files, run shell commands, and search the codebase. Always use the appropriate tool to complete the user's request. Never answer with prose when a tool call is required. Use tools immediately without explaining what you are about to do.\n\nAvailable tools:\n- read_file(path): Read file contents\n- write_file(path, content): Write or overwrite a file\n- run_command(cmd): Execute a shell command and return output\n- search_files(pattern, directory): Search for files matching a pattern\n\nProject structure:\n  src/\n    main.py         - Entry point, argument parsing, main loop\n    utils.py        - Helper functions (logging, formatting, retry logic)\n    api.py          - External API client with rate limiting\n    models.py       - Data models and validation schemas\n    config.py       - Configuration loading from env and config.json\n  tests/\n    test_main.py    - Integration tests for main loop\n    test_utils.py   - Unit tests for helper functions\n    test_api.py     - Mocked API client tests\n  data/\n    config.json     - Runtime configuration\n    schema.json     - JSON schema for validation\n  requirements.txt\n  Makefile\n  README.md\n  pyproject.toml\n  .env.example\n",
+    "context_prefix": "Here is the current state of the relevant files for context:\n\n--- src/main.py ---\nimport argparse\nimport logging\nfrom src.utils import setup_logging, format_output\nfrom src.api import APIClient\nfrom src.config import load_config\n\ndef parse_args():\n    parser = argparse.ArgumentParser(description=\"Data processing pipeline\")\n    parser.add_argument(\"--config\", default=\"data/config.json\")\n    parser.add_argument(\"--verbose\", action=\"store_true\")\n    parser.add_argument(\"--dry-run\", action=\"store_true\")\n    return parser.parse_args()\n\ndef main():\n    args = parse_args()\n    config = load_config(args.config)\n    setup_logging(verbose=args.verbose)\n    client = APIClient(config[\"api_key\"], timeout=config.get(\"timeout\", 30))\n    results = []\n    for item in config[\"items\"]:\n        try:\n            result = client.process(item)\n            results.append(result)\n        except Exception as e:\n            logging.error(f\"Failed to process {item}: {e}\")\n    print(format_output(results))\n\nif __name__ == \"__main__\":\n    main()\n\n--- src/config.py ---\nimport json\nimport os\nfrom pathlib import Path\n\nDEFAULT_CONFIG = {\n    \"timeout\": 30,\n    \"retry_count\": 3,\n    \"debug\": False,\n    \"api_key\": None,\n    \"items\": [],\n}\n\ndef load_config(path: str) -> dict:\n    config = DEFAULT_CONFIG.copy()\n    config_path = Path(path)\n    if config_path.exists():\n        with open(config_path) as f:\n            file_config = json.load(f)\n        config.update(file_config)\n    env_key = os.environ.get(\"API_KEY\")\n    if env_key:\n        config[\"api_key\"] = env_key\n    return config\n\n--- data/config.json ---\n{\n  \"api_key\": \"sk-placeholder\",\n  \"timeout\": 60,\n  \"debug\": true,\n  \"items\": [\"item_001\", \"item_002\", \"item_003\"],\n  \"retry_count\": 5\n}\n",
+    "prompt": "Search for JSON files in the src directory.",
+    "multiturn": false
+  },
+  {
+    "id": "single_search_002__context_lg",
+    "base_id": "single_search_002",
+    "category": "single",
+    "condition": "context_lg",
+    "tools": [
+      "search_files"
+    ],
+    "expected_tool": "search_files",
+    "check_params": true,
+    "expected_params": {
+      "directory": "src"
+    },
+    "system": "You are an expert coding assistant. You have access to tools that let you read files, write files, run shell commands, and search the codebase. Always use the appropriate tool to complete the user's request. Never answer with prose when a tool call is required. Use tools immediately without explaining what you are about to do.\n\nAvailable tools:\n- read_file(path): Read file contents\n- write_file(path, content): Write or overwrite a file\n- run_command(cmd): Execute a shell command and return output\n- search_files(pattern, directory): Search for files matching a pattern\n\nProject structure:\n  src/\n    main.py         - Entry point, argument parsing, main loop\n    utils.py        - Helper functions (logging, formatting, retry logic)\n    api.py          - External API client with rate limiting\n    models.py       - Data models and validation schemas\n    config.py       - Configuration loading from env and config.json\n  tests/\n    test_main.py    - Integration tests for main loop\n    test_utils.py   - Unit tests for helper functions\n    test_api.py     - Mocked API client tests\n  data/\n    config.json     - Runtime configuration\n    schema.json     - JSON schema for validation\n  requirements.txt\n  Makefile\n  README.md\n  pyproject.toml\n  .env.example\n",
+    "context_prefix": "Here is the current state of the relevant files for context:\n\n--- src/main.py ---\nimport argparse\nimport logging\nfrom src.utils import setup_logging, format_output\nfrom src.api import APIClient\nfrom src.config import load_config\n\ndef parse_args():\n    parser = argparse.ArgumentParser(description=\"Data processing pipeline\")\n    parser.add_argument(\"--config\", default=\"data/config.json\")\n    parser.add_argument(\"--verbose\", action=\"store_true\")\n    parser.add_argument(\"--dry-run\", action=\"store_true\")\n    return parser.parse_args()\n\ndef main():\n    args = parse_args()\n    config = load_config(args.config)\n    setup_logging(verbose=args.verbose)\n    client = APIClient(config[\"api_key\"], timeout=config.get(\"timeout\", 30))\n    results = []\n    for item in config[\"items\"]:\n        try:\n            result = client.process(item)\n            results.append(result)\n        except Exception as e:\n            logging.error(f\"Failed to process {item}: {e}\")\n    print(format_output(results))\n\nif __name__ == \"__main__\":\n    main()\n\n--- src/config.py ---\nimport json\nimport os\nfrom pathlib import Path\n\nDEFAULT_CONFIG = {\n    \"timeout\": 30,\n    \"retry_count\": 3,\n    \"debug\": False,\n    \"api_key\": None,\n    \"items\": [],\n}\n\ndef load_config(path: str) -> dict:\n    config = DEFAULT_CONFIG.copy()\n    config_path = Path(path)\n    if config_path.exists():\n        with open(config_path) as f:\n            file_config = json.load(f)\n        config.update(file_config)\n    env_key = os.environ.get(\"API_KEY\")\n    if env_key:\n        config[\"api_key\"] = env_key\n    return config\n\n--- data/config.json ---\n{\n  \"api_key\": \"sk-placeholder\",\n  \"timeout\": 60,\n  \"debug\": true,\n  \"items\": [\"item_001\", \"item_002\", \"item_003\"],\n  \"retry_count\": 5\n}\n\n--- src/utils.py ---\nimport logging\nimport sys\nfrom datetime import datetime\nfrom typing import Any\n\ndef setup_logging(verbose: bool = False) -> None:\n    level = logging.DEBUG if verbose else logging.INFO\n    logging.basicConfig(\n        stream=sys.stdout,\n        level=level,\n        format=\"%(asctime)s [%(levelname)s] %(message)s\",\n        datefmt=\"%Y-%m-%d %H:%M:%S\",\n    )\n\ndef format_output(results: list[Any]) -> str:\n    if not results:\n        return \"No results.\"\n    lines = [f\"Results ({len(results)} items):\"]\n    for i, r in enumerate(results, 1):\n        lines.append(f\"  {i}. {r}\")\n    return \"\\n\".join(lines)\n\ndef retry(fn, max_attempts: int = 3, delay: float = 1.0):\n    import time\n    last_exc = None\n    for attempt in range(max_attempts):\n        try:\n            return fn()\n        except Exception as e:\n            last_exc = e\n            if attempt < max_attempts - 1:\n                time.sleep(delay * (attempt + 1))\n    raise last_exc\n\n--- src/api.py ---\nimport requests\nfrom src.utils import retry\n\nclass APIClient:\n    def __init__(self, api_key: str, timeout: int = 30):\n        self.api_key = api_key\n        self.timeout = timeout\n        self.base_url = \"https://api.example.com/v1\"\n        self.session = requests.Session()\n        self.session.headers.update({\n            \"Authorization\": f\"Bearer {api_key}\",\n            \"Content-Type\": \"application/json\",\n        })\n\n    def process(self, item: str) -> dict:\n        return retry(lambda: self._post(\"/process\", {\"item\": item}))\n\n    def _post(self, path: str, payload: dict) -> dict:\n        resp = self.session.post(\n            f\"{self.base_url}{path}\",\n            json=payload,\n            timeout=self.timeout,\n        )\n        resp.raise_for_status()\n        return resp.json()\n\n--- requirements.txt ---\nrequests==2.31.0\npython-dotenv==1.0.0\npydantic==2.5.0\npytest==7.4.3\npytest-asyncio==0.21.4\nruff==0.1.8\n\n--- pyproject.toml ---\n[project]\nname = \"data-pipeline\"\nversion = \"0.1.0\"\nrequires-python = \">=3.11\"\ndependencies = [\n    \"requests>=2.31.0\",\n    \"python-dotenv>=1.0.0\",\n    \"pydantic>=2.5.0\",\n]\n\n[tool.ruff]\nline-length = 100\ntarget-version = \"py311\"\n",
+    "prompt": "Search for JSON files in the src directory.",
+    "multiturn": false
+  },
+  {
+    "id": "seq_001__bare",
+    "base_id": "seq_001",
+    "category": "sequential",
+    "condition": "bare",
+    "tools": [
+      "read_file",
+      "write_file"
+    ],
+    "expected_tool": "read_file",
+    "check_params": true,
+    "expected_params": {
+      "path": "config.py"
+    },
+    "system": null,
+    "context_prefix": null,
+    "prompt": "Read config.py and then update the DEBUG setting to False.",
+    "multiturn": false
+  },
+  {
+    "id": "seq_001__sysprompt",
+    "base_id": "seq_001",
+    "category": "sequential",
+    "condition": "sysprompt",
+    "tools": [
+      "read_file",
+      "write_file"
+    ],
+    "expected_tool": "read_file",
+    "check_params": true,
+    "expected_params": {
+      "path": "config.py"
+    },
+    "system": "You are an expert coding assistant. You have access to tools that let you read files, write files, run shell commands, and search the codebase. Always use the appropriate tool to complete the user's request. Never answer with prose when a tool call is required. Use tools immediately without explaining what you are about to do.\n\nAvailable tools:\n- read_file(path): Read file contents\n- write_file(path, content): Write or overwrite a file\n- run_command(cmd): Execute a shell command and return output\n- search_files(pattern, directory): Search for files matching a pattern\n\nProject structure:\n  src/\n    main.py         - Entry point, argument parsing, main loop\n    utils.py        - Helper functions (logging, formatting, retry logic)\n    api.py          - External API client with rate limiting\n    models.py       - Data models and validation schemas\n    config.py       - Configuration loading from env and config.json\n  tests/\n    test_main.py    - Integration tests for main loop\n    test_utils.py   - Unit tests for helper functions\n    test_api.py     - Mocked API client tests\n  data/\n    config.json     - Runtime configuration\n    schema.json     - JSON schema for validation\n  requirements.txt\n  Makefile\n  README.md\n  pyproject.toml\n  .env.example\n",
+    "context_prefix": null,
+    "prompt": "Read config.py and then update the DEBUG setting to False.",
+    "multiturn": false
+  },
+  {
+    "id": "seq_001__context_sm",
+    "base_id": "seq_001",
+    "category": "sequential",
+    "condition": "context_sm",
+    "tools": [
+      "read_file",
+      "write_file"
+    ],
+    "expected_tool": "read_file",
+    "check_params": true,
+    "expected_params": {
+      "path": "config.py"
+    },
+    "system": "You are an expert coding assistant. You have access to tools that let you read files, write files, run shell commands, and search the codebase. Always use the appropriate tool to complete the user's request. Never answer with prose when a tool call is required. Use tools immediately without explaining what you are about to do.\n\nAvailable tools:\n- read_file(path): Read file contents\n- write_file(path, content): Write or overwrite a file\n- run_command(cmd): Execute a shell command and return output\n- search_files(pattern, directory): Search for files matching a pattern\n\nProject structure:\n  src/\n    main.py         - Entry point, argument parsing, main loop\n    utils.py        - Helper functions (logging, formatting, retry logic)\n    api.py          - External API client with rate limiting\n    models.py       - Data models and validation schemas\n    config.py       - Configuration loading from env and config.json\n  tests/\n    test_main.py    - Integration tests for main loop\n    test_utils.py   - Unit tests for helper functions\n    test_api.py     - Mocked API client tests\n  data/\n    config.json     - Runtime configuration\n    schema.json     - JSON schema for validation\n  requirements.txt\n  Makefile\n  README.md\n  pyproject.toml\n  .env.example\n",
+    "context_prefix": "Here is the current state of the relevant files for context:\n\n--- src/main.py ---\nimport argparse\nimport logging\nfrom src.utils import setup_logging, format_output\nfrom src.api import APIClient\nfrom src.config import load_config\n\ndef parse_args():\n    parser = argparse.ArgumentParser(description=\"Data processing pipeline\")\n    parser.add_argument(\"--config\", default=\"data/config.json\")\n    parser.add_argument(\"--verbose\", action=\"store_true\")\n    parser.add_argument(\"--dry-run\", action=\"store_true\")\n    return parser.parse_args()\n\ndef main():\n    args = parse_args()\n    config = load_config(args.config)\n    setup_logging(verbose=args.verbose)\n    client = APIClient(config[\"api_key\"], timeout=config.get(\"timeout\", 30))\n    results = []\n    for item in config[\"items\"]:\n        try:\n            result = client.process(item)\n            results.append(result)\n        except Exception as e:\n            logging.error(f\"Failed to process {item}: {e}\")\n    print(format_output(results))\n\nif __name__ == \"__main__\":\n    main()\n\n--- src/config.py ---\nimport json\nimport os\nfrom pathlib import Path\n\nDEFAULT_CONFIG = {\n    \"timeout\": 30,\n    \"retry_count\": 3,\n    \"debug\": False,\n    \"api_key\": None,\n    \"items\": [],\n}\n\ndef load_config(path: str) -> dict:\n    config = DEFAULT_CONFIG.copy()\n    config_path = Path(path)\n    if config_path.exists():\n        with open(config_path) as f:\n            file_config = json.load(f)\n        config.update(file_config)\n    env_key = os.environ.get(\"API_KEY\")\n    if env_key:\n        config[\"api_key\"] = env_key\n    return config\n\n--- data/config.json ---\n{\n  \"api_key\": \"sk-placeholder\",\n  \"timeout\": 60,\n  \"debug\": true,\n  \"items\": [\"item_001\", \"item_002\", \"item_003\"],\n  \"retry_count\": 5\n}\n",
+    "prompt": "Read config.py and then update the DEBUG setting to False.",
+    "multiturn": false
+  },
+  {
+    "id": "seq_001__context_lg",
+    "base_id": "seq_001",
+    "category": "sequential",
+    "condition": "context_lg",
+    "tools": [
+      "read_file",
+      "write_file"
+    ],
+    "expected_tool": "read_file",
+    "check_params": true,
+    "expected_params": {
+      "path": "config.py"
+    },
+    "system": "You are an expert coding assistant. You have access to tools that let you read files, write files, run shell commands, and search the codebase. Always use the appropriate tool to complete the user's request. Never answer with prose when a tool call is required. Use tools immediately without explaining what you are about to do.\n\nAvailable tools:\n- read_file(path): Read file contents\n- write_file(path, content): Write or overwrite a file\n- run_command(cmd): Execute a shell command and return output\n- search_files(pattern, directory): Search for files matching a pattern\n\nProject structure:\n  src/\n    main.py         - Entry point, argument parsing, main loop\n    utils.py        - Helper functions (logging, formatting, retry logic)\n    api.py          - External API client with rate limiting\n    models.py       - Data models and validation schemas\n    config.py       - Configuration loading from env and config.json\n  tests/\n    test_main.py    - Integration tests for main loop\n    test_utils.py   - Unit tests for helper functions\n    test_api.py     - Mocked API client tests\n  data/\n    config.json     - Runtime configuration\n    schema.json     - JSON schema for validation\n  requirements.txt\n  Makefile\n  README.md\n  pyproject.toml\n  .env.example\n",
+    "context_prefix": "Here is the current state of the relevant files for context:\n\n--- src/main.py ---\nimport argparse\nimport logging\nfrom src.utils import setup_logging, format_output\nfrom src.api import APIClient\nfrom src.config import load_config\n\ndef parse_args():\n    parser = argparse.ArgumentParser(description=\"Data processing pipeline\")\n    parser.add_argument(\"--config\", default=\"data/config.json\")\n    parser.add_argument(\"--verbose\", action=\"store_true\")\n    parser.add_argument(\"--dry-run\", action=\"store_true\")\n    return parser.parse_args()\n\ndef main():\n    args = parse_args()\n    config = load_config(args.config)\n    setup_logging(verbose=args.verbose)\n    client = APIClient(config[\"api_key\"], timeout=config.get(\"timeout\", 30))\n    results = []\n    for item in config[\"items\"]:\n        try:\n            result = client.process(item)\n            results.append(result)\n        except Exception as e:\n            logging.error(f\"Failed to process {item}: {e}\")\n    print(format_output(results))\n\nif __name__ == \"__main__\":\n    main()\n\n--- src/config.py ---\nimport json\nimport os\nfrom pathlib import Path\n\nDEFAULT_CONFIG = {\n    \"timeout\": 30,\n    \"retry_count\": 3,\n    \"debug\": False,\n    \"api_key\": None,\n    \"items\": [],\n}\n\ndef load_config(path: str) -> dict:\n    config = DEFAULT_CONFIG.copy()\n    config_path = Path(path)\n    if config_path.exists():\n        with open(config_path) as f:\n            file_config = json.load(f)\n        config.update(file_config)\n    env_key = os.environ.get(\"API_KEY\")\n    if env_key:\n        config[\"api_key\"] = env_key\n    return config\n\n--- data/config.json ---\n{\n  \"api_key\": \"sk-placeholder\",\n  \"timeout\": 60,\n  \"debug\": true,\n  \"items\": [\"item_001\", \"item_002\", \"item_003\"],\n  \"retry_count\": 5\n}\n\n--- src/utils.py ---\nimport logging\nimport sys\nfrom datetime import datetime\nfrom typing import Any\n\ndef setup_logging(verbose: bool = False) -> None:\n    level = logging.DEBUG if verbose else logging.INFO\n    logging.basicConfig(\n        stream=sys.stdout,\n        level=level,\n        format=\"%(asctime)s [%(levelname)s] %(message)s\",\n        datefmt=\"%Y-%m-%d %H:%M:%S\",\n    )\n\ndef format_output(results: list[Any]) -> str:\n    if not results:\n        return \"No results.\"\n    lines = [f\"Results ({len(results)} items):\"]\n    for i, r in enumerate(results, 1):\n        lines.append(f\"  {i}. {r}\")\n    return \"\\n\".join(lines)\n\ndef retry(fn, max_attempts: int = 3, delay: float = 1.0):\n    import time\n    last_exc = None\n    for attempt in range(max_attempts):\n        try:\n            return fn()\n        except Exception as e:\n            last_exc = e\n            if attempt < max_attempts - 1:\n                time.sleep(delay * (attempt + 1))\n    raise last_exc\n\n--- src/api.py ---\nimport requests\nfrom src.utils import retry\n\nclass APIClient:\n    def __init__(self, api_key: str, timeout: int = 30):\n        self.api_key = api_key\n        self.timeout = timeout\n        self.base_url = \"https://api.example.com/v1\"\n        self.session = requests.Session()\n        self.session.headers.update({\n            \"Authorization\": f\"Bearer {api_key}\",\n            \"Content-Type\": \"application/json\",\n        })\n\n    def process(self, item: str) -> dict:\n        return retry(lambda: self._post(\"/process\", {\"item\": item}))\n\n    def _post(self, path: str, payload: dict) -> dict:\n        resp = self.session.post(\n            f\"{self.base_url}{path}\",\n            json=payload,\n            timeout=self.timeout,\n        )\n        resp.raise_for_status()\n        return resp.json()\n\n--- requirements.txt ---\nrequests==2.31.0\npython-dotenv==1.0.0\npydantic==2.5.0\npytest==7.4.3\npytest-asyncio==0.21.4\nruff==0.1.8\n\n--- pyproject.toml ---\n[project]\nname = \"data-pipeline\"\nversion = \"0.1.0\"\nrequires-python = \">=3.11\"\ndependencies = [\n    \"requests>=2.31.0\",\n    \"python-dotenv>=1.0.0\",\n    \"pydantic>=2.5.0\",\n]\n\n[tool.ruff]\nline-length = 100\ntarget-version = \"py311\"\n",
+    "prompt": "Read config.py and then update the DEBUG setting to False.",
+    "multiturn": false
+  },
+  {
+    "id": "cond_001__bare",
+    "base_id": "cond_001",
+    "category": "conditional",
+    "condition": "bare",
+    "tools": [
+      "read_file",
+      "write_file"
+    ],
+    "expected_tool": "read_file",
+    "check_params": true,
+    "expected_params": {
+      "path": "settings.py"
+    },
+    "system": null,
+    "context_prefix": null,
+    "prompt": "Try to read settings.py; if it doesn't exist, create it with a DEFAULT_TIMEOUT = 30 setting.",
+    "multiturn": false
+  },
+  {
+    "id": "cond_001__sysprompt",
+    "base_id": "cond_001",
+    "category": "conditional",
+    "condition": "sysprompt",
+    "tools": [
+      "read_file",
+      "write_file"
+    ],
+    "expected_tool": "read_file",
+    "check_params": true,
+    "expected_params": {
+      "path": "settings.py"
+    },
+    "system": "You are an expert coding assistant. You have access to tools that let you read files, write files, run shell commands, and search the codebase. Always use the appropriate tool to complete the user's request. Never answer with prose when a tool call is required. Use tools immediately without explaining what you are about to do.\n\nAvailable tools:\n- read_file(path): Read file contents\n- write_file(path, content): Write or overwrite a file\n- run_command(cmd): Execute a shell command and return output\n- search_files(pattern, directory): Search for files matching a pattern\n\nProject structure:\n  src/\n    main.py         - Entry point, argument parsing, main loop\n    utils.py        - Helper functions (logging, formatting, retry logic)\n    api.py          - External API client with rate limiting\n    models.py       - Data models and validation schemas\n    config.py       - Configuration loading from env and config.json\n  tests/\n    test_main.py    - Integration tests for main loop\n    test_utils.py   - Unit tests for helper functions\n    test_api.py     - Mocked API client tests\n  data/\n    config.json     - Runtime configuration\n    schema.json     - JSON schema for validation\n  requirements.txt\n  Makefile\n  README.md\n  pyproject.toml\n  .env.example\n",
+    "context_prefix": null,
+    "prompt": "Try to read settings.py; if it doesn't exist, create it with a DEFAULT_TIMEOUT = 30 setting.",
+    "multiturn": false
+  },
+  {
+    "id": "cond_001__context_sm",
+    "base_id": "cond_001",
+    "category": "conditional",
+    "condition": "context_sm",
+    "tools": [
+      "read_file",
+      "write_file"
+    ],
+    "expected_tool": "read_file",
+    "check_params": true,
+    "expected_params": {
+      "path": "settings.py"
+    },
+    "system": "You are an expert coding assistant. You have access to tools that let you read files, write files, run shell commands, and search the codebase. Always use the appropriate tool to complete the user's request. Never answer with prose when a tool call is required. Use tools immediately without explaining what you are about to do.\n\nAvailable tools:\n- read_file(path): Read file contents\n- write_file(path, content): Write or overwrite a file\n- run_command(cmd): Execute a shell command and return output\n- search_files(pattern, directory): Search for files matching a pattern\n\nProject structure:\n  src/\n    main.py         - Entry point, argument parsing, main loop\n    utils.py        - Helper functions (logging, formatting, retry logic)\n    api.py          - External API client with rate limiting\n    models.py       - Data models and validation schemas\n    config.py       - Configuration loading from env and config.json\n  tests/\n    test_main.py    - Integration tests for main loop\n    test_utils.py   - Unit tests for helper functions\n    test_api.py     - Mocked API client tests\n  data/\n    config.json     - Runtime configuration\n    schema.json     - JSON schema for validation\n  requirements.txt\n  Makefile\n  README.md\n  pyproject.toml\n  .env.example\n",
+    "context_prefix": "Here is the current state of the relevant files for context:\n\n--- src/main.py ---\nimport argparse\nimport logging\nfrom src.utils import setup_logging, format_output\nfrom src.api import APIClient\nfrom src.config import load_config\n\ndef parse_args():\n    parser = argparse.ArgumentParser(description=\"Data processing pipeline\")\n    parser.add_argument(\"--config\", default=\"data/config.json\")\n    parser.add_argument(\"--verbose\", action=\"store_true\")\n    parser.add_argument(\"--dry-run\", action=\"store_true\")\n    return parser.parse_args()\n\ndef main():\n    args = parse_args()\n    config = load_config(args.config)\n    setup_logging(verbose=args.verbose)\n    client = APIClient(config[\"api_key\"], timeout=config.get(\"timeout\", 30))\n    results = []\n    for item in config[\"items\"]:\n        try:\n            result = client.process(item)\n            results.append(result)\n        except Exception as e:\n            logging.error(f\"Failed to process {item}: {e}\")\n    print(format_output(results))\n\nif __name__ == \"__main__\":\n    main()\n\n--- src/config.py ---\nimport json\nimport os\nfrom pathlib import Path\n\nDEFAULT_CONFIG = {\n    \"timeout\": 30,\n    \"retry_count\": 3,\n    \"debug\": False,\n    \"api_key\": None,\n    \"items\": [],\n}\n\ndef load_config(path: str) -> dict:\n    config = DEFAULT_CONFIG.copy()\n    config_path = Path(path)\n    if config_path.exists():\n        with open(config_path) as f:\n            file_config = json.load(f)\n        config.update(file_config)\n    env_key = os.environ.get(\"API_KEY\")\n    if env_key:\n        config[\"api_key\"] = env_key\n    return config\n\n--- data/config.json ---\n{\n  \"api_key\": \"sk-placeholder\",\n  \"timeout\": 60,\n  \"debug\": true,\n  \"items\": [\"item_001\", \"item_002\", \"item_003\"],\n  \"retry_count\": 5\n}\n",
+    "prompt": "Try to read settings.py; if it doesn't exist, create it with a DEFAULT_TIMEOUT = 30 setting.",
+    "multiturn": false
+  },
+  {
+    "id": "cond_001__context_lg",
+    "base_id": "cond_001",
+    "category": "conditional",
+    "condition": "context_lg",
+    "tools": [
+      "read_file",
+      "write_file"
+    ],
+    "expected_tool": "read_file",
+    "check_params": true,
+    "expected_params": {
+      "path": "settings.py"
+    },
+    "system": "You are an expert coding assistant. You have access to tools that let you read files, write files, run shell commands, and search the codebase. Always use the appropriate tool to complete the user's request. Never answer with prose when a tool call is required. Use tools immediately without explaining what you are about to do.\n\nAvailable tools:\n- read_file(path): Read file contents\n- write_file(path, content): Write or overwrite a file\n- run_command(cmd): Execute a shell command and return output\n- search_files(pattern, directory): Search for files matching a pattern\n\nProject structure:\n  src/\n    main.py         - Entry point, argument parsing, main loop\n    utils.py        - Helper functions (logging, formatting, retry logic)\n    api.py          - External API client with rate limiting\n    models.py       - Data models and validation schemas\n    config.py       - Configuration loading from env and config.json\n  tests/\n    test_main.py    - Integration tests for main loop\n    test_utils.py   - Unit tests for helper functions\n    test_api.py     - Mocked API client tests\n  data/\n    config.json     - Runtime configuration\n    schema.json     - JSON schema for validation\n  requirements.txt\n  Makefile\n  README.md\n  pyproject.toml\n  .env.example\n",
+    "context_prefix": "Here is the current state of the relevant files for context:\n\n--- src/main.py ---\nimport argparse\nimport logging\nfrom src.utils import setup_logging, format_output\nfrom src.api import APIClient\nfrom src.config import load_config\n\ndef parse_args():\n    parser = argparse.ArgumentParser(description=\"Data processing pipeline\")\n    parser.add_argument(\"--config\", default=\"data/config.json\")\n    parser.add_argument(\"--verbose\", action=\"store_true\")\n    parser.add_argument(\"--dry-run\", action=\"store_true\")\n    return parser.parse_args()\n\ndef main():\n    args = parse_args()\n    config = load_config(args.config)\n    setup_logging(verbose=args.verbose)\n    client = APIClient(config[\"api_key\"], timeout=config.get(\"timeout\", 30))\n    results = []\n    for item in config[\"items\"]:\n        try:\n            result = client.process(item)\n            results.append(result)\n        except Exception as e:\n            logging.error(f\"Failed to process {item}: {e}\")\n    print(format_output(results))\n\nif __name__ == \"__main__\":\n    main()\n\n--- src/config.py ---\nimport json\nimport os\nfrom pathlib import Path\n\nDEFAULT_CONFIG = {\n    \"timeout\": 30,\n    \"retry_count\": 3,\n    \"debug\": False,\n    \"api_key\": None,\n    \"items\": [],\n}\n\ndef load_config(path: str) -> dict:\n    config = DEFAULT_CONFIG.copy()\n    config_path = Path(path)\n    if config_path.exists():\n        with open(config_path) as f:\n            file_config = json.load(f)\n        config.update(file_config)\n    env_key = os.environ.get(\"API_KEY\")\n    if env_key:\n        config[\"api_key\"] = env_key\n    return config\n\n--- data/config.json ---\n{\n  \"api_key\": \"sk-placeholder\",\n  \"timeout\": 60,\n  \"debug\": true,\n  \"items\": [\"item_001\", \"item_002\", \"item_003\"],\n  \"retry_count\": 5\n}\n\n--- src/utils.py ---\nimport logging\nimport sys\nfrom datetime import datetime\nfrom typing import Any\n\ndef setup_logging(verbose: bool = False) -> None:\n    level = logging.DEBUG if verbose else logging.INFO\n    logging.basicConfig(\n        stream=sys.stdout,\n        level=level,\n        format=\"%(asctime)s [%(levelname)s] %(message)s\",\n        datefmt=\"%Y-%m-%d %H:%M:%S\",\n    )\n\ndef format_output(results: list[Any]) -> str:\n    if not results:\n        return \"No results.\"\n    lines = [f\"Results ({len(results)} items):\"]\n    for i, r in enumerate(results, 1):\n        lines.append(f\"  {i}. {r}\")\n    return \"\\n\".join(lines)\n\ndef retry(fn, max_attempts: int = 3, delay: float = 1.0):\n    import time\n    last_exc = None\n    for attempt in range(max_attempts):\n        try:\n            return fn()\n        except Exception as e:\n            last_exc = e\n            if attempt < max_attempts - 1:\n                time.sleep(delay * (attempt + 1))\n    raise last_exc\n\n--- src/api.py ---\nimport requests\nfrom src.utils import retry\n\nclass APIClient:\n    def __init__(self, api_key: str, timeout: int = 30):\n        self.api_key = api_key\n        self.timeout = timeout\n        self.base_url = \"https://api.example.com/v1\"\n        self.session = requests.Session()\n        self.session.headers.update({\n            \"Authorization\": f\"Bearer {api_key}\",\n            \"Content-Type\": \"application/json\",\n        })\n\n    def process(self, item: str) -> dict:\n        return retry(lambda: self._post(\"/process\", {\"item\": item}))\n\n    def _post(self, path: str, payload: dict) -> dict:\n        resp = self.session.post(\n            f\"{self.base_url}{path}\",\n            json=payload,\n            timeout=self.timeout,\n        )\n        resp.raise_for_status()\n        return resp.json()\n\n--- requirements.txt ---\nrequests==2.31.0\npython-dotenv==1.0.0\npydantic==2.5.0\npytest==7.4.3\npytest-asyncio==0.21.4\nruff==0.1.8\n\n--- pyproject.toml ---\n[project]\nname = \"data-pipeline\"\nversion = \"0.1.0\"\nrequires-python = \">=3.11\"\ndependencies = [\n    \"requests>=2.31.0\",\n    \"python-dotenv>=1.0.0\",\n    \"pydantic>=2.5.0\",\n]\n\n[tool.ruff]\nline-length = 100\ntarget-version = \"py311\"\n",
+    "prompt": "Try to read settings.py; if it doesn't exist, create it with a DEFAULT_TIMEOUT = 30 setting.",
+    "multiturn": false
+  },
+  {
+    "id": "chain_001",
+    "base_id": "chain_001",
+    "category": "multiturn",
+    "condition": "context_sm",
+    "tools": [
+      "read_file",
+      "run_command"
+    ],
+    "expected_tool": "read_file",
+    "check_params": false,
+    "expected_params": {},
+    "system": "You are an expert coding assistant. You have access to tools that let you read files, write files, run shell commands, and search the codebase. Always use the appropriate tool to complete the user's request. Never answer with prose when a tool call is required. Use tools immediately without explaining what you are about to do.\n\nAvailable tools:\n- read_file(path): Read file contents\n- write_file(path, content): Write or overwrite a file\n- run_command(cmd): Execute a shell command and return output\n- search_files(pattern, directory): Search for files matching a pattern\n\nProject structure:\n  src/\n    main.py         - Entry point, argument parsing, main loop\n    utils.py        - Helper functions (logging, formatting, retry logic)\n    api.py          - External API client with rate limiting\n    models.py       - Data models and validation schemas\n    config.py       - Configuration loading from env and config.json\n  tests/\n    test_main.py    - Integration tests for main loop\n    test_utils.py   - Unit tests for helper functions\n    test_api.py     - Mocked API client tests\n  data/\n    config.json     - Runtime configuration\n    schema.json     - JSON schema for validation\n  requirements.txt\n  Makefile\n  README.md\n  pyproject.toml\n  .env.example\n",
+    "context_prefix": "Here is the current state of the relevant files for context:\n\n--- src/main.py ---\nimport argparse\nimport logging\nfrom src.utils import setup_logging, format_output\nfrom src.api import APIClient\nfrom src.config import load_config\n\ndef parse_args():\n    parser = argparse.ArgumentParser(description=\"Data processing pipeline\")\n    parser.add_argument(\"--config\", default=\"data/config.json\")\n    parser.add_argument(\"--verbose\", action=\"store_true\")\n    parser.add_argument(\"--dry-run\", action=\"store_true\")\n    return parser.parse_args()\n\ndef main():\n    args = parse_args()\n    config = load_config(args.config)\n    setup_logging(verbose=args.verbose)\n    client = APIClient(config[\"api_key\"], timeout=config.get(\"timeout\", 30))\n    results = []\n    for item in config[\"items\"]:\n        try:\n            result = client.process(item)\n            results.append(result)\n        except Exception as e:\n            logging.error(f\"Failed to process {item}: {e}\")\n    print(format_output(results))\n\nif __name__ == \"__main__\":\n    main()\n\n--- src/config.py ---\nimport json\nimport os\nfrom pathlib import Path\n\nDEFAULT_CONFIG = {\n    \"timeout\": 30,\n    \"retry_count\": 3,\n    \"debug\": False,\n    \"api_key\": None,\n    \"items\": [],\n}\n\ndef load_config(path: str) -> dict:\n    config = DEFAULT_CONFIG.copy()\n    config_path = Path(path)\n    if config_path.exists():\n        with open(config_path) as f:\n            file_config = json.load(f)\n        config.update(file_config)\n    env_key = os.environ.get(\"API_KEY\")\n    if env_key:\n        config[\"api_key\"] = env_key\n    return config\n\n--- data/config.json ---\n{\n  \"api_key\": \"sk-placeholder\",\n  \"timeout\": 60,\n  \"debug\": true,\n  \"items\": [\"item_001\", \"item_002\", \"item_003\"],\n  \"retry_count\": 5\n}\n",
+    "prompt": "Read main.py to understand the entry point.",
+    "multiturn": true,
+    "turn2_prompt": "Now run the tests to check if it works.",
+    "turn2_expected_tool": "run_command",
+    "fake_tool_result": {
+      "main.py": "# main.py\ndef main():\n    print('Hello, World!')\n\nif __name__ == '__main__':\n    main()\n",
+      "config.json": "{\n  \"debug\": true,\n  \"timeout\": 30,\n  \"api_key\": \"sk-test\"\n}\n",
+      "requirements.txt": "requests==2.31.0\nflask==3.0.0\npytest==7.4.3\n",
+      "README.md": "# My Project\n\nA data processing pipeline.\n\n## Installation\n\npip install -r requirements.txt\n\n## Usage\n\npython main.py\n"
+    }
+  },
+  {
+    "id": "chain_002",
+    "base_id": "chain_002",
+    "category": "multiturn",
+    "condition": "context_sm",
+    "tools": [
+      "search_files",
+      "read_file"
+    ],
+    "expected_tool": "search_files",
+    "check_params": false,
+    "expected_params": {},
+    "system": "You are an expert coding assistant. You have access to tools that let you read files, write files, run shell commands, and search the codebase. Always use the appropriate tool to complete the user's request. Never answer with prose when a tool call is required. Use tools immediately without explaining what you are about to do.\n\nAvailable tools:\n- read_file(path): Read file contents\n- write_file(path, content): Write or overwrite a file\n- run_command(cmd): Execute a shell command and return output\n- search_files(pattern, directory): Search for files matching a pattern\n\nProject structure:\n  src/\n    main.py         - Entry point, argument parsing, main loop\n    utils.py        - Helper functions (logging, formatting, retry logic)\n    api.py          - External API client with rate limiting\n    models.py       - Data models and validation schemas\n    config.py       - Configuration loading from env and config.json\n  tests/\n    test_main.py    - Integration tests for main loop\n    test_utils.py   - Unit tests for helper functions\n    test_api.py     - Mocked API client tests\n  data/\n    config.json     - Runtime configuration\n    schema.json     - JSON schema for validation\n  requirements.txt\n  Makefile\n  README.md\n  pyproject.toml\n  .env.example\n",
+    "context_prefix": "Here is the current state of the relevant files for context:\n\n--- src/main.py ---\nimport argparse\nimport logging\nfrom src.utils import setup_logging, format_output\nfrom src.api import APIClient\nfrom src.config import load_config\n\ndef parse_args():\n    parser = argparse.ArgumentParser(description=\"Data processing pipeline\")\n    parser.add_argument(\"--config\", default=\"data/config.json\")\n    parser.add_argument(\"--verbose\", action=\"store_true\")\n    parser.add_argument(\"--dry-run\", action=\"store_true\")\n    return parser.parse_args()\n\ndef main():\n    args = parse_args()\n    config = load_config(args.config)\n    setup_logging(verbose=args.verbose)\n    client = APIClient(config[\"api_key\"], timeout=config.get(\"timeout\", 30))\n    results = []\n    for item in config[\"items\"]:\n        try:\n            result = client.process(item)\n            results.append(result)\n        except Exception as e:\n            logging.error(f\"Failed to process {item}: {e}\")\n    print(format_output(results))\n\nif __name__ == \"__main__\":\n    main()\n\n--- src/config.py ---\nimport json\nimport os\nfrom pathlib import Path\n\nDEFAULT_CONFIG = {\n    \"timeout\": 30,\n    \"retry_count\": 3,\n    \"debug\": False,\n    \"api_key\": None,\n    \"items\": [],\n}\n\ndef load_config(path: str) -> dict:\n    config = DEFAULT_CONFIG.copy()\n    config_path = Path(path)\n    if config_path.exists():\n        with open(config_path) as f:\n            file_config = json.load(f)\n        config.update(file_config)\n    env_key = os.environ.get(\"API_KEY\")\n    if env_key:\n        config[\"api_key\"] = env_key\n    return config\n\n--- data/config.json ---\n{\n  \"api_key\": \"sk-placeholder\",\n  \"timeout\": 60,\n  \"debug\": true,\n  \"items\": [\"item_001\", \"item_002\", \"item_003\"],\n  \"retry_count\": 5\n}\n",
+    "prompt": "Search for all Python files in the src directory.",
+    "multiturn": true,
+    "turn2_prompt": "Read the first file you found.",
+    "turn2_expected_tool": "read_file",
+    "fake_tool_result": "[\"src/main.py\", \"src/utils.py\", \"src/api.py\", \"tests/test_main.py\"]"
+  },
+  {
+    "id": "chain_003",
+    "base_id": "chain_003",
+    "category": "multiturn",
+    "condition": "context_sm",
+    "tools": [
+      "read_file",
+      "run_command"
+    ],
+    "expected_tool": "read_file",
+    "check_params": false,
+    "expected_params": {},
+    "system": "You are an expert coding assistant. You have access to tools that let you read files, write files, run shell commands, and search the codebase. Always use the appropriate tool to complete the user's request. Never answer with prose when a tool call is required. Use tools immediately without explaining what you are about to do.\n\nAvailable tools:\n- read_file(path): Read file contents\n- write_file(path, content): Write or overwrite a file\n- run_command(cmd): Execute a shell command and return output\n- search_files(pattern, directory): Search for files matching a pattern\n\nProject structure:\n  src/\n    main.py         - Entry point, argument parsing, main loop\n    utils.py        - Helper functions (logging, formatting, retry logic)\n    api.py          - External API client with rate limiting\n    models.py       - Data models and validation schemas\n    config.py       - Configuration loading from env and config.json\n  tests/\n    test_main.py    - Integration tests for main loop\n    test_utils.py   - Unit tests for helper functions\n    test_api.py     - Mocked API client tests\n  data/\n    config.json     - Runtime configuration\n    schema.json     - JSON schema for validation\n  requirements.txt\n  Makefile\n  README.md\n  pyproject.toml\n  .env.example\n",
+    "context_prefix": "Here is the current state of the relevant files for context:\n\n--- src/main.py ---\nimport argparse\nimport logging\nfrom src.utils import setup_logging, format_output\nfrom src.api import APIClient\nfrom src.config import load_config\n\ndef parse_args():\n    parser = argparse.ArgumentParser(description=\"Data processing pipeline\")\n    parser.add_argument(\"--config\", default=\"data/config.json\")\n    parser.add_argument(\"--verbose\", action=\"store_true\")\n    parser.add_argument(\"--dry-run\", action=\"store_true\")\n    return parser.parse_args()\n\ndef main():\n    args = parse_args()\n    config = load_config(args.config)\n    setup_logging(verbose=args.verbose)\n    client = APIClient(config[\"api_key\"], timeout=config.get(\"timeout\", 30))\n    results = []\n    for item in config[\"items\"]:\n        try:\n            result = client.process(item)\n            results.append(result)\n        except Exception as e:\n            logging.error(f\"Failed to process {item}: {e}\")\n    print(format_output(results))\n\nif __name__ == \"__main__\":\n    main()\n\n--- src/config.py ---\nimport json\nimport os\nfrom pathlib import Path\n\nDEFAULT_CONFIG = {\n    \"timeout\": 30,\n    \"retry_count\": 3,\n    \"debug\": False,\n    \"api_key\": None,\n    \"items\": [],\n}\n\ndef load_config(path: str) -> dict:\n    config = DEFAULT_CONFIG.copy()\n    config_path = Path(path)\n    if config_path.exists():\n        with open(config_path) as f:\n            file_config = json.load(f)\n        config.update(file_config)\n    env_key = os.environ.get(\"API_KEY\")\n    if env_key:\n        config[\"api_key\"] = env_key\n    return config\n\n--- data/config.json ---\n{\n  \"api_key\": \"sk-placeholder\",\n  \"timeout\": 60,\n  \"debug\": true,\n  \"items\": [\"item_001\", \"item_002\", \"item_003\"],\n  \"retry_count\": 5\n}\n",
+    "prompt": "Read requirements.txt.",
+    "multiturn": true,
+    "turn2_prompt": "Install those dependencies.",
+    "turn2_expected_tool": "run_command",
+    "fake_tool_result": {
+      "main.py": "# main.py\ndef main():\n    print('Hello, World!')\n\nif __name__ == '__main__':\n    main()\n",
+      "config.json": "{\n  \"debug\": true,\n  \"timeout\": 30,\n  \"api_key\": \"sk-test\"\n}\n",
+      "requirements.txt": "requests==2.31.0\nflask==3.0.0\npytest==7.4.3\n",
+      "README.md": "# My Project\n\nA data processing pipeline.\n\n## Installation\n\npip install -r requirements.txt\n\n## Usage\n\npython main.py\n"
+    }
+  },
+  {
+    "id": "chain_004",
+    "base_id": "chain_004",
+    "category": "multiturn",
+    "condition": "context_sm",
+    "tools": [
+      "read_file",
+      "write_file"
+    ],
+    "expected_tool": "read_file",
+    "check_params": false,
+    "expected_params": {},
+    "system": "You are an expert coding assistant. You have access to tools that let you read files, write files, run shell commands, and search the codebase. Always use the appropriate tool to complete the user's request. Never answer with prose when a tool call is required. Use tools immediately without explaining what you are about to do.\n\nAvailable tools:\n- read_file(path): Read file contents\n- write_file(path, content): Write or overwrite a file\n- run_command(cmd): Execute a shell command and return output\n- search_files(pattern, directory): Search for files matching a pattern\n\nProject structure:\n  src/\n    main.py         - Entry point, argument parsing, main loop\n    utils.py        - Helper functions (logging, formatting, retry logic)\n    api.py          - External API client with rate limiting\n    models.py       - Data models and validation schemas\n    config.py       - Configuration loading from env and config.json\n  tests/\n    test_main.py    - Integration tests for main loop\n    test_utils.py   - Unit tests for helper functions\n    test_api.py     - Mocked API client tests\n  data/\n    config.json     - Runtime configuration\n    schema.json     - JSON schema for validation\n  requirements.txt\n  Makefile\n  README.md\n  pyproject.toml\n  .env.example\n",
+    "context_prefix": "Here is the current state of the relevant files for context:\n\n--- src/main.py ---\nimport argparse\nimport logging\nfrom src.utils import setup_logging, format_output\nfrom src.api import APIClient\nfrom src.config import load_config\n\ndef parse_args():\n    parser = argparse.ArgumentParser(description=\"Data processing pipeline\")\n    parser.add_argument(\"--config\", default=\"data/config.json\")\n    parser.add_argument(\"--verbose\", action=\"store_true\")\n    parser.add_argument(\"--dry-run\", action=\"store_true\")\n    return parser.parse_args()\n\ndef main():\n    args = parse_args()\n    config = load_config(args.config)\n    setup_logging(verbose=args.verbose)\n    client = APIClient(config[\"api_key\"], timeout=config.get(\"timeout\", 30))\n    results = []\n    for item in config[\"items\"]:\n        try:\n            result = client.process(item)\n            results.append(result)\n        except Exception as e:\n            logging.error(f\"Failed to process {item}: {e}\")\n    print(format_output(results))\n\nif __name__ == \"__main__\":\n    main()\n\n--- src/config.py ---\nimport json\nimport os\nfrom pathlib import Path\n\nDEFAULT_CONFIG = {\n    \"timeout\": 30,\n    \"retry_count\": 3,\n    \"debug\": False,\n    \"api_key\": None,\n    \"items\": [],\n}\n\ndef load_config(path: str) -> dict:\n    config = DEFAULT_CONFIG.copy()\n    config_path = Path(path)\n    if config_path.exists():\n        with open(config_path) as f:\n            file_config = json.load(f)\n        config.update(file_config)\n    env_key = os.environ.get(\"API_KEY\")\n    if env_key:\n        config[\"api_key\"] = env_key\n    return config\n\n--- data/config.json ---\n{\n  \"api_key\": \"sk-placeholder\",\n  \"timeout\": 60,\n  \"debug\": true,\n  \"items\": [\"item_001\", \"item_002\", \"item_003\"],\n  \"retry_count\": 5\n}\n",
+    "prompt": "Read README.md.",
+    "multiturn": true,
+    "turn2_prompt": "Save an updated version with a Quickstart section added.",
+    "turn2_expected_tool": "write_file",
+    "fake_tool_result": {
+      "main.py": "# main.py\ndef main():\n    print('Hello, World!')\n\nif __name__ == '__main__':\n    main()\n",
+      "config.json": "{\n  \"debug\": true,\n  \"timeout\": 30,\n  \"api_key\": \"sk-test\"\n}\n",
+      "requirements.txt": "requests==2.31.0\nflask==3.0.0\npytest==7.4.3\n",
+      "README.md": "# My Project\n\nA data processing pipeline.\n\n## Installation\n\npip install -r requirements.txt\n\n## Usage\n\npython main.py\n"
+    }
+  },
+  {
+    "id": "chain_005",
+    "base_id": "chain_005",
+    "category": "multiturn",
+    "condition": "context_sm",
+    "tools": [
+      "run_command",
+      "read_file"
+    ],
+    "expected_tool": "run_command",
+    "check_params": false,
+    "expected_params": {},
+    "system": "You are an expert coding assistant. You have access to tools that let you read files, write files, run shell commands, and search the codebase. Always use the appropriate tool to complete the user's request. Never answer with prose when a tool call is required. Use tools immediately without explaining what you are about to do.\n\nAvailable tools:\n- read_file(path): Read file contents\n- write_file(path, content): Write or overwrite a file\n- run_command(cmd): Execute a shell command and return output\n- search_files(pattern, directory): Search for files matching a pattern\n\nProject structure:\n  src/\n    main.py         - Entry point, argument parsing, main loop\n    utils.py        - Helper functions (logging, formatting, retry logic)\n    api.py          - External API client with rate limiting\n    models.py       - Data models and validation schemas\n    config.py       - Configuration loading from env and config.json\n  tests/\n    test_main.py    - Integration tests for main loop\n    test_utils.py   - Unit tests for helper functions\n    test_api.py     - Mocked API client tests\n  data/\n    config.json     - Runtime configuration\n    schema.json     - JSON schema for validation\n  requirements.txt\n  Makefile\n  README.md\n  pyproject.toml\n  .env.example\n",
+    "context_prefix": "Here is the current state of the relevant files for context:\n\n--- src/main.py ---\nimport argparse\nimport logging\nfrom src.utils import setup_logging, format_output\nfrom src.api import APIClient\nfrom src.config import load_config\n\ndef parse_args():\n    parser = argparse.ArgumentParser(description=\"Data processing pipeline\")\n    parser.add_argument(\"--config\", default=\"data/config.json\")\n    parser.add_argument(\"--verbose\", action=\"store_true\")\n    parser.add_argument(\"--dry-run\", action=\"store_true\")\n    return parser.parse_args()\n\ndef main():\n    args = parse_args()\n    config = load_config(args.config)\n    setup_logging(verbose=args.verbose)\n    client = APIClient(config[\"api_key\"], timeout=config.get(\"timeout\", 30))\n    results = []\n    for item in config[\"items\"]:\n        try:\n            result = client.process(item)\n            results.append(result)\n        except Exception as e:\n            logging.error(f\"Failed to process {item}: {e}\")\n    print(format_output(results))\n\nif __name__ == \"__main__\":\n    main()\n\n--- src/config.py ---\nimport json\nimport os\nfrom pathlib import Path\n\nDEFAULT_CONFIG = {\n    \"timeout\": 30,\n    \"retry_count\": 3,\n    \"debug\": False,\n    \"api_key\": None,\n    \"items\": [],\n}\n\ndef load_config(path: str) -> dict:\n    config = DEFAULT_CONFIG.copy()\n    config_path = Path(path)\n    if config_path.exists():\n        with open(config_path) as f:\n            file_config = json.load(f)\n        config.update(file_config)\n    env_key = os.environ.get(\"API_KEY\")\n    if env_key:\n        config[\"api_key\"] = env_key\n    return config\n\n--- data/config.json ---\n{\n  \"api_key\": \"sk-placeholder\",\n  \"timeout\": 60,\n  \"debug\": true,\n  \"items\": [\"item_001\", \"item_002\", \"item_003\"],\n  \"retry_count\": 5\n}\n",
+    "prompt": "List all Python files in the project.",
+    "multiturn": true,
+    "turn2_prompt": "Read config.json.",
+    "turn2_expected_tool": "read_file",
+    "fake_tool_result": "total 12\n-rw-r--r-- 1 user staff 1234 Jan 1 00:00 main.py\n-rw-r--r-- 1 user staff  456 Jan 1 00:00 config.py\n-rw-r--r-- 1 user staff  789 Jan 1 00:00 utils.py\n"
+  }
+]

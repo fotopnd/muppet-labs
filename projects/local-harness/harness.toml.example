@@ -1,0 +1,9 @@
+# harness.toml — copy to harness.toml and edit as needed
+# All fields are optional; shown values are the defaults.
+
+port   = 8080
+target = "http://localhost:11434"
+
+# Absolute or relative path to the JSONL log file.
+# The directory is created automatically if it does not exist.
+# log_path = "/Users/you/.local/share/lh/requests.jsonl"
