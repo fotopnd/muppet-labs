@@ -231,7 +231,7 @@ function StatGroup({
   )
 }
 
-const ROLE_ORDER = ['HC', 'OC', 'DC', 'ST']
+const ROLE_ORDER = ['Head Coach', 'Offensive Coordinator', 'Defensive Coordinator', 'Special Teams Coordinator']
 
 function StaffTab({ programId }: { programId: number }) {
   const { data, isLoading } = useProgramCoaches(programId)
