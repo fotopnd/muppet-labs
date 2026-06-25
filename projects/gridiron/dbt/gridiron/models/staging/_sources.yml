@@ -1,0 +1,107 @@
+version: 2
+
+sources:
+  - name: gridiron
+    database: gridiron
+    schema: public
+    tables:
+      - name: conglomerates
+        description: Top-level conference groupings (the media/broadcast organisations).
+        columns:
+          - name: id
+            tests: [unique, not_null]
+          - name: code
+            tests: [unique, not_null]
+          - name: full_name
+            tests: [not_null]
+
+      - name: programs
+        description: College football programs (teams). Belong to a conglomerate.
+        columns:
+          - name: id
+            tests: [unique, not_null]
+          - name: conglomerate_id
+            tests:
+              - not_null
+              - relationships:
+                  to: source('gridiron', 'conglomerates')
+                  field: id
+          - name: tier
+            tests:
+              - not_null
+              - accepted_values:
+                  values: [1, 2]
+          - name: prestige
+            tests: [not_null]
+
+      - name: players
+        description: Active players. Each belongs to one program. Year 1–4, 25% roster turnover per season.
+        columns:
+          - name: id
+            tests: [unique, not_null]
+          - name: program_id
+            tests:
+              - not_null
+              - relationships:
+                  to: source('gridiron', 'programs')
+                  field: id
+          - name: position
+            tests: [not_null]
+          - name: year
+            tests:
+              - not_null
+              - accepted_values:
+                  values: [1, 2, 3, 4]
+
+      - name: coaches
+        description: Coaching staff. Each belongs to one program.
+        columns:
+          - name: id
+            tests: [unique, not_null]
+          - name: program_id
+            tests: [not_null]
+
+      - name: boosters
+        description: Program boosters with influence scores.
+        columns:
+          - name: id
+            tests: [unique, not_null]
+
+      - name: games
+        description: Scheduled and completed games. Season + week coordinates.
+        columns:
+          - name: id
+            tests: [unique, not_null]
+          - name: season
+            tests: [not_null]
+          - name: week
+            tests: [not_null]
+          - name: status
+            tests:
+              - not_null
+              - accepted_values:
+                  values: [scheduled, live, complete]
+
+      - name: play_log
+        description: Every play from every completed game with full player attribution.
+        columns:
+          - name: id
+            tests: [unique, not_null]
+          - name: game_id
+            tests:
+              - not_null
+              - relationships:
+                  to: source('gridiron', 'games')
+                  field: id
+          - name: play_type
+            tests: [not_null]
+
+      - name: player_game_stats
+        description: Aggregated per-player per-game statistics.
+        columns:
+          - name: id
+            tests: [unique, not_null]
+          - name: game_id
+            tests: [not_null]
+          - name: player_id
+            tests: [not_null]

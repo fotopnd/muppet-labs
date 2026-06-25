@@ -1,0 +1,36 @@
+__pycache__/
+*.pyc
+*.pyo
+.venv/
+*.db
+.python-version
+dist/
+*.egg-info/
+.pytest_cache/
+.ruff_cache/
+.env
+node_modules/
+web/dist/
+
+# ── dbt ──────────────────────────────────────────────────────────────────────
+dbt/gridiron/target/
+dbt/gridiron/dbt_packages/
+dbt/gridiron/profiles.yml
+
+# ── Project-internal config — never commit ───────────────────────────────────
+_config/
+
+# ── Seed data — derived from EA/Census/SSA; never commit ─────────────────────
+scripts/seed_data/
+
+# ── PRIVATE: simulation engine — never commit to a public repo ──────────────
+# gridiron/engine/ contains scoring constants, play distributions, team
+# generation logic, and balance parameters. This is the proprietary core.
+# The API layer (gridiron/api/) and frontend (web/) are shareable.
+gridiron/engine/
+
+# ── PRIVATE: internal project resources ─────────────────────────────────────
+resources/CONTEXT.md
+resources/design-doc.md
+resources/writing-voice.md
+resources/engine-constants.md

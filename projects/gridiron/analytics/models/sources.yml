@@ -1,0 +1,34 @@
+version: 2
+
+sources:
+  - name: gridiron
+    database: gridiron
+    schema: public
+    tables:
+      - name: games
+        columns:
+          - name: id
+            tests: [unique, not_null]
+      - name: programs
+        columns:
+          - name: id
+            tests: [unique, not_null]
+      - name: players
+        columns:
+          - name: id
+            tests: [unique, not_null]
+      - name: conglomerates
+        columns:
+          - name: id
+            tests: [unique, not_null]
+      - name: player_game_stats
+        columns:
+          - name: id
+            tests: [unique, not_null]
+      - name: play_log
+        columns:
+          - name: id
+            tests: [unique, not_null]
+      - name: rivalry_pairs
+      - name: coaches
+      - name: boosters

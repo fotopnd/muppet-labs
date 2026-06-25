@@ -68,8 +68,3 @@ BUILDOUT.md
 # Project-level resources/ directories are tracked (override above)
 !projects/*/resources/
 !projects/*/resources/**
-
-# ==========================================
-# Private projects — not public
-# ==========================================
-projects/gridiron/

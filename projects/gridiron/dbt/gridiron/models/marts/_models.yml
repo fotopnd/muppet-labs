@@ -1,0 +1,53 @@
+version: 2
+
+models:
+  - name: dim_programs
+    description: One row per program with conglomerate info and current ELO.
+    columns:
+      - name: program_id
+        tests: [unique, not_null]
+      - name: program_name
+        tests: [unique, not_null]
+      - name: tier
+        tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values: [1, 2]
+
+  - name: dim_players
+    description: Current active roster across all programs with derived position group and overall rating.
+    columns:
+      - name: player_id
+        tests: [unique, not_null]
+      - name: position_group
+        tests:
+          - accepted_values:
+              arguments:
+                values: [QB, RB, WR, OL, DL, LB, DB, ST, OTHER]
+
+  - name: fct_game_results
+    description: One row per completed game with winner/loser, margin, ELO delta, and upset flag.
+    columns:
+      - name: game_id
+        tests: [unique, not_null]
+      - name: season
+        tests: [not_null]
+      - name: week
+        tests: [not_null]
+
+  - name: fct_program_season_stats
+    description: Wins, losses, points, and ELO movement per program per season (regular season only).
+    columns:
+      - name: season
+        tests: [not_null]
+      - name: program_id
+        tests: [not_null]
+
+  - name: fct_player_season_stats
+    description: Aggregated box-score stats per player per season across all completed games.
+    columns:
+      - name: season
+        tests: [not_null]
+      - name: player_id
+        tests: [not_null]
