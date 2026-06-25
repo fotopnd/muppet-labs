@@ -132,3 +132,4 @@ Correct flow:
 - `isolation: "worktree"` in the Agent tool creates a temp git worktree automatically. If the agent makes no changes, it's cleaned up. If it does make changes, the worktree path and branch are returned in the result.
 - Do not merge two parallel units at the same time without confirming their file ownership is non-overlapping. The manifest's `Files owned` column is the source of truth.
 - If a unit's agent modifies a file outside its ownership (bug in the brief), do not merge — revert the agent's work on that file and file a corrective brief.
+- **Engine briefs (gitignored files):** Include a `File map` section in the brief listing the key function name, file path, and approximate line number for each file the agent must edit. Gitignored files have no LSP or git blame — without a file map, the agent cold-scans, which wastes tokens and risks editing the wrong location.

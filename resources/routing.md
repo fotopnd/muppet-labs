@@ -328,6 +328,8 @@ sequence (if any) to start.
 
 > **Gridiron localhost CORS check (run before any test session):** Confirm which port `pnpm dev` claimed in its startup output. Verify that port appears in `gridiron/api/main.py` `allow_origins`. If missing, add it and restart the API with `uv run uvicorn gridiron.api.main:app --host 127.0.0.1 --port 8006 --reload` from the gridiron project root. Common conflict: VS Code dev tools grab 5177/5178, pushing the dev server to 5179+.
 
+> **Brief quality rules:** (1) Use actual DB field values, not shorthand — quote enum/role strings exactly as they appear in the DB or seeding SQL (e.g. `'Offensive Coordinator'` not `'OC'`). Shorthand that diverges from the DB causes runtime bugs that pass TypeScript checks. (2) For units extending a prior unit's output, include a short "Prior unit added" section summarising what changed in shared files — prevents the agent cold-reading files it already has context on. (3) Engine briefs (gitignored files) must include a File map: function name, file path, approximate line number for every location the agent must edit. See `skills/sprint-agent-handoff.md`.
+
 ---
 
 ## Adding New Sequences
