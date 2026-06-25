@@ -42,7 +42,7 @@ def upgrade() -> None:
                             WHEN 0 THEN '4-3'
                             WHEN 1 THEN '3-4'
                             WHEN 2 THEN 'nickel'
-                            WHEN 3 THEN 'blitz_heavy'
+                            WHEN 3 THEN '3-3-5'
                         END
                     ELSE 'balanced'
                 END AS style
