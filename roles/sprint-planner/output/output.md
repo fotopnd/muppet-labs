@@ -1,3 +1,41 @@
+## Sprint Manifest — gridiron bug fixes — 2026-06-26
+
+**Feature set:** TFL description fix, H2H tiebreaker in conference standings, player_game_stats DL/LB extension
+**Total units:** 3 — serial: 01 → 02 → 03
+
+| ID | Slug | Brief | Status | Depends on |
+|---|---|---|---|---|
+| 01 | tfl-description-fix | roles/brief/archive/2026-06-26-tfl-description-fix-brief.md | complete | — |
+| 02 | h2h-tiebreaker | roles/brief/archive/2026-06-26-h2h-tiebreaker-brief.md | complete | — |
+| 03 | player-stats-extension | roles/brief/archive/2026-06-26-player-stats-extension-brief.md | complete | 01 |
+
+## Sprint Manifest — gridiron sim_runs infrastructure — 2026-06-26
+
+**Feature set:** sim_runs table, orchestrator sim_run awareness, API sim_run_id filtering + management endpoints
+**Total units:** 3 — serial: 01 → 02 → 03
+
+| ID | Slug | Brief | Status | Depends on |
+|---|---|---|---|---|
+| 01 | sim-runs-migration | roles/brief/archive/2026-06-26-sim-runs-migration-brief.md | pending | — |
+| 02 | sim-runs-engine | roles/brief/archive/2026-06-26-sim-runs-engine-brief.md | pending | 01 |
+| 03 | sim-runs-api | roles/brief/archive/2026-06-26-sim-runs-api-brief.md | pending | 01, 02 |
+
+| Unit | Files owned |
+|---|---|
+| 01 | `alembic/versions/e6f7a8b9c0d1_sim_runs.py` |
+| 02 | `gridiron/orchestrator.py` |
+| 03 | `gridiron/api/sim_run.py` (new), `gridiron/api/routers/sim_runs.py` (new), `gridiron/api/routers/conglomerates.py`, `programs.py`, `games.py`, `schedule.py`, `nafca.py`, `leaderboards.py`, `coaches.py`, `gridiron/api/main.py` |
+
+| Unit | Files owned |
+|---|---|
+| 01 | `gridiron/engine/play_resolver.py` (gitignored) |
+| 02 | `gridiron/api/routers/conglomerates.py` |
+| 03 | `alembic/versions/<new>.py`, `gridiron/engine/game.py` (gitignored), `gridiron/api/schemas.py` |
+
+Review/Retro: combined after all 3 units merge. No deploy.
+
+---
+
 ## Sprint Manifest — gridiron — 2026-06-25
 
 **Feature set:** Coach attributes, staff tab, engine influence on play calling and defensive formation, prestige display
