@@ -312,7 +312,7 @@ sequence (if any) to start.
 
 | Step | Role | Reads | Resources | Skills | Output |
 |------|------|-------|-----------|--------|--------|
-| 1 | `sprint-planner` | Feature list (human) + `_config/project-state.md` + project CONTEXT.md | `vibecoding-style.md` | — | `roles/sprint-planner/output/output.md` (manifest + ponytail report) + N briefs in `roles/brief/archive/` |
+| 1 | `sprint-planner` | Feature list (human) + `_config/project-state.md` + project CONTEXT.md | `vibecoding-style.md` | — | `roles/sprint-planner/output/output-<slug>-<date>.md` (manifest + ponytail report) + N briefs in `roles/brief/archive/` |
 | 2–N | `add-feature` ×N, each in isolated worktree | Brief file for the unit | `[lang]-conventions.md`, `vibecoding-style.md` | `sprint-agent-handoff.md` | Commit on branch `sprint/<project>/<id>-<slug>` |
 | merge | Human or coordinator | Manifest + completed branches | — | `sprint-agent-handoff.md` | Units merged to main in dependency order |
 
@@ -324,7 +324,7 @@ sequence (if any) to start.
 
 > **Merge in dependency order.** Sequential units (higher number) must not be started until their dependencies are merged to main. See `skills/sprint-agent-handoff.md` for the full merge procedure.
 
-> **Manifest is the coordination artifact.** Update status (`pending → in-progress → complete`) as agents complete. This is how you track sprint progress and unblock the next wave.
+> **Manifest is the coordination artifact.** Update status (`pending → in-progress → complete`) as agents complete. This is how you track sprint progress and unblock the next wave. Write one manifest file per sprint (`output-<slug>-<date>.md`) — never append multiple sprints to a rolling `output.md`. Reviewer and retro load the manifest by name; a rolling file forces them to load all prior sprint context unnecessarily.
 
 > **Gridiron localhost CORS check (run before any test session):** Confirm which port `pnpm dev` claimed in its startup output. Verify that port appears in `gridiron/api/main.py` `allow_origins`. If missing, add it and restart the API with `uv run uvicorn gridiron.api.main:app --host 127.0.0.1 --port 8006 --reload` from the gridiron project root. Common conflict: VS Code dev tools grab 5177/5178, pushing the dev server to 5179+.
 
