@@ -73,3 +73,11 @@ BUILDOUT.md
 # Private projects — managed in their own repos
 # ==========================================
 projects/gridiron/
+
+# ==========================================
+# Local tooling state and logs — never commit
+# ==========================================
+.obsidian/
+.mcp/
+*.log
+**/logs/
