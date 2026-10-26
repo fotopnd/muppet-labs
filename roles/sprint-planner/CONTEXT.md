@@ -44,7 +44,7 @@ roles/brief/archive/YYYY-MM-DD-<project>-<id>-<slug>-brief.md
 
 Example:
 ```
-roles/brief/archive/2026-06-22-gridiron-01a-drive-panel-resize-brief.md
+roles/brief/archive/2026-06-22-example-project-01a-feature-brief.md
 ```
 
 Each brief uses the standard brief output format:

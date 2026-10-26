@@ -116,8 +116,6 @@ its output feeds back into the workspace itself (`resources/`, `skills/`, `routi
 > **Architect source-reading rule:** Before writing interface specs, the architect must read each source file listed in the planner's Files Changed table. This is the only way to know variable scope, existing call patterns, and actual play/event types — planner descriptions of the code are lossy. Skipping this step produces phantom types (e.g. `RUSH_TD`) and incorrect variable-scope assumptions.
 > UI debug loop: if `ui-reviewer` returns REWORK NEEDED, `ui-debugger` applies fixes, then `ui-reviewer` runs a second pass before `reviewer` proceeds.
 > **Frontend-only shortcut:** If the brief explicitly rules out backend changes and scope is ≤ 3 files, skip planner/architect and go directly `brief → implementer → reviewer → retro`. Confirmed on Glossary tab (2026-06-14) — works cleanly with no architectural uncertainty.
-> **Gridiron localhost CORS check (run before any test session):** Confirm which port `pnpm dev` claimed in its startup output. Verify that port appears in `gridiron/api/main.py` `allow_origins`. If missing, add it and restart the API with `uv run uvicorn gridiron.api.main:app --host 127.0.0.1 --port 8006 --reload` from the gridiron project root. Common conflict: VS Code dev tools grab 5177/5178, pushing the dev server to 5179+.
-
 ---
 
 ## Sequence: `debug-fix`
@@ -325,8 +323,6 @@ sequence (if any) to start.
 > **Merge in dependency order.** Sequential units (higher number) must not be started until their dependencies are merged to main. See `skills/sprint-agent-handoff.md` for the full merge procedure.
 
 > **Manifest is the coordination artifact.** Update status (`pending → in-progress → complete`) as agents complete. This is how you track sprint progress and unblock the next wave. Write one manifest file per sprint (`output-<slug>-<date>.md`) — never append multiple sprints to a rolling `output.md`. Reviewer and retro load the manifest by name; a rolling file forces them to load all prior sprint context unnecessarily.
-
-> **Gridiron localhost CORS check (run before any test session):** Confirm which port `pnpm dev` claimed in its startup output. Verify that port appears in `gridiron/api/main.py` `allow_origins`. If missing, add it and restart the API with `uv run uvicorn gridiron.api.main:app --host 127.0.0.1 --port 8006 --reload` from the gridiron project root. Common conflict: VS Code dev tools grab 5177/5178, pushing the dev server to 5179+.
 
 > **Brief quality rules:** (1) Use actual DB field values, not shorthand — quote enum/role strings exactly as they appear in the DB or seeding SQL (e.g. `'Offensive Coordinator'` not `'OC'`). Shorthand that diverges from the DB causes runtime bugs that pass TypeScript checks. (2) For units extending a prior unit's output, include a short "Prior unit added" section summarising what changed in shared files — prevents the agent cold-reading files it already has context on. (3) Engine briefs (gitignored files) must include a File map: function name, file path, approximate line number for every location the agent must edit. See `skills/sprint-agent-handoff.md`.
 

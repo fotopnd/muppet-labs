@@ -32,9 +32,9 @@ Use the `Agent` tool with `isolation: "worktree"` for each unit. Worktree isolat
 ```
 You are implementing one unit of a sprint plan for [project name].
 
-Brief: [full path to brief file, e.g. roles/brief/archive/2026-06-22-gridiron-01a-drive-panel-arrows-brief.md]
-Project root: [path, e.g. /Users/fotopnd/Documents/muppet-labs/projects/gridiron]
-Branch: [branch name from manifest, e.g. sprint/gridiron/01a-drive-panel-arrows]
+Brief: [full path to brief file, e.g. roles/brief/archive/2026-06-22-example-project-01a-feature-brief.md]
+Project root: [path, e.g. /path/to/muppet-labs/projects/example-project]
+Branch: [branch name from manifest, e.g. sprint/example-project/01a-feature]
 
 Instructions:
 1. Read the brief file.
