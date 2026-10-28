@@ -4,7 +4,7 @@ Migrates Hetzner backend deploys from rsync to `git pull` from the public GitHub
 Subsequent deploys become a single SSH command. Optional Phase 3 wires GitHub Actions
 for push-to-deploy with no manual step.
 
-**Server:** `root@167.233.32.222`  
+**Server:** `<deploy-user>@<server-host>`  
 **Code root on server:** `/srv/` (mirrors monorepo root)  
 **Shared venv:** `/srv/.venv`  
 **Services:** `red-team-platform` · `llm-safety-monitor` · `error-hide-seek`
@@ -29,7 +29,7 @@ No auth required for `git pull` on a public repo.
 
 SSH in:
 ```bash
-ssh -i /Users/fotopnd/Documents/vault/ssh-key-2026-06-17.key root@167.233.32.222
+ssh -i ~/.ssh/<deploy-key> <deploy-user>@<server-host>
 ```
 
 ### 2a — Verify .env files are in place
@@ -45,9 +45,9 @@ ls /srv/projects/error-hide-seek/.env
 All three should exist. If any is missing, copy it from local before continuing:
 ```bash
 # Run locally (not on server):
-scp -i /Users/fotopnd/Documents/vault/ssh-key-2026-06-17.key \
+scp -i ~/.ssh/<deploy-key> \
   projects/red-team-platform/.env \
-  root@167.233.32.222:/srv/projects/red-team-platform/.env
+  <deploy-user>@<server-host>:/srv/projects/red-team-platform/.env
 ```
 
 ### 2b — Initialise git at /srv
@@ -119,7 +119,7 @@ curl -s http://localhost:8004/health | head -c 200
 From here, every backend deploy is:
 
 ```bash
-ssh -i /Users/fotopnd/Documents/vault/ssh-key-2026-06-17.key root@167.233.32.222 \
+ssh -i ~/.ssh/<deploy-key> <deploy-user>@<server-host> \
   "cd /srv && git fetch origin main && git reset --hard origin/main && /root/.local/bin/uv sync --all-packages && systemctl restart red-team-platform llm-safety-monitor error-hide-seek"
 ```
 
@@ -130,8 +130,8 @@ ssh -i /Users/fotopnd/Documents/vault/ssh-key-2026-06-17.key root@167.233.32.222
 Or add a Makefile target at the monorepo root:
 
 ```makefile
-HETZNER_KEY := /Users/fotopnd/Documents/vault/ssh-key-2026-06-17.key
-HETZNER_HOST := root@167.233.32.222
+HETZNER_KEY := ~/.ssh/<deploy-key>
+HETZNER_HOST := <deploy-user>@<server-host>
 
 deploy-backends:
 	ssh -i $(HETZNER_KEY) $(HETZNER_HOST) \
@@ -154,7 +154,7 @@ becomes noticeable.
 
 1. Go to `https://github.com/fotopnd/muppet-labs/settings/secrets/actions`
 2. New repository secret → name: `HETZNER_SSH_KEY`
-3. Value: paste the contents of `/Users/fotopnd/Documents/vault/ssh-key-2026-06-17.key`
+3. Value: paste the contents of `~/.ssh/<deploy-key>`
 
 ### 3b — Create the workflow
 
@@ -181,8 +181,8 @@ jobs:
       - name: Deploy to Hetzner
         uses: appleboy/ssh-action@v1
         with:
-          host: 167.233.32.222
-          username: root
+          host: ${{ secrets.DEPLOY_HOST }}
+          username: ${{ secrets.DEPLOY_USER }}
           key: ${{ secrets.HETZNER_SSH_KEY }}
           script: |
             cd /srv
